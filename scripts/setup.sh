@@ -137,6 +137,25 @@ if [ "$SETUP_MODE" = "2" ]; then
     echo "  Copying labels.txt..."
     cp "$REPO_ROOT/labels.txt" "$AGENT_DIR/"
     echo -e "  ${GREEN}✓${NC} labels.txt copied"
+
+    # Write upstream tracking file for /update support
+    echo "  Writing version tracking..."
+    CURRENT_SHA=$(git -C "$REPO_ROOT" rev-parse HEAD 2>/dev/null || echo "unknown")
+    {
+        echo "# Upstream tracking for standalone agent-dispatch installation"
+        echo "# Do not edit manually — managed by /update skill and setup.sh"
+        echo "repo: https://github.com/jnurre64/claude-agent-dispatch.git"
+        echo "version: $CURRENT_SHA"
+        echo "synced_at: \"$(date -u '+%Y-%m-%dT%H:%M:%SZ')\""
+        echo "checksums:"
+        for tracked_file in scripts/agent-dispatch.sh scripts/lib/common.sh scripts/lib/worktree.sh scripts/lib/data-fetch.sh scripts/lib/defaults.sh scripts/cleanup.sh scripts/check-prereqs.sh scripts/create-labels.sh prompts/triage.md prompts/implement.md prompts/reply.md prompts/review.md labels.txt; do
+            if [ -f "$AGENT_DIR/$tracked_file" ]; then
+                file_checksum=$(sha256sum "$AGENT_DIR/$tracked_file" | cut -d' ' -f1)
+                echo "  ${tracked_file}: \"sha256:${file_checksum}\""
+            fi
+        done
+    } > "$AGENT_DIR/.upstream"
+    echo -e "  ${GREEN}✓${NC} Version tracking written (.upstream)"
 fi
 
 echo ""
