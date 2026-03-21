@@ -192,6 +192,12 @@ handle_post_implementation() {
     if [ "$commit_count" -gt 0 ]; then
         # ── Pre-PR test gate ──────────────────────────────────────
         if [ -n "$AGENT_TEST_COMMAND" ]; then
+            # Run optional setup command first (e.g., npm install, godot --headless --import)
+            if [ -n "${AGENT_TEST_SETUP_COMMAND:-}" ]; then
+                log "Running test setup: $AGENT_TEST_SETUP_COMMAND"
+                (cd "$WORKTREE_DIR" && eval "$AGENT_TEST_SETUP_COMMAND") 2>&1 || log "WARN: Test setup command exited with non-zero (continuing)"
+            fi
+
             log "Running pre-PR test gate ($commit_count commits)..."
             local test_output test_exit
             set +e

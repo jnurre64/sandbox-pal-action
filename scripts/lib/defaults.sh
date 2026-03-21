@@ -18,6 +18,9 @@ AGENT_CIRCUIT_BREAKER_LIMIT="${AGENT_CIRCUIT_BREAKER_LIMIT:-8}"
 # Shared Claude memory file (optional)
 AGENT_MEMORY_FILE="${AGENT_MEMORY_FILE:-}"
 
+# Pre-test setup command (optional — runs before test command, e.g., npm install, godot --headless --import)
+AGENT_TEST_SETUP_COMMAND="${AGENT_TEST_SETUP_COMMAND:-}"
+
 # Pre-PR test command (optional — if unset, test gate is skipped)
 AGENT_TEST_COMMAND="${AGENT_TEST_COMMAND:-}"
 
