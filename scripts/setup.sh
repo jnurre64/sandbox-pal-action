@@ -179,23 +179,47 @@ for template in "$TEMPLATES_DIR"/*.yml; do
     fi
 done
 
+WORKFLOW_PREFIX="agent"
+
 if [ ${#CONFLICTS[@]} -gt 0 ]; then
-    echo -e "  ${YELLOW}!${NC} These workflow files already exist and will be overwritten:"
+    echo -e "  ${YELLOW}!${NC} These workflow files already exist:"
     for f in "${CONFLICTS[@]}"; do
         echo "      - $f"
     done
-    read -rp "  Continue and overwrite? [y/N]: " OVERWRITE
-    OVERWRITE="${OVERWRITE:-N}"
-    if [[ ! "$OVERWRITE" =~ ^[Yy] ]]; then
-        echo -e "  ${YELLOW}!${NC} Skipped workflow generation. Create them manually from the templates."
-        WORKFLOWS_DIR=""
-    fi
+    echo ""
+    echo "  Options:"
+    echo "    [1] Overwrite existing files"
+    echo "    [2] Use a different prefix (e.g., 'claude-agent' instead of 'agent')"
+    echo "    [3] Skip workflow generation"
+    echo ""
+    read -rp "  Choose [1/2/3]: " CONFLICT_CHOICE
+    CONFLICT_CHOICE="${CONFLICT_CHOICE:-3}"
+
+    case "$CONFLICT_CHOICE" in
+        1) ;; # proceed with default prefix
+        2)
+            read -rp "  Enter prefix (e.g., 'claude-agent'): " WORKFLOW_PREFIX
+            if [ -z "$WORKFLOW_PREFIX" ]; then
+                WORKFLOW_PREFIX="agent"
+                echo -e "  ${YELLOW}!${NC} Empty prefix, using default: agent"
+            fi
+            ;;
+        *)
+            echo -e "  ${YELLOW}!${NC} Skipped workflow generation."
+            WORKFLOWS_DIR=""
+            ;;
+    esac
 fi
 
 if [ -n "$WORKFLOWS_DIR" ]; then
     for template in "$TEMPLATES_DIR"/*.yml; do
         filename=$(basename "$template")
-        output_name="${filename/caller-/agent-}"
+        # Replace the template prefix with the chosen prefix
+        # caller-triage.yml → <prefix>-triage.yml  (reference mode)
+        # agent-triage.yml → <prefix>-triage.yml   (standalone mode)
+        base_name="${filename#caller-}"
+        base_name="${base_name#agent-}"
+        output_name="${WORKFLOW_PREFIX}-${base_name}"
         sed "s/{{BOT_USER}}/$BOT_USER/g" "$template" > "$WORKFLOWS_DIR/$output_name"
         echo -e "  ${GREEN}✓${NC} $output_name"
     done
