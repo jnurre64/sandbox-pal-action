@@ -13,7 +13,8 @@ jobs:
     if: >-
       github.event.comment.user.login != '{{BOT_USER}}' &&
       !github.event.issue.pull_request &&
-      contains(toJSON(github.event.issue.labels.*.name), 'agent:needs-info')
+      (contains(toJSON(github.event.issue.labels.*.name), 'agent:needs-info') ||
+       contains(toJSON(github.event.issue.labels.*.name), 'agent:plan-review'))
     runs-on: [self-hosted, agent]
     timeout-minutes: 125
     permissions:

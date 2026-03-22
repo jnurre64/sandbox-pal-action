@@ -155,17 +155,27 @@ ${plan_content}
 # EVENT: Human replied to agent question → Check and resume
 # ═══════════════════════════════════════════════════════════════
 handle_issue_reply() {
-    log "Human replied. Checking if questions are answered..."
+    log "Human replied. Checking context..."
     detect_label_tools  # Check for label-based tool extensions
     check_circuit_breaker
     ensure_repo
 
-    # Verify the issue still has agent:needs-info label
+    # Determine which state we're in
     local labels
     labels=$(gh issue view "$NUMBER" --repo "$REPO" --json labels --jq '.labels[].name' 2>/dev/null)
-    if ! echo "$labels" | grep -q "agent:needs-info"; then
-        log "Issue does not have agent:needs-info label. Skipping."
+    local in_plan_review=false
+    if echo "$labels" | grep -q "agent:plan-review"; then
+        in_plan_review=true
+        log "Human commented during plan review. Re-triaging with feedback..."
+    elif ! echo "$labels" | grep -q "agent:needs-info"; then
+        log "Issue does not have agent:needs-info or agent:plan-review label. Skipping."
         exit 0
+    fi
+
+    # If in plan-review, re-triage to incorporate feedback into an updated plan
+    if [ "$in_plan_review" = true ]; then
+        handle_new_issue
+        return
     fi
 
     setup_worktree
