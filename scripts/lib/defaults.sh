@@ -56,5 +56,15 @@ AGENT_PROMPT_REVIEW="${AGENT_PROMPT_REVIEW:-}"
 #   AGENT_LABEL_TOOLS_agent_image_gen="Bash(curl *localhost:8188*),Bash(python3:*)"
 # These tools are appended to the implementation toolset when the label is detected.
 
+# ─── Notifications (optional — disabled by default) ─────────────────
+# Discord webhook URL for dispatch milestone notifications
+AGENT_NOTIFY_DISCORD_WEBHOOK="${AGENT_NOTIFY_DISCORD_WEBHOOK:-}"
+
+# Optional: post notifications to a specific Discord thread
+AGENT_NOTIFY_DISCORD_THREAD_ID="${AGENT_NOTIFY_DISCORD_THREAD_ID:-}"
+
+# Notification level: "all", "actionable" (default), "failures"
+AGENT_NOTIFY_LEVEL="${AGENT_NOTIFY_LEVEL:-actionable}"
+
 # ─── Paths ───────────────────────────────────────────────────────
 AGENT_LOG_DIR="${AGENT_LOG_DIR:-$HOME/.claude/agent-logs}"

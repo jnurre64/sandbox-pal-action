@@ -297,3 +297,39 @@ _source_notify() {
     calls=$(get_mock_calls "curl")
     [ -z "$calls" ]
 }
+
+# ===================================================================
+# Configuration defaults
+# ===================================================================
+
+@test "defaults: AGENT_NOTIFY_LEVEL defaults to 'actionable'" {
+    export AGENT_BOT_USER="test-bot"
+    unset AGENT_NOTIFY_LEVEL
+
+    source "${LIB_DIR}/defaults.sh"
+
+    assert_equal "$AGENT_NOTIFY_LEVEL" "actionable"
+}
+
+@test "defaults: AGENT_NOTIFY_DISCORD_WEBHOOK defaults to empty" {
+    export AGENT_BOT_USER="test-bot"
+    unset AGENT_NOTIFY_DISCORD_WEBHOOK
+
+    source "${LIB_DIR}/defaults.sh"
+
+    assert_equal "$AGENT_NOTIFY_DISCORD_WEBHOOK" ""
+}
+
+@test "defaults: config.env overrides notification defaults" {
+    cat > "${MOCK_CONFIG_DIR}/config.env" << 'EOF'
+AGENT_BOT_USER="custom-bot"
+AGENT_NOTIFY_DISCORD_WEBHOOK="https://discord.com/api/webhooks/123/abc"
+AGENT_NOTIFY_LEVEL="all"
+EOF
+
+    source "${MOCK_CONFIG_DIR}/config.env"
+    source "${LIB_DIR}/defaults.sh"
+
+    assert_equal "$AGENT_NOTIFY_DISCORD_WEBHOOK" "https://discord.com/api/webhooks/123/abc"
+    assert_equal "$AGENT_NOTIFY_LEVEL" "all"
+}
