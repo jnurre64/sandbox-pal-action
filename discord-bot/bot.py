@@ -3,6 +3,7 @@
 import logging
 import os
 import re
+import subprocess
 
 import discord
 from aiohttp import web
@@ -115,6 +116,114 @@ def build_buttons(event_type: str, issue_number: int, url: str) -> discord.ui.Vi
         ))
 
     return view
+
+
+def gh_command(args: list[str]) -> str:
+    """Execute a gh CLI command and return stdout."""
+    try:
+        result = subprocess.run(
+            ["gh"] + args, capture_output=True, text=True, timeout=30
+        )
+        if result.returncode != 0:
+            log.warning("gh %s failed: %s", " ".join(args[:3]), result.stderr.strip())
+            return result.stderr.strip()
+        return result.stdout.strip()
+    except subprocess.TimeoutExpired:
+        log.error("gh command timed out: %s", " ".join(args[:3]))
+        return "Error: command timed out"
+
+
+_ALL_AGENT_LABELS = [
+    "agent:failed", "agent:triage", "agent:needs-info", "agent:ready",
+    "agent:in-progress", "agent:pr-open", "agent:plan-review", "agent:plan-approved",
+    "agent:revision",
+]
+
+
+class FeedbackModal(discord.ui.Modal):
+    """Modal dialog for collecting free-text feedback on an issue."""
+
+    feedback = discord.ui.TextInput(
+        label="Feedback",
+        style=discord.TextStyle.paragraph,
+        min_length=10,
+        max_length=2000,
+        placeholder="Describe the changes you'd like...",
+    )
+
+    def __init__(self, action: str, issue_number: int, repo: str):
+        title = f"Request Changes on #{issue_number}" if action == "changes" else f"Comment on #{issue_number}"
+        super().__init__(title=title[:45])
+        self.action = action
+        self.issue_number = issue_number
+        self.repo = repo
+
+    async def on_submit(self, interaction: discord.Interaction) -> None:
+        await interaction.response.defer(ephemeral=True)
+        text = sanitize_input(self.feedback.value)
+        gh_command(["issue", "comment", str(self.issue_number), "--repo", self.repo, "--body", text])
+
+        if interaction.message and interaction.message.embeds:
+            action_label = "Changes requested" if self.action == "changes" else "Comment"
+            embed = interaction.message.embeds[0]
+            embed.add_field(
+                name="Action", value=f"{action_label} by {interaction.user.display_name}", inline=False
+            )
+            await interaction.message.edit(embed=embed)
+
+        await interaction.followup.send("Feedback posted to GitHub.", ephemeral=True)
+        log.info("MODAL: %s on #%d by %s (id=%s)", self.action, self.issue_number, interaction.user, interaction.user.id)
+
+
+async def handle_button_interaction(interaction: discord.Interaction) -> None:
+    """Handle a button click on a notification message."""
+    custom_id = interaction.data.get("custom_id", "")
+    action, issue_number = parse_custom_id(custom_id)
+    if action is None or issue_number is None:
+        return
+
+    user_id = str(interaction.user.id)
+    role_ids = [str(r.id) for r in getattr(interaction.user, "roles", [])]
+
+    if not is_authorized_check(user_id, role_ids, ALLOWED_USERS, ALLOWED_ROLE):
+        await interaction.response.send_message(
+            "You don't have permission to perform this action.", ephemeral=True
+        )
+        return
+
+    if action in ("changes", "comment"):
+        modal = FeedbackModal(action=action, issue_number=issue_number, repo=REPO)
+        await interaction.response.send_modal(modal)
+        return
+
+    await interaction.response.defer(ephemeral=True)
+
+    if action == "approve":
+        gh_command([
+            "issue", "edit", str(issue_number), "--repo", REPO,
+            "--remove-label", "agent:plan-review", "--add-label", "agent:plan-approved",
+        ])
+        status_text = f"Approved by {interaction.user.display_name}"
+    elif action == "retry":
+        gh_command([
+            "issue", "edit", str(issue_number), "--repo", REPO,
+            "--remove-label", ",".join(_ALL_AGENT_LABELS), "--add-label", "agent",
+        ])
+        status_text = f"Retried by {interaction.user.display_name}"
+    else:
+        await interaction.followup.send("Unknown action.", ephemeral=True)
+        return
+
+    embed = interaction.message.embeds[0] if interaction.message.embeds else discord.Embed()
+    embed.add_field(name="Action", value=status_text, inline=False)
+    view = discord.ui.View(timeout=None)
+    for row in interaction.message.components:
+        for item in row.children:
+            if hasattr(item, "url") and item.url:
+                view.add_item(discord.ui.Button(label=item.label, url=item.url, style=discord.ButtonStyle.link))
+    await interaction.message.edit(embed=embed, view=view)
+    await interaction.followup.send(f"Done: {status_text}", ephemeral=True)
+    log.info("ACTION: %s on #%d by %s (id=%s)", action, issue_number, interaction.user, interaction.user.id)
 
 
 def create_notify_handler(channel):
