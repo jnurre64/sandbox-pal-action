@@ -379,9 +379,21 @@ handle_pr_review() {
     # shellcheck disable=SC2034
     BRANCH_NAME="$branch"
     WORKTREE_DIR="$WORKTREE_BASE/${REPO_NAME}-pr-${pr_number}"
+
+    # Remove any existing worktree using this branch (e.g., leftover from implement phase)
+    local existing_wt
+    existing_wt=$(git -C "$REPO_DIR" worktree list --porcelain 2>/dev/null | grep -B2 "branch refs/heads/$branch" | grep "^worktree " | sed 's/^worktree //' || true)
+    if [ -n "$existing_wt" ] && [ -d "$existing_wt" ]; then
+        log "Removing existing worktree for branch $branch at $existing_wt"
+        git -C "$REPO_DIR" worktree remove "$existing_wt" --force 2>/dev/null || true
+    fi
+
+    # Also remove our target path if it exists
     if [ -d "$WORKTREE_DIR" ]; then
         git -C "$REPO_DIR" worktree remove "$WORKTREE_DIR" --force 2>/dev/null || true
     fi
+
+    git -C "$REPO_DIR" worktree prune 2>/dev/null || true
     git -C "$REPO_DIR" fetch origin "$branch" 2>/dev/null || true
     git -C "$REPO_DIR" worktree add "$WORKTREE_DIR" -B "$branch" "origin/$branch"
 
