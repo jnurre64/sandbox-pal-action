@@ -4,6 +4,8 @@ import logging
 import os
 import re
 
+import discord
+
 log = logging.getLogger("dispatch-bot")
 
 # --- Configuration (from environment) ---
@@ -43,3 +45,72 @@ def is_authorized_check(
     if allowed_role and allowed_role in role_ids:
         return True
     return False
+
+
+# --- Event metadata ---
+EVENT_COLORS = {
+    "pr_created": 0x57F287, "tests_passed": 0x57F287,
+    "tests_failed": 0xED4245, "agent_failed": 0xED4245,
+    "plan_posted": 0x3498DB, "questions_asked": 0x3498DB,
+    "review_feedback": 0xFFFF00,
+}
+
+EVENT_LABELS = {
+    "plan_posted": "Plan Ready", "questions_asked": "Questions",
+    "implement_started": "Implementation Started",
+    "tests_passed": "Tests Passed", "tests_failed": "Tests Failed",
+    "pr_created": "PR Created", "review_feedback": "Review Feedback",
+    "agent_failed": "Agent Failed",
+}
+
+EVENT_INDICATORS = {
+    "pr_created": "[OK]", "tests_passed": "[OK]",
+    "tests_failed": "[FAIL]", "agent_failed": "[FAIL]",
+    "plan_posted": "[INFO]", "questions_asked": "[INFO]",
+    "review_feedback": "[ACTION]", "implement_started": "[INFO]",
+}
+
+# Events that get action buttons (not just a View link)
+_PLAN_EVENTS = {"plan_posted"}
+_RETRY_EVENTS = {"agent_failed"}
+
+
+def build_embed(
+    event_type: str, title: str, url: str, description: str, issue_number: int, repo: str
+) -> discord.Embed:
+    """Build a Discord embed for a dispatch notification."""
+    indicator = EVENT_INDICATORS.get(event_type, "[INFO]")
+    label = EVENT_LABELS.get(event_type, "Agent Update")
+    color = EVENT_COLORS.get(event_type, 0x95A5A6)
+
+    embed = discord.Embed(
+        title=f"{indicator} {label} -- #{issue_number}: {title}",
+        url=url,
+        description=description[:4000],
+        color=color,
+    )
+    embed.set_footer(text=f"Automated by claude-agent-dispatch | {repo} #{issue_number}")
+    return embed
+
+
+def build_buttons(event_type: str, issue_number: int, url: str) -> discord.ui.View:
+    """Build interactive buttons for a notification message."""
+    view = discord.ui.View(timeout=None)
+    view.add_item(discord.ui.Button(label="View", url=url, style=discord.ButtonStyle.link))
+
+    if event_type in _PLAN_EVENTS:
+        view.add_item(discord.ui.Button(
+            label="Approve", custom_id=f"approve:{issue_number}", style=discord.ButtonStyle.success
+        ))
+        view.add_item(discord.ui.Button(
+            label="Request Changes", custom_id=f"changes:{issue_number}", style=discord.ButtonStyle.danger
+        ))
+        view.add_item(discord.ui.Button(
+            label="Comment", custom_id=f"comment:{issue_number}", style=discord.ButtonStyle.secondary
+        ))
+    elif event_type in _RETRY_EVENTS:
+        view.add_item(discord.ui.Button(
+            label="Retry", custom_id=f"retry:{issue_number}", style=discord.ButtonStyle.primary
+        ))
+
+    return view
