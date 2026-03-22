@@ -3,3 +3,6 @@ config.env
 
 # Generated workflows (from setup.sh)
 generated-workflows/
+
+# Git worktrees for isolated development
+.worktrees/
