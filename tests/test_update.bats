@@ -105,6 +105,16 @@ _create_mock_install() {
 }
 
 # ═══════════════════════════════════════════════════════════════
+# REGRESSION: Files with no stored checksum treated as modified
+# ═══════════════════════════════════════════════════════════════
+
+@test "REGRESSION: files with no stored checksum are treated as locally modified" {
+    # Verify the update script treats missing checksums conservatively
+    # (assumes locally modified rather than assuming unmodified)
+    grep -A2 'No stored checksum' "${SCRIPTS_DIR}/update.sh" | grep -q 'local_modified=true'
+}
+
+# ═══════════════════════════════════════════════════════════════
 # .upstream file format tests
 # ═══════════════════════════════════════════════════════════════
 

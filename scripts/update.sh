@@ -102,11 +102,14 @@ for file in "${TRACKED_FILES[@]}"; do
     local_modified=false
     upstream_changed=false
 
-    if [ -n "$stored_checksum" ] && [ "$local_checksum" != "$stored_checksum" ]; then
+    if [ -z "$stored_checksum" ]; then
+        # No stored checksum — assume locally modified (conservative)
+        local_modified=true
+    elif [ "$local_checksum" != "$stored_checksum" ]; then
         local_modified=true
     fi
 
-    if [ "$upstream_checksum" != "$stored_checksum" ]; then
+    if [ -z "$stored_checksum" ] || [ "$upstream_checksum" != "$stored_checksum" ]; then
         upstream_changed=true
     fi
 
