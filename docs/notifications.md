@@ -55,4 +55,44 @@ Optional Discord notifications for agent dispatch milestones. When configured, t
 
 ## Phase 2: Interactive Bot
 
-A future phase will add a Discord bot with interactive buttons (Approve, Request Changes, Comment) and slash commands, enabling two-way interaction from Discord. See the design spec for details.
+The Discord bot adds interactive buttons and slash commands on top of webhook notifications. Instead of just receiving notifications, you can approve plans, request changes, post feedback, and retry failed agents directly from Discord.
+
+### Setup
+
+1. Create a Discord bot application and invite it to your server -- see `discord-bot/README.md` for detailed steps
+2. Add the bot configuration to your `config.env`:
+
+   ```bash
+   AGENT_DISCORD_BOT_TOKEN="your-bot-token"
+   AGENT_DISCORD_CHANNEL_ID="123456789"
+   AGENT_DISCORD_GUILD_ID="987654321"
+   AGENT_DISCORD_ALLOWED_USERS="your-discord-user-id"
+   AGENT_NOTIFY_BACKEND="bot"
+   ```
+
+3. Install and start the bot:
+
+   ```bash
+   cd discord-bot && ./install.sh
+   systemctl --user start agent-dispatch-bot
+   ```
+
+### How It Works
+
+When `AGENT_NOTIFY_BACKEND="bot"`, the dispatch `notify()` function POSTs to the bot's local HTTP API instead of the Discord webhook directly. The bot formats the notification with interactive buttons and sends it to your configured channel.
+
+Button clicks and slash commands translate to `gh` CLI calls -- adding labels, posting comments, and triggering workflows. The full conversation loop works:
+
+1. Agent posts plan -> Discord notification with Approve/Request Changes buttons
+2. You click Request Changes -> modal appears -> you type feedback
+3. Feedback posted as GitHub comment -> triggers dispatch-reply -> agent re-triages
+4. Updated plan notification -> you click Approve
+5. Label added -> dispatch-implement triggers -> agent implements -> PR notification
+
+### Fallback
+
+If the bot is unreachable (crashed, restarting), notifications automatically fall back to the Phase 1 webhook. Agent work is never blocked by notification delivery.
+
+### Security
+
+Only users listed in `AGENT_DISCORD_ALLOWED_USERS` or with the role in `AGENT_DISCORD_ALLOWED_ROLE` can click action buttons and use slash commands. View/link buttons work for anyone. Unauthorized clicks get a private rejection message.

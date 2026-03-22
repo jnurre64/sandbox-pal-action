@@ -1,0 +1,16 @@
+[Unit]
+Description=Agent Dispatch Discord Bot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=WORKING_DIR
+EnvironmentFile=CONFIG_PATH
+ExecStart=WORKING_DIR/.venv/bin/python bot.py
+Restart=on-failure
+RestartSec=10
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target
