@@ -5,6 +5,7 @@ import os
 import re
 
 import discord
+from aiohttp import web
 
 log = logging.getLogger("dispatch-bot")
 
@@ -114,3 +115,25 @@ def build_buttons(event_type: str, issue_number: int, url: str) -> discord.ui.Vi
         ))
 
     return view
+
+
+def create_notify_handler(channel):
+    """Create an aiohttp handler that sends notifications to the given Discord channel."""
+    async def handle_notify(request: web.Request) -> web.Response:
+        if channel is None:
+            return web.Response(status=503, text="Channel not found")
+
+        data = await request.json()
+        event_type = data["event_type"]
+        title = data["title"]
+        url = data["url"]
+        description = data.get("description", "")
+        issue_number = data.get("issue_number", 0)
+        repo = data.get("repo", "")
+
+        embed = build_embed(event_type, title, url, description, issue_number, repo)
+        view = build_buttons(event_type, issue_number, url)
+        await channel.send(embed=embed, view=view)
+        return web.Response(text="OK")
+
+    return handle_notify
