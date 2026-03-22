@@ -6,6 +6,8 @@ import re
 import subprocess
 
 import discord
+from discord import app_commands
+from discord.ext import commands
 from aiohttp import web
 
 log = logging.getLogger("dispatch-bot")
@@ -226,6 +228,76 @@ async def handle_button_interaction(interaction: discord.Interaction) -> None:
     log.info("ACTION: %s on #%d by %s (id=%s)", action, issue_number, interaction.user, interaction.user.id)
 
 
+def register_slash_commands(tree: app_commands.CommandTree) -> None:
+    """Register all slash commands on the command tree."""
+
+    @tree.command(name="approve", description="Approve an agent's plan")
+    @app_commands.describe(issue="Issue number")
+    async def cmd_approve(interaction: discord.Interaction, issue: int):
+        if not _check_slash_auth(interaction):
+            return await interaction.response.send_message("Permission denied.", ephemeral=True)
+        await interaction.response.defer(ephemeral=True)
+        gh_command([
+            "issue", "edit", str(issue), "--repo", REPO,
+            "--remove-label", "agent:plan-review", "--add-label", "agent:plan-approved",
+        ])
+        await interaction.followup.send(f"Plan for #{issue} approved.", ephemeral=True)
+        log.info("SLASH: /approve #%d by %s", issue, interaction.user)
+
+    @tree.command(name="reject", description="Reject a plan with reason")
+    @app_commands.describe(issue="Issue number", reason="Reason for rejection")
+    async def cmd_reject(interaction: discord.Interaction, issue: int, reason: str = ""):
+        if not _check_slash_auth(interaction):
+            return await interaction.response.send_message("Permission denied.", ephemeral=True)
+        await interaction.response.defer(ephemeral=True)
+        body = sanitize_input(reason) if reason else "Plan rejected via Discord."
+        gh_command(["issue", "comment", str(issue), "--repo", REPO, "--body", body])
+        gh_command(["issue", "edit", str(issue), "--repo", REPO, "--add-label", "agent:failed"])
+        await interaction.followup.send(f"Plan for #{issue} rejected.", ephemeral=True)
+        log.info("SLASH: /reject #%d by %s", issue, interaction.user)
+
+    @tree.command(name="comment", description="Post feedback on an issue")
+    @app_commands.describe(issue="Issue number", text="Your comment")
+    async def cmd_comment(interaction: discord.Interaction, issue: int, text: str):
+        if not _check_slash_auth(interaction):
+            return await interaction.response.send_message("Permission denied.", ephemeral=True)
+        await interaction.response.defer(ephemeral=True)
+        gh_command(["issue", "comment", str(issue), "--repo", REPO, "--body", sanitize_input(text)])
+        await interaction.followup.send(f"Comment posted on #{issue}.", ephemeral=True)
+        log.info("SLASH: /comment #%d by %s", issue, interaction.user)
+
+    @tree.command(name="status", description="Check agent status for an issue")
+    @app_commands.describe(issue="Issue number")
+    async def cmd_status(interaction: discord.Interaction, issue: int):
+        if not _check_slash_auth(interaction):
+            return await interaction.response.send_message("Permission denied.", ephemeral=True)
+        await interaction.response.defer(ephemeral=True)
+        labels = gh_command(["issue", "view", str(issue), "--repo", REPO, "--json", "labels", "--jq", ".labels[].name"])
+        agent_labels = [l for l in labels.split("\n") if l.startswith("agent")]
+        status = ", ".join(agent_labels) if agent_labels else "No agent labels"
+        await interaction.followup.send(f"#{issue} status: {status}", ephemeral=True)
+
+    @tree.command(name="retry", description="Re-trigger agent on an issue")
+    @app_commands.describe(issue="Issue number")
+    async def cmd_retry(interaction: discord.Interaction, issue: int):
+        if not _check_slash_auth(interaction):
+            return await interaction.response.send_message("Permission denied.", ephemeral=True)
+        await interaction.response.defer(ephemeral=True)
+        gh_command([
+            "issue", "edit", str(issue), "--repo", REPO,
+            "--remove-label", ",".join(_ALL_AGENT_LABELS), "--add-label", "agent",
+        ])
+        await interaction.followup.send(f"Agent re-triggered on #{issue}.", ephemeral=True)
+        log.info("SLASH: /retry #%d by %s", issue, interaction.user)
+
+
+def _check_slash_auth(interaction: discord.Interaction) -> bool:
+    """Authorization check for slash commands."""
+    user_id = str(interaction.user.id)
+    role_ids = [str(r.id) for r in getattr(interaction.user, "roles", [])]
+    return is_authorized_check(user_id, role_ids, ALLOWED_USERS, ALLOWED_ROLE)
+
+
 def create_notify_handler(channel):
     """Create an aiohttp handler that sends notifications to the given Discord channel."""
     async def handle_notify(request: web.Request) -> web.Response:
@@ -246,3 +318,60 @@ def create_notify_handler(channel):
         return web.Response(text="OK")
 
     return handle_notify
+
+
+async def start_http_server(channel) -> None:
+    """Start the local HTTP server for receiving dispatch notifications."""
+    app = web.Application()
+    handler = create_notify_handler(channel)
+    app.router.add_post("/notify", handler)
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, "127.0.0.1", BOT_PORT)
+    await site.start()
+    log.info("HTTP listener on 127.0.0.1:%d", BOT_PORT)
+
+
+def main() -> None:
+    """Bot entrypoint."""
+    if not BOT_TOKEN:
+        print("Error: AGENT_DISCORD_BOT_TOKEN is not set")
+        raise SystemExit(1)
+    if not CHANNEL_ID:
+        print("Error: AGENT_DISCORD_CHANNEL_ID is not set")
+        raise SystemExit(1)
+    if not GUILD_ID:
+        print("Error: AGENT_DISCORD_GUILD_ID is not set")
+        raise SystemExit(1)
+    if not REPO:
+        print("Error: AGENT_DISPATCH_REPO is not set (e.g., 'owner/repo')")
+        raise SystemExit(1)
+
+    intents = discord.Intents.default()
+    bot = commands.Bot(command_prefix="!", intents=intents)
+    register_slash_commands(bot.tree)
+
+    @bot.event
+    async def on_ready():
+        guild = discord.Object(id=GUILD_ID)
+        bot.tree.copy_global_to(guild=guild)
+        await bot.tree.sync(guild=guild)
+        log.info("Bot ready: %s (guild %d)", bot.user, GUILD_ID)
+
+        channel = bot.get_channel(CHANNEL_ID)
+        if not channel:
+            log.error("Channel %d not found — bot may not have access", CHANNEL_ID)
+        await start_http_server(channel)
+
+    @bot.event
+    async def on_interaction(interaction: discord.Interaction):
+        # commands.Bot handles slash commands automatically via its tree.
+        # We only need to handle button clicks here.
+        if interaction.type == discord.InteractionType.component:
+            await handle_button_interaction(interaction)
+
+    bot.run(BOT_TOKEN, log_handler=logging.StreamHandler(), log_level=logging.INFO)
+
+
+if __name__ == "__main__":
+    main()
