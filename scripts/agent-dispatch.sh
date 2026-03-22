@@ -117,6 +117,7 @@ ${questions}
 I'll begin planning once these are answered." 2>/dev/null || true
 
         set_label "agent:needs-info"
+        notify "questions_asked" "$issue_title" "https://github.com/${REPO}/issues/${NUMBER}" "$questions"
         log "Asked clarifying questions. Waiting for human reply."
         cleanup_worktree
     elif [ "$action" = "plan_ready" ]; then
@@ -134,10 +135,12 @@ ${plan_content}
 *Add the \`agent:plan-approved\` label to start implementation, or comment with feedback.*" 2>/dev/null || true
 
             set_label "agent:plan-review"
+            notify "plan_posted" "$issue_title" "https://github.com/${REPO}/issues/${NUMBER}" "${plan_content:0:1000}"
             log "Plan posted. Awaiting human approval."
         else
             log "Claude reported plan_ready but no plan file found."
             set_label "agent:failed"
+            notify "agent_failed" "$issue_title" "https://github.com/${REPO}/issues/${NUMBER}" "Plan file not found"
             gh issue comment "$NUMBER" --repo "$REPO" \
                 --body "Agent created a plan but failed to write it to the expected file. Please re-label with \`agent\` to retry." 2>/dev/null || true
             cleanup_worktree
@@ -147,6 +150,7 @@ ${plan_content}
         log "Could not parse triage response. Marking as failed."
         log "Raw output: $claude_output"
         set_label "agent:failed"
+        notify "agent_failed" "$issue_title" "https://github.com/${REPO}/issues/${NUMBER}" "Could not parse triage response"
         gh issue comment "$NUMBER" --repo "$REPO" \
             --body "Agent could not analyze this issue. Please review and re-label with \`agent\` to retry." 2>/dev/null || true
         cleanup_worktree
@@ -260,6 +264,7 @@ handle_implement() {
     issue_json=$(gh issue view "$NUMBER" --repo "$REPO" --json title,body,comments)
     local issue_title issue_body
     issue_title=$(echo "$issue_json" | jq -r '.title')
+    notify "implement_started" "$issue_title" "https://github.com/${REPO}/issues/${NUMBER}" "Implementation starting"
     issue_body=$(echo "$issue_json" | jq -r '.body')
 
     # Find the approved plan from issue comments
@@ -331,6 +336,7 @@ handle_pr_review() {
     branch=$(echo "$pr_json" | jq -r '.headRefName')
     local pr_title
     pr_title=$(echo "$pr_json" | jq -r '.title')
+    notify "review_feedback" "$pr_title" "https://github.com/${REPO}/pull/${pr_number}" "Review feedback received, addressing changes"
 
     # Extract issue number from branch name (agent/issue-N)
     local issue_num
