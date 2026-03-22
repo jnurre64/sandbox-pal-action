@@ -57,6 +57,8 @@ source "${SCRIPT_DIR}/lib/common.sh"
 source "${SCRIPT_DIR}/lib/worktree.sh"
 # shellcheck source=lib/data-fetch.sh
 source "${SCRIPT_DIR}/lib/data-fetch.sh"
+# shellcheck source=lib/notify.sh
+source "${SCRIPT_DIR}/lib/notify.sh"
 
 # ═══════════════════════════════════════════════════════════════
 # EVENT: New issue labeled "agent" → Triage + Plan (no implementation)
