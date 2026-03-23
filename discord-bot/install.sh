@@ -15,7 +15,11 @@ if [ ! -f "$CONFIG_PATH" ]; then
     echo "Warning: ${CONFIG_PATH} not found. Create it before starting the bot."
 fi
 
-# Create venv if it doesn't exist
+# Create venv if it doesn't exist or is broken (e.g., previous failed install)
+if [ -d "${SCRIPT_DIR}/.venv" ] && [ ! -f "${SCRIPT_DIR}/.venv/bin/pip" ]; then
+    echo "Removing broken virtual environment..."
+    rm -rf "${SCRIPT_DIR}/.venv"
+fi
 if [ ! -d "${SCRIPT_DIR}/.venv" ]; then
     echo "Creating Python virtual environment..."
     python3 -m venv "${SCRIPT_DIR}/.venv"
