@@ -94,7 +94,7 @@ _notify_build_discord_embed() {
 
     # Build JSON with jq for proper escaping
     jq -cn \
-        --arg username "Agent Dispatch" \
+        --arg username "Pennyworth" \
         --arg title "$embed_title" \
         --arg url "$url" \
         --arg description "$description" \

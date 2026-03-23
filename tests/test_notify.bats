@@ -201,7 +201,7 @@ _source_notify() {
     [ "$desc_len" -le 4010 ]
 }
 
-@test "notify embed: uses webhook username 'Agent Dispatch'" {
+@test "notify embed: uses webhook username 'Pennyworth'" {
     _source_notify
 
     run _notify_build_discord_embed "plan_posted" "Issue title" "https://example.com" "desc"
@@ -209,7 +209,7 @@ _source_notify() {
 
     local username
     username=$(echo "$output" | jq -r '.username')
-    assert_equal "$username" "Agent Dispatch"
+    assert_equal "$username" "Pennyworth"
 }
 
 # ===================================================================
