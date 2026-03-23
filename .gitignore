@@ -6,3 +6,9 @@ generated-workflows/
 
 # Git worktrees for isolated development
 .worktrees/
+
+# Python bot
+discord-bot/.venv/
+discord-bot/__pycache__/
+discord-bot/tests/__pycache__/
+discord-bot/.pytest_cache/

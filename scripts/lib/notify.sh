@@ -93,7 +93,7 @@ _notify_build_discord_embed() {
     local embed_title="${indicator} ${label} -- #${NUMBER}: ${title}"
 
     # Build JSON with jq for proper escaping
-    jq -n \
+    jq -cn \
         --arg username "Agent Dispatch" \
         --arg title "$embed_title" \
         --arg url "$url" \
@@ -130,19 +130,48 @@ _notify_send_discord() {
         -d "$json" 2>/dev/null || true
 }
 
+# ─── Send to bot local HTTP API ──────────────────────────────────
+# Usage: _notify_send_bot <event_type> <title> <url> <description>
+# Returns 0 on success, 1 on failure (caller should fallback)
+_notify_send_bot() {
+    local event_type="$1"
+    local title="$2"
+    local url="$3"
+    local description="$4"
+    local port="${AGENT_DISCORD_BOT_PORT:-8675}"
+
+    local json
+    json=$(jq -cn \
+        --arg event_type "$event_type" \
+        --arg title "$title" \
+        --arg url "$url" \
+        --arg description "$description" \
+        --arg issue_number "${NUMBER:-0}" \
+        --arg repo "${REPO:-}" \
+        '{
+            event_type: $event_type,
+            title: $title,
+            url: $url,
+            description: $description,
+            issue_number: ($issue_number | tonumber),
+            repo: $repo
+        }')
+
+    curl -sf -o /dev/null -X POST "http://127.0.0.1:${port}/notify" \
+        -H "Content-Type: application/json" \
+        -d "$json" 2>/dev/null
+}
+
 # ─── Main notification function ────────────────────────────────────
 # Usage: notify <event_type> <title> <url> [description]
-#
-# Event types: plan_posted, questions_asked, implement_started,
-#              tests_passed, tests_failed, pr_created,
-#              review_feedback, agent_failed
 notify() {
     local event_type="${1:-}"
     local title="${2:-}"
     local url="${3:-}"
     local description="${4:-}"
 
-    # No-op if no platform is configured
+    # No-op if no platform is configured.
+    # Webhook URL is required even in bot mode (used as fallback).
     if [ -z "${AGENT_NOTIFY_DISCORD_WEBHOOK:-}" ]; then
         return 0
     fi
@@ -150,24 +179,20 @@ notify() {
     # Check notification level filter
     _notify_should_send "$event_type" || return 0
 
-    # ── Discord ──
-    if [ -n "${AGENT_NOTIFY_DISCORD_WEBHOOK:-}" ]; then
+    # ── Route based on backend ──
+    local backend="${AGENT_NOTIFY_BACKEND:-webhook}"
+
+    if [ "$backend" = "bot" ]; then
+        # Try bot first, fall back to webhook on failure
+        if ! _notify_send_bot "$event_type" "$title" "$url" "$description"; then
+            local discord_json
+            discord_json=$(_notify_build_discord_embed "$event_type" "$title" "$url" "$description")
+            _notify_send_discord "$discord_json"
+        fi
+    else
+        # Webhook mode (Phase 1 default)
         local discord_json
         discord_json=$(_notify_build_discord_embed "$event_type" "$title" "$url" "$description")
         _notify_send_discord "$discord_json"
     fi
-
-    # ── Slack (future) ──
-    # if [ -n "${AGENT_NOTIFY_SLACK_WEBHOOK:-}" ]; then
-    #     local slack_json
-    #     slack_json=$(_notify_build_slack_payload "$event_type" "$title" "$url" "$description")
-    #     _notify_send_slack "$slack_json"
-    # fi
-
-    # ── Telegram (future) ──
-    # if [ -n "${AGENT_NOTIFY_TELEGRAM_TOKEN:-}" ]; then
-    #     local telegram_json
-    #     telegram_json=$(_notify_build_telegram_payload "$event_type" "$title" "$url" "$description")
-    #     _notify_send_telegram "$telegram_json"
-    # fi
 }

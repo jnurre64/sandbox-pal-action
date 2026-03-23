@@ -333,3 +333,127 @@ EOF
     assert_equal "$AGENT_NOTIFY_DISCORD_WEBHOOK" "https://discord.com/api/webhooks/123/abc"
     assert_equal "$AGENT_NOTIFY_LEVEL" "all"
 }
+
+# ===================================================================
+# Phase 2: Configuration defaults
+# ===================================================================
+
+@test "defaults: AGENT_DISCORD_BOT_TOKEN defaults to empty" {
+    export AGENT_BOT_USER="test-bot"
+    unset AGENT_DISCORD_BOT_TOKEN
+
+    source "${LIB_DIR}/defaults.sh"
+
+    assert_equal "$AGENT_DISCORD_BOT_TOKEN" ""
+}
+
+@test "defaults: AGENT_DISCORD_CHANNEL_ID defaults to empty" {
+    export AGENT_BOT_USER="test-bot"
+    unset AGENT_DISCORD_CHANNEL_ID
+
+    source "${LIB_DIR}/defaults.sh"
+
+    assert_equal "$AGENT_DISCORD_CHANNEL_ID" ""
+}
+
+@test "defaults: AGENT_DISCORD_BOT_PORT defaults to 8675" {
+    export AGENT_BOT_USER="test-bot"
+    unset AGENT_DISCORD_BOT_PORT
+
+    source "${LIB_DIR}/defaults.sh"
+
+    assert_equal "$AGENT_DISCORD_BOT_PORT" "8675"
+}
+
+@test "defaults: AGENT_NOTIFY_BACKEND defaults to webhook" {
+    export AGENT_BOT_USER="test-bot"
+    unset AGENT_NOTIFY_BACKEND
+
+    source "${LIB_DIR}/defaults.sh"
+
+    assert_equal "$AGENT_NOTIFY_BACKEND" "webhook"
+}
+
+# ===================================================================
+# Phase 2: Bot backend routing
+# ===================================================================
+
+@test "notify: routes to bot HTTP API when AGENT_NOTIFY_BACKEND=bot" {
+    export AGENT_NOTIFY_DISCORD_WEBHOOK="https://discord.com/api/webhooks/123/abc"
+    export AGENT_NOTIFY_BACKEND="bot"
+    export AGENT_DISCORD_BOT_PORT="8675"
+    export AGENT_NOTIFY_LEVEL="all"
+    create_mock "curl" ""
+    _source_notify
+
+    run notify "plan_posted" "Test Issue" "https://github.com/test/1" "Plan summary"
+    assert_success
+
+    local calls
+    calls=$(get_mock_calls "curl")
+    echo "$calls" | grep -q "127.0.0.1:8675/notify"
+}
+
+@test "notify: bot backend sends JSON with issue_number and repo" {
+    export AGENT_NOTIFY_DISCORD_WEBHOOK="https://discord.com/api/webhooks/123/abc"
+    export AGENT_NOTIFY_BACKEND="bot"
+    export AGENT_DISCORD_BOT_PORT="8675"
+    export AGENT_NOTIFY_LEVEL="all"
+    create_mock "curl" ""
+    _source_notify
+
+    run notify "plan_posted" "Test Issue" "https://github.com/test/1" "Plan summary"
+    assert_success
+
+    local calls
+    calls=$(get_mock_calls "curl")
+    echo "$calls" | grep -q "issue_number"
+    echo "$calls" | grep -q "event_type"
+}
+
+@test "notify: falls back to webhook when bot backend curl fails" {
+    export AGENT_NOTIFY_DISCORD_WEBHOOK="https://discord.com/api/webhooks/123/abc"
+    export AGENT_NOTIFY_BACKEND="bot"
+    export AGENT_DISCORD_BOT_PORT="8675"
+    export AGENT_NOTIFY_LEVEL="all"
+    _source_notify
+
+    local mock_bin="${TEST_TEMP_DIR}/bin"
+    mkdir -p "$mock_bin"
+    cat > "${mock_bin}/curl" << 'MOCK'
+#!/bin/bash
+echo "$@" >> "${TEST_TEMP_DIR}/mock_calls_curl"
+if echo "$@" | grep -q "127.0.0.1"; then
+    exit 1
+fi
+exit 0
+MOCK
+    chmod +x "${mock_bin}/curl"
+    export PATH="${mock_bin}:${PATH}"
+
+    run notify "plan_posted" "Test Issue" "https://github.com/test/1" "Plan summary"
+    assert_success
+
+    local calls
+    calls=$(get_mock_calls "curl")
+    local call_count
+    call_count=$(echo "$calls" | wc -l)
+    [ "$call_count" -eq 2 ]
+    echo "$calls" | tail -1 | grep -q "discord.com/api/webhooks"
+}
+
+@test "notify: webhook backend still works unchanged" {
+    export AGENT_NOTIFY_DISCORD_WEBHOOK="https://discord.com/api/webhooks/123/abc"
+    export AGENT_NOTIFY_BACKEND="webhook"
+    export AGENT_NOTIFY_LEVEL="all"
+    create_mock "curl" ""
+    _source_notify
+
+    run notify "plan_posted" "Test Issue" "https://github.com/test/1" "Plan summary"
+    assert_success
+
+    local calls
+    calls=$(get_mock_calls "curl")
+    echo "$calls" | grep -q "discord.com/api/webhooks"
+    ! echo "$calls" | grep -q "127.0.0.1"
+}
