@@ -61,6 +61,7 @@ $AGENT_TEST_COMMAND
 ### Step 6: Commit
 Ensure all changes are committed. Do NOT open a PR -- the automation handles that.
 Do NOT commit any files in .agent-data/ -- these are temporary data.
+Do NOT commit files containing tokens, API keys, webhook URLs, or other secrets (.env, config.env, credentials).
 
 ## Important Rules
 - You MUST make at least one commit.

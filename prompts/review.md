@@ -54,5 +54,6 @@ pre-fetched and saved to local files you can read:
 8. Only after tests pass: make a separate commit for each logical fix, with a clear message.
 9. Do NOT force-push or rewrite history.
 10. Do NOT commit any files in .agent-data/ -- these are temporary data.
-11. MANDATORY: After finishing, post a comment on the PR summarizing what you changed.
+11. Do NOT commit files containing tokens, API keys, webhook URLs, or other secrets (.env, config.env, credentials).
+12. MANDATORY: After finishing, post a comment on the PR summarizing what you changed.
     Include what was changed, why, and the test results. Do NOT skip this step.
