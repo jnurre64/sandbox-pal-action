@@ -64,10 +64,12 @@ def _mock_interaction(custom_id: str, user_id: str = "123", role_ids=None, displ
 
 
 class TestHandleButtonInteraction:
+    @patch("bot.gh_dispatch")
     @patch("bot.gh_command")
     @pytest.mark.asyncio
-    async def test_approve_adds_label(self, mock_gh):
+    async def test_approve_adds_label(self, mock_gh, mock_dispatch):
         mock_gh.return_value = (True, "")
+        mock_dispatch.return_value = (True, "")
         interaction = _mock_interaction("approve:42", user_id="123")
         with patch("bot.ALLOWED_USERS", {"123"}), patch("bot.REPO", "org/repo"):
             await handle_button_interaction(interaction)
@@ -75,19 +77,23 @@ class TestHandleButtonInteraction:
         combined = " ".join(calls)
         assert "plan-approved" in combined
 
+    @patch("bot.gh_dispatch")
     @patch("bot.gh_command")
     @pytest.mark.asyncio
-    async def test_approve_sends_ephemeral_confirmation(self, mock_gh):
+    async def test_approve_sends_ephemeral_confirmation(self, mock_gh, mock_dispatch):
         mock_gh.return_value = (True, "")
+        mock_dispatch.return_value = (True, "")
         interaction = _mock_interaction("approve:42", user_id="123")
         with patch("bot.ALLOWED_USERS", {"123"}), patch("bot.REPO", "org/repo"):
             await handle_button_interaction(interaction)
         interaction.followup.send.assert_called_once()
 
+    @patch("bot.gh_dispatch")
     @patch("bot.gh_command")
     @pytest.mark.asyncio
-    async def test_approve_failure_reports_error(self, mock_gh):
+    async def test_approve_failure_reports_error(self, mock_gh, mock_dispatch):
         mock_gh.return_value = (False, "gh auth login required")
+        mock_dispatch.return_value = (True, "")
         interaction = _mock_interaction("approve:42", user_id="123")
         with patch("bot.ALLOWED_USERS", {"123"}), patch("bot.REPO", "org/repo"):
             await handle_button_interaction(interaction)
@@ -106,10 +112,12 @@ class TestHandleButtonInteraction:
         call_kwargs = interaction.response.send_message.call_args.kwargs
         assert call_kwargs.get("ephemeral") is True
 
+    @patch("bot.gh_dispatch")
     @patch("bot.gh_command")
     @pytest.mark.asyncio
-    async def test_retry_resets_labels(self, mock_gh):
+    async def test_retry_resets_labels(self, mock_gh, mock_dispatch):
         mock_gh.return_value = (True, "")
+        mock_dispatch.return_value = (True, "")
         interaction = _mock_interaction("retry:42", user_id="123")
         with patch("bot.ALLOWED_USERS", {"123"}), patch("bot.REPO", "org/repo"):
             await handle_button_interaction(interaction)
@@ -118,6 +126,43 @@ class TestHandleButtonInteraction:
         assert "--remove-label" in call_args
         assert "--add-label" in call_args
         assert "agent" in call_args
+
+    @patch("bot.gh_dispatch")
+    @patch("bot.gh_command")
+    @pytest.mark.asyncio
+    async def test_approve_fires_dispatch(self, mock_gh, mock_dispatch):
+        mock_gh.return_value = (True, "")
+        mock_dispatch.return_value = (True, "")
+        interaction = _mock_interaction("approve:42", user_id="123")
+        with patch("bot.ALLOWED_USERS", {"123"}), patch("bot.REPO", "org/repo"):
+            await handle_button_interaction(interaction)
+        mock_dispatch.assert_called_once_with("org/repo", "agent-implement", 42)
+
+    @patch("bot.gh_dispatch")
+    @patch("bot.gh_command")
+    @pytest.mark.asyncio
+    async def test_retry_fires_dispatch(self, mock_gh, mock_dispatch):
+        mock_gh.return_value = (True, "")
+        mock_dispatch.return_value = (True, "")
+        interaction = _mock_interaction("retry:42", user_id="123")
+        with patch("bot.ALLOWED_USERS", {"123"}), patch("bot.REPO", "org/repo"):
+            await handle_button_interaction(interaction)
+        mock_dispatch.assert_called_once_with("org/repo", "agent-triage", 42)
+
+    @patch("bot.gh_dispatch")
+    @patch("bot.gh_command")
+    @pytest.mark.asyncio
+    async def test_dispatch_failure_still_shows_success(self, mock_gh, mock_dispatch):
+        mock_gh.return_value = (True, "")
+        mock_dispatch.return_value = (False, "dispatch failed")
+        interaction = _mock_interaction("approve:42", user_id="123")
+        with patch("bot.ALLOWED_USERS", {"123"}), patch("bot.REPO", "org/repo"):
+            await handle_button_interaction(interaction)
+        # Label succeeded, so Discord UI should still update
+        interaction.message.edit.assert_called_once()
+        # But warn the user about the dispatch failure
+        followup_msg = interaction.followup.send.call_args[0][0]
+        assert "trigger" in followup_msg.lower() or "dispatch" in followup_msg.lower()
 
     @pytest.mark.asyncio
     async def test_changes_shows_modal(self):

@@ -237,6 +237,10 @@ async def handle_button_interaction(interaction: discord.Interaction) -> None:
         )
         return
 
+    # Map button actions to dispatch event types
+    dispatch_events = {"approve": "agent-implement", "retry": "agent-triage"}
+    dispatch_ok, dispatch_err = gh_dispatch(REPO, dispatch_events[action], issue_number)
+
     embed = interaction.message.embeds[0] if interaction.message.embeds else discord.Embed()
     embed.add_field(name="Action", value=status_text, inline=False)
     view = discord.ui.View(timeout=None)
@@ -245,7 +249,14 @@ async def handle_button_interaction(interaction: discord.Interaction) -> None:
             if hasattr(item, "url") and item.url:
                 view.add_item(discord.ui.Button(label=item.label, url=item.url, style=discord.ButtonStyle.link))
     await interaction.message.edit(embed=embed, view=view)
-    await interaction.followup.send(f"Done: {status_text}", ephemeral=True)
+
+    if not dispatch_ok:
+        await interaction.followup.send(
+            f"Done: {status_text} (warning: workflow trigger failed — {dispatch_err})",
+            ephemeral=True,
+        )
+    else:
+        await interaction.followup.send(f"Done: {status_text}", ephemeral=True)
     log.info("ACTION: %s on #%d by %s (id=%s)", action, issue_number, interaction.user, interaction.user.id)
 
 
