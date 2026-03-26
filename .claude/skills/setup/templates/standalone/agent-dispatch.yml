@@ -1,0 +1,79 @@
+name: "Claude Agent: Discord Dispatch"
+
+on:
+  repository_dispatch:
+    types: [agent-triage, agent-implement, agent-reply]
+
+concurrency:
+  group: claude-agent-${{ github.event.client_payload.issue_number }}
+  cancel-in-progress: false
+
+jobs:
+  triage:
+    if: github.event.action == 'agent-triage'
+    runs-on: [self-hosted, agent]
+    timeout-minutes: 125
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run agent dispatch (triage)
+        env:
+          GH_TOKEN: ${{ secrets.AGENT_PAT }}
+          GITHUB_TOKEN: ${{ secrets.AGENT_PAT }}
+          AGENT_CONFIG: ${{ github.workspace }}/.agent-dispatch/config.env
+        run: |
+          .agent-dispatch/scripts/agent-dispatch.sh \
+            new_issue \
+            "${{ github.repository }}" \
+            "${{ github.event.client_payload.issue_number }}"
+
+  implement:
+    if: github.event.action == 'agent-implement'
+    runs-on: [self-hosted, agent]
+    timeout-minutes: 125
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run agent dispatch (implement)
+        env:
+          GH_TOKEN: ${{ secrets.AGENT_PAT }}
+          GITHUB_TOKEN: ${{ secrets.AGENT_PAT }}
+          AGENT_CONFIG: ${{ github.workspace }}/.agent-dispatch/config.env
+        run: |
+          .agent-dispatch/scripts/agent-dispatch.sh \
+            implement \
+            "${{ github.repository }}" \
+            "${{ github.event.client_payload.issue_number }}"
+
+  reply:
+    if: github.event.action == 'agent-reply'
+    runs-on: [self-hosted, agent]
+    timeout-minutes: 125
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run agent dispatch (reply)
+        env:
+          GH_TOKEN: ${{ secrets.AGENT_PAT }}
+          GITHUB_TOKEN: ${{ secrets.AGENT_PAT }}
+          AGENT_CONFIG: ${{ github.workspace }}/.agent-dispatch/config.env
+        run: |
+          .agent-dispatch/scripts/agent-dispatch.sh \
+            issue_reply \
+            "${{ github.repository }}" \
+            "${{ github.event.client_payload.issue_number }}"
