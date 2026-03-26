@@ -217,3 +217,23 @@ class TestFeedbackModal:
     def test_modal_has_text_input(self):
         modal = FeedbackModal(action="comment", issue_number=42, repo="org/repo")
         assert len(modal.children) > 0
+
+    @patch("bot.gh_dispatch")
+    @patch("bot.gh_command")
+    @pytest.mark.asyncio
+    async def test_on_submit_fires_reply_dispatch(self, mock_gh, mock_dispatch):
+        mock_gh.return_value = (True, "")
+        mock_dispatch.return_value = (True, "")
+        modal = FeedbackModal(action="comment", issue_number=42, repo="org/repo")
+        interaction = AsyncMock(spec=discord.Interaction)
+        interaction.response = AsyncMock()
+        interaction.followup = AsyncMock()
+        interaction.message = AsyncMock()
+        interaction.message.embeds = [discord.Embed(title="Test")]
+        interaction.user = MagicMock()
+        interaction.user.display_name = "jonny"
+        interaction.user.id = 123
+        modal.feedback = MagicMock()
+        modal.feedback.value = "This looks good but needs more tests"
+        await modal.on_submit(interaction)
+        mock_dispatch.assert_called_once_with("org/repo", "agent-reply", 42)

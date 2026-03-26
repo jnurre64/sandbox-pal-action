@@ -188,6 +188,7 @@ class FeedbackModal(discord.ui.Modal):
             )
             await interaction.message.edit(embed=embed)
 
+        gh_dispatch(self.repo, "agent-reply", self.issue_number)
         await interaction.followup.send("Feedback posted to GitHub.", ephemeral=True)
         log.info("MODAL: %s on #%d by %s (id=%s)", self.action, self.issue_number, interaction.user, interaction.user.id)
 
@@ -276,6 +277,7 @@ def register_slash_commands(tree: app_commands.CommandTree) -> None:
         if not ok:
             await interaction.followup.send(f"Failed to update #{issue}: {err}", ephemeral=True)
             return
+        gh_dispatch(REPO, "agent-implement", issue)
         await interaction.followup.send(f"Plan for #{issue} approved.", ephemeral=True)
         log.info("SLASH: /approve #%d by %s", issue, interaction.user)
 
@@ -307,6 +309,7 @@ def register_slash_commands(tree: app_commands.CommandTree) -> None:
         if not ok:
             await interaction.followup.send(f"Failed to comment on #{issue}: {err}", ephemeral=True)
             return
+        gh_dispatch(REPO, "agent-reply", issue)
         await interaction.followup.send(f"Comment posted on #{issue}.", ephemeral=True)
         log.info("SLASH: /comment #%d by %s", issue, interaction.user)
 
@@ -337,6 +340,7 @@ def register_slash_commands(tree: app_commands.CommandTree) -> None:
         if not ok:
             await interaction.followup.send(f"Failed to update #{issue}: {err}", ephemeral=True)
             return
+        gh_dispatch(REPO, "agent-triage", issue)
         await interaction.followup.send(f"Agent re-triggered on #{issue}.", ephemeral=True)
         log.info("SLASH: /retry #%d by %s", issue, interaction.user)
 
