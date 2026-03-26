@@ -7,6 +7,11 @@ on:
         description: 'Bot account username (for self-trigger prevention)'
         required: true
         type: string
+      issue_number:
+        description: 'Issue number override (for repository_dispatch triggers)'
+        required: false
+        type: string
+        default: ''
       dispatch_script:
         description: 'Path to agent-dispatch.sh on the runner'
         required: false
@@ -33,7 +38,7 @@ on:
         required: true
 
 concurrency:
-  group: claude-agent-${{ github.event.issue.number }}
+  group: claude-agent-${{ inputs.issue_number || github.event.issue.number }}
   cancel-in-progress: false
 
 jobs:
@@ -54,4 +59,4 @@ jobs:
           ${{ inputs.dispatch_script }} \
             new_issue \
             "${{ github.repository }}" \
-            "${{ github.event.issue.number }}"
+            "${{ inputs.issue_number || github.event.issue.number }}"
