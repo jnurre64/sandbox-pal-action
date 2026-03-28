@@ -4,7 +4,7 @@
 
 **Goal:** Create and configure three GitHub demo repos for a presentation on April 2, 2026: a .NET recipe app (primary demo), a Godot dodge_the_creeps fork (secondary demo), and a setup speed run repo.
 
-**Architecture:** All three repos live under the `jnurre64` GitHub account. The .NET and Godot repos get full agent-dispatch standalone configuration with Discord bot integration. The setup speed run repo is a bare clone with no agent-dispatch config (used to demo the `/setup` skill). All repos use the `pennyworth-bot` bot account.
+**Architecture:** All three repos live under the `Frightful-Games` GitHub organization. The .NET and Godot repos get full agent-dispatch standalone configuration with Discord bot integration. The setup speed run repo is a bare clone with no agent-dispatch config (used to demo the `/setup` skill). All repos use the `pennyworth-bot` bot account.
 
 **Tech Stack:** GitHub CLI (`gh`), Git, YAML (GitHub Actions workflows), shell (agent-dispatch config)
 
@@ -53,7 +53,7 @@ Each demo repo needs these agent-dispatch files in standalone mode:
 - [ ] **Step 1: Create the repo**
 
 ```bash
-gh repo create jnurre64/recipe-manager-demo --public --description "Demo .NET recipe manager for Claude Agent Dispatch presentation" --clone
+gh repo create Frightful-Games/recipe-manager-demo --public --description "Demo .NET recipe manager for Claude Agent Dispatch presentation" --clone
 ```
 
 - [ ] **Step 2: Initialize with a README and .gitignore**
@@ -61,7 +61,7 @@ gh repo create jnurre64/recipe-manager-demo --public --description "Demo .NET re
 ```bash
 cd ~/repos/recipe-manager-demo
 echo "# Recipe Manager Demo" > README.md
-echo "A .NET 8 recipe manager used to demonstrate Claude Agent Dispatch." >> README.md
+echo "A .NET 9 recipe manager used to demonstrate Claude Agent Dispatch." >> README.md
 echo "" >> README.md
 echo "> This is a demo project for a presentation. Not intended for production use." >> README.md
 curl -sL https://raw.githubusercontent.com/github/gitignore/main/VisualStudio.gitignore > .gitignore
@@ -73,7 +73,7 @@ git push -u origin main
 - [ ] **Step 3: Add the AGENT_PAT secret**
 
 ```bash
-gh secret set AGENT_PAT --repo jnurre64/recipe-manager-demo
+gh secret set AGENT_PAT --repo Frightful-Games/recipe-manager-demo
 ```
 
 When prompted, paste the `pennyworth-bot` fine-grained PAT.
@@ -159,10 +159,10 @@ Create `CLAUDE.md` at the repo root:
 ```markdown
 # Recipe Manager Demo
 
-A .NET 8 Razor Pages recipe manager application.
+A .NET 9 Razor Pages recipe manager application.
 
 ## Tech Stack
-- .NET 8, Razor Pages, Entity Framework Core, SQLite
+- .NET 9, Razor Pages, Entity Framework Core, SQLite
 
 ## Development
 - Run: `dotnet run`
@@ -183,7 +183,7 @@ while IFS= read -r line; do
     name=$(echo "$line" | cut -d'|' -f1 | xargs)
     color=$(echo "$line" | cut -d'|' -f2 | xargs)
     desc=$(echo "$line" | cut -d'|' -f3 | xargs)
-    gh label create "$name" --color "$color" --description "$desc" --repo jnurre64/recipe-manager-demo 2>/dev/null || true
+    gh label create "$name" --color "$color" --description "$desc" --repo Frightful-Games/recipe-manager-demo 2>/dev/null || true
 done < labels.txt
 ```
 
@@ -205,7 +205,7 @@ git push
 - [ ] **Step 1: Create "Add dark mode toggle" issue**
 
 ```bash
-gh issue create --repo jnurre64/recipe-manager-demo \
+gh issue create --repo Frightful-Games/recipe-manager-demo \
   --title "Add dark mode toggle" \
   --body "$(cat <<'EOF'
 Add a dark mode toggle to the recipe manager application.
@@ -223,7 +223,7 @@ EOF
 - [ ] **Step 2: Create "Add recipe rating" issue**
 
 ```bash
-gh issue create --repo jnurre64/recipe-manager-demo \
+gh issue create --repo Frightful-Games/recipe-manager-demo \
   --title "Add recipe rating system" \
   --body "$(cat <<'EOF'
 Add a 1-5 star rating system for recipes.
@@ -242,7 +242,7 @@ EOF
 - [ ] **Step 3: Create "Add favorites" issue**
 
 ```bash
-gh issue create --repo jnurre64/recipe-manager-demo \
+gh issue create --repo Frightful-Games/recipe-manager-demo \
   --title "Add favorites system" \
   --body "$(cat <<'EOF'
 Add the ability to mark recipes as favorites.
@@ -261,7 +261,7 @@ EOF
 - [ ] **Step 4: Create "Add search/filter" issue**
 
 ```bash
-gh issue create --repo jnurre64/recipe-manager-demo \
+gh issue create --repo Frightful-Games/recipe-manager-demo \
   --title "Add search and filter functionality" \
   --body "$(cat <<'EOF'
 Add search and filtering to the recipe list page.
@@ -280,7 +280,7 @@ EOF
 - [ ] **Step 5: Verify all issues created**
 
 ```bash
-gh issue list --repo jnurre64/recipe-manager-demo
+gh issue list --repo Frightful-Games/recipe-manager-demo
 ```
 
 Expected: 4 open issues, no labels.
@@ -295,13 +295,13 @@ Expected: 4 open issues, no labels.
 - [ ] **Step 1: Fork the Godot demo projects repo**
 
 ```bash
-gh repo fork godotengine/godot-demo-projects --clone --fork-name dodge-the-creeps-demo --org jnurre64
+gh repo fork godotengine/godot-demo-projects --clone --fork-name dodge-the-creeps-demo --org Frightful-Games
 ```
 
 Note: If `--org` doesn't work with a personal account, fork manually via the GitHub UI or:
 
 ```bash
-gh repo create jnurre64/dodge-the-creeps-demo --public --description "Godot dodge_the_creeps demo for Claude Agent Dispatch presentation"
+gh repo create Frightful-Games/dodge-the-creeps-demo --public --description "Godot dodge_the_creeps demo for Claude Agent Dispatch presentation"
 cd ~/repos/dodge-the-creeps-demo
 git clone https://github.com/godotengine/godot-demo-projects.git temp-clone
 cp -r temp-clone/2d/dodge_the_creeps/* .
@@ -315,7 +315,7 @@ git push -u origin main
 - [ ] **Step 2: Add the AGENT_PAT secret**
 
 ```bash
-gh secret set AGENT_PAT --repo jnurre64/dodge-the-creeps-demo
+gh secret set AGENT_PAT --repo Frightful-Games/dodge-the-creeps-demo
 ```
 
 - [ ] **Step 3: Commit**
@@ -396,14 +396,14 @@ while IFS= read -r line; do
     name=$(echo "$line" | cut -d'|' -f1 | xargs)
     color=$(echo "$line" | cut -d'|' -f2 | xargs)
     desc=$(echo "$line" | cut -d'|' -f3 | xargs)
-    gh label create "$name" --color "$color" --description "$desc" --repo jnurre64/dodge-the-creeps-demo 2>/dev/null || true
+    gh label create "$name" --color "$color" --description "$desc" --repo Frightful-Games/dodge-the-creeps-demo 2>/dev/null || true
 done < labels.txt
 ```
 
 - [ ] **Step 6: Create a demo issue for the Godot cameo**
 
 ```bash
-gh issue create --repo jnurre64/dodge-the-creeps-demo \
+gh issue create --repo Frightful-Games/dodge-the-creeps-demo \
   --title "Add power-up that grants temporary invincibility" \
   --body "$(cat <<'EOF'
 Add a power-up item that spawns periodically and grants the player temporary invincibility.
@@ -438,7 +438,7 @@ git push
 - [ ] **Step 1: Create the repo**
 
 ```bash
-gh repo create jnurre64/recipe-manager-setup-demo --public --description "Clean repo for demonstrating /setup skill in presentation"
+gh repo create Frightful-Games/recipe-manager-setup-demo --public --description "Clean repo for demonstrating /setup skill in presentation"
 ```
 
 - [ ] **Step 2: This repo will be populated later**
@@ -460,11 +460,11 @@ No commit needed yet — repo is empty placeholder.
 
 - [ ] **Step 1: Check the runner is registered for both repos**
 
-The self-hosted runner needs to be registered for `jnurre64/recipe-manager-demo` and `jnurre64/dodge-the-creeps-demo`. Check:
+The self-hosted runner needs to be registered for `Frightful-Games/recipe-manager-demo` and `Frightful-Games/dodge-the-creeps-demo`. Check:
 
 ```bash
-gh api repos/jnurre64/recipe-manager-demo/actions/runners --jq '.runners[].name'
-gh api repos/jnurre64/dodge-the-creeps-demo/actions/runners --jq '.runners[].name'
+gh api repos/Frightful-Games/recipe-manager-demo/actions/runners --jq '.runners[].name'
+gh api repos/Frightful-Games/dodge-the-creeps-demo/actions/runners --jq '.runners[].name'
 ```
 
 If the runner is registered at the org/user level, it should appear for both. If not, register it for each repo via GitHub Settings > Actions > Runners.
@@ -474,7 +474,7 @@ If the runner is registered at the org/user level, it should appear for both. If
 The workflows use `runs-on: [self-hosted, agent]`. Verify:
 
 ```bash
-gh api repos/jnurre64/recipe-manager-demo/actions/runners --jq '.runners[].labels[].name'
+gh api repos/Frightful-Games/recipe-manager-demo/actions/runners --jq '.runners[].labels[].name'
 ```
 
 Should include both `self-hosted` and `agent`.
@@ -484,7 +484,7 @@ Should include both `self-hosted` and `agent`.
 Create a simple test workflow or manually trigger one of the agent workflows to verify the runner picks it up:
 
 ```bash
-gh api repos/jnurre64/recipe-manager-demo/dispatches \
+gh api repos/Frightful-Games/recipe-manager-demo/dispatches \
   -f event_type=agent-triage \
   -f 'client_payload[issue_number]=1'
 ```

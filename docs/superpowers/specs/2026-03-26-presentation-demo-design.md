@@ -107,7 +107,7 @@ Reference mode vs standalone mode — one sentence each.
 
 ### Primary: .NET Recipe Manager
 
-**Stack:** .NET 8 (Razor Pages or minimal API + simple frontend)
+**Stack:** .NET 9 (Razor Pages or minimal API + simple frontend)
 
 **MVP features (pre-built):**
 - Recipe model: name, description, ingredients, instructions

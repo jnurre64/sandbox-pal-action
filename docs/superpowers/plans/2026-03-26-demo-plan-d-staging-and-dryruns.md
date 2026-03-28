@@ -6,7 +6,7 @@
 
 **Architecture:** This plan orchestrates the agent on two repos (recipe-manager-demo and dodge-the-creeps-demo), stages issues at specific lifecycle states, and prepares presentation fallbacks. Work happens on both Linux (agent infrastructure) and Windows (app verification, Slidev, dry runs).
 
-**Tech Stack:** GitHub CLI (`gh`), GitHub Actions, Discord bot, agent-dispatch system, .NET 8 (for app verification), Godot (for game verification), Slidev (for presentation)
+**Tech Stack:** GitHub CLI (`gh`), GitHub Actions, Discord bot, agent-dispatch system, .NET 9 (for app verification), Godot (for game verification), Slidev (for presentation)
 
 **Prerequisites:**
 - Plan A completed (repos created, agent-dispatch configured, issues created, runner verified)
@@ -18,9 +18,9 @@
 **Key context:**
 - Bot account: `pennyworth-bot`
 - Discord config: `~/agent-infra/config.env` — `AGENT_DISPATCH_REPO` must be updated per-repo when running the agent
-- Recipe app repo: `jnurre64/recipe-manager-demo`
-- Godot repo: `jnurre64/dodge-the-creeps-demo`
-- Setup speed run repo: `jnurre64/recipe-manager-setup-demo`
+- Recipe app repo: `Frightful-Games/recipe-manager-demo`
+- Godot repo: `Frightful-Games/dodge-the-creeps-demo`
+- Setup speed run repo: `Frightful-Games/recipe-manager-setup-demo`
 - Presentation spec: `docs/superpowers/specs/2026-03-26-presentation-demo-design.md` (branch `presentation/demo-prep`)
 
 **Important:** The Discord bot's `AGENT_DISPATCH_REPO` config controls which repo the bot interacts with. When staging issues across repos, update this value and restart the bot before running each repo's agent jobs.
@@ -54,7 +54,7 @@ On the Linux machine, edit `~/agent-infra/config.env`:
 
 ```bash
 # Change AGENT_DISPATCH_REPO to the recipe app
-sed -i 's|AGENT_DISPATCH_REPO=.*|AGENT_DISPATCH_REPO="jnurre64/recipe-manager-demo"|' ~/agent-infra/config.env
+sed -i 's|AGENT_DISPATCH_REPO=.*|AGENT_DISPATCH_REPO="Frightful-Games/recipe-manager-demo"|' ~/agent-infra/config.env
 systemctl --user restart agent-dispatch-bot
 ```
 
@@ -66,7 +66,7 @@ journalctl --user -u agent-dispatch-bot --since "30 seconds ago" --no-pager
 - [ ] **Step 2: Trigger triage on issue #4 (search/filter)**
 
 ```bash
-gh issue edit 4 --repo jnurre64/recipe-manager-demo --add-label "agent"
+gh issue edit 4 --repo Frightful-Games/recipe-manager-demo --add-label "agent"
 ```
 
 Monitor: Check GitHub Actions tab for the triage workflow to start. Wait for it to complete — the agent will post a plan comment and add the `agent:plan-review` label.
@@ -76,8 +76,8 @@ Monitor: Check GitHub Actions tab for the triage workflow to start. Wait for it 
 Once the plan is posted, approve it either via Discord (click Approve button) or via CLI:
 
 ```bash
-gh issue edit 4 --repo jnurre64/recipe-manager-demo --remove-label "agent:plan-review" --add-label "agent:plan-approved"
-gh api repos/jnurre64/recipe-manager-demo/dispatches \
+gh issue edit 4 --repo Frightful-Games/recipe-manager-demo --remove-label "agent:plan-review" --add-label "agent:plan-approved"
+gh api repos/Frightful-Games/recipe-manager-demo/dispatches \
   -f event_type=agent-implement \
   -f 'client_payload[issue_number]=4'
 ```
@@ -99,7 +99,7 @@ Once the PR is created:
 - Pull the changes to your local Windows machine to verify the feature works
 
 ```bash
-gh pr merge --repo jnurre64/recipe-manager-demo --squash
+gh pr merge --repo Frightful-Games/recipe-manager-demo --squash
 ```
 
 - [ ] **Step 6: Verify the feature works locally (Windows)**
@@ -124,7 +124,7 @@ Visit the app — search/filter should work on the recipes page. This is what yo
 - [ ] **Step 1: Trigger triage on issue #2 (recipe rating)**
 
 ```bash
-gh issue edit 2 --repo jnurre64/recipe-manager-demo --add-label "agent"
+gh issue edit 2 --repo Frightful-Games/recipe-manager-demo --add-label "agent"
 ```
 
 - [ ] **Step 2: Wait for triage to complete**
@@ -144,7 +144,7 @@ Read the plan comment on the issue. It should describe:
 
 If the plan is unclear or poorly written, you may need to reset and re-triage:
 ```bash
-gh issue edit 2 --repo jnurre64/recipe-manager-demo --remove-label "agent:plan-review" --add-label "agent"
+gh issue edit 2 --repo Frightful-Games/recipe-manager-demo --remove-label "agent:plan-review" --add-label "agent"
 ```
 
 ---
@@ -157,7 +157,7 @@ gh issue edit 2 --repo jnurre64/recipe-manager-demo --remove-label "agent:plan-r
 - [ ] **Step 1: Trigger triage on issue #3 (favorites)**
 
 ```bash
-gh issue edit 3 --repo jnurre64/recipe-manager-demo --add-label "agent"
+gh issue edit 3 --repo Frightful-Games/recipe-manager-demo --add-label "agent"
 ```
 
 - [ ] **Step 2: Wait for triage to complete**
@@ -171,7 +171,7 @@ Click "Request Changes" in Discord and type feedback like:
 
 Or via CLI:
 ```bash
-gh issue comment 3 --repo jnurre64/recipe-manager-demo --body "Please use a heart icon (❤️) for the favorites toggle instead of a generic button. Also, add the favorites filter as a toggle on the existing recipes page rather than a separate page."
+gh issue comment 3 --repo Frightful-Games/recipe-manager-demo --body "Please use a heart icon (❤️) for the favorites toggle instead of a generic button. Also, add the favorites filter as a toggle on the existing recipes page rather than a separate page."
 ```
 
 - [ ] **Step 4: Let the agent revise the plan**
@@ -181,7 +181,7 @@ After posting feedback, the reply workflow should trigger (either via the Discor
 If the reply workflow doesn't trigger automatically (because the comment was from `pennyworth-bot` and the actor guard blocks it), trigger it manually:
 
 ```bash
-gh api repos/jnurre64/recipe-manager-demo/dispatches \
+gh api repos/Frightful-Games/recipe-manager-demo/dispatches \
   -f event_type=agent-reply \
   -f 'client_payload[issue_number]=3'
 ```
@@ -205,14 +205,14 @@ This shows the full feedback loop in the demo. Don't approve — leave it at `ag
 - [ ] **Step 1: Update Discord bot config to point at Godot repo**
 
 ```bash
-sed -i 's|AGENT_DISPATCH_REPO=.*|AGENT_DISPATCH_REPO="jnurre64/dodge-the-creeps-demo"|' ~/agent-infra/config.env
+sed -i 's|AGENT_DISPATCH_REPO=.*|AGENT_DISPATCH_REPO="Frightful-Games/dodge-the-creeps-demo"|' ~/agent-infra/config.env
 systemctl --user restart agent-dispatch-bot
 ```
 
 - [ ] **Step 2: Trigger triage**
 
 ```bash
-gh issue edit 1 --repo jnurre64/dodge-the-creeps-demo --add-label "agent"
+gh issue edit 1 --repo Frightful-Games/dodge-the-creeps-demo --add-label "agent"
 ```
 
 - [ ] **Step 3: Wait for plan, then approve**
@@ -220,8 +220,8 @@ gh issue edit 1 --repo jnurre64/dodge-the-creeps-demo --add-label "agent"
 Once the plan is posted, approve:
 
 ```bash
-gh issue edit 1 --repo jnurre64/dodge-the-creeps-demo --remove-label "agent:plan-review" --add-label "agent:plan-approved"
-gh api repos/jnurre64/dodge-the-creeps-demo/dispatches \
+gh issue edit 1 --repo Frightful-Games/dodge-the-creeps-demo --remove-label "agent:plan-review" --add-label "agent:plan-approved"
+gh api repos/Frightful-Games/dodge-the-creeps-demo/dispatches \
   -f event_type=agent-implement \
   -f 'client_payload[issue_number]=1'
 ```
@@ -229,7 +229,7 @@ gh api repos/jnurre64/dodge-the-creeps-demo/dispatches \
 - [ ] **Step 4: Wait for implementation and merge**
 
 ```bash
-gh pr merge --repo jnurre64/dodge-the-creeps-demo --squash
+gh pr merge --repo Frightful-Games/dodge-the-creeps-demo --squash
 ```
 
 - [ ] **Step 5: Verify the game works (Windows)**
@@ -250,7 +250,7 @@ The visual difference is the payoff for the Godot cameo in the demo.
 - [ ] **Step 1: Point Discord bot back at recipe app for the demo**
 
 ```bash
-sed -i 's|AGENT_DISPATCH_REPO=.*|AGENT_DISPATCH_REPO="jnurre64/recipe-manager-demo"|' ~/agent-infra/config.env
+sed -i 's|AGENT_DISPATCH_REPO=.*|AGENT_DISPATCH_REPO="Frightful-Games/recipe-manager-demo"|' ~/agent-infra/config.env
 systemctl --user restart agent-dispatch-bot
 ```
 
@@ -261,13 +261,13 @@ The live demo uses the recipe app, so the bot should be configured for that repo
 ### Task 6: Prepare the setup speed run repo
 
 **Files:**
-- Populate: `jnurre64/recipe-manager-setup-demo`
+- Populate: `Frightful-Games/recipe-manager-setup-demo`
 
 - [ ] **Step 1: Clone the recipe app and strip agent-dispatch**
 
 ```bash
 cd ~/repos
-git clone https://github.com/jnurre64/recipe-manager-demo.git recipe-manager-setup-demo-temp
+git clone https://github.com/Frightful-Games/recipe-manager-demo.git recipe-manager-setup-demo-temp
 cd recipe-manager-setup-demo-temp
 
 # Remove agent-dispatch config
@@ -283,14 +283,14 @@ git commit -m "chore: remove agent-dispatch config for setup demo"
 - [ ] **Step 2: Push to the setup demo repo**
 
 ```bash
-git remote set-url origin https://github.com/jnurre64/recipe-manager-setup-demo.git
+git remote set-url origin https://github.com/Frightful-Games/recipe-manager-setup-demo.git
 git push -u origin main --force
 ```
 
 - [ ] **Step 3: Verify**
 
 ```bash
-gh repo view jnurre64/recipe-manager-setup-demo --web
+gh repo view Frightful-Games/recipe-manager-setup-demo --web
 ```
 
 The repo should have the .NET app code but no `.agent-dispatch/` directory and no `agent-*.yml` workflows. This is the clean starting point for the `/setup` speed run.
@@ -331,7 +331,7 @@ During Dry Run 2, record a screen recording of the full demo flow (3-5 minutes, 
 
 ```bash
 # Check issue states
-gh issue list --repo jnurre64/recipe-manager-demo --json number,title,labels --jq '.[] | "\(.number): \(.title) [\(.labels | map(.name) | join(", "))]"'
+gh issue list --repo Frightful-Games/recipe-manager-demo --json number,title,labels --jq '.[] | "\(.number): \(.title) [\(.labels | map(.name) | join(", "))]"'
 ```
 
 Expected:
@@ -362,7 +362,7 @@ Check that the Discord notifications for issues #2 and #3 still have active butt
 
 Test a dispatch event:
 ```bash
-gh api repos/jnurre64/recipe-manager-demo/dispatches \
+gh api repos/Frightful-Games/recipe-manager-demo/dispatches \
   -f event_type=agent-implement \
   -f 'client_payload[issue_number]=2'
 ```
@@ -455,8 +455,8 @@ Verify: Connected to Discord gateway.
 - [ ] **Step 2: Verify no other agent jobs are running**
 
 ```bash
-gh run list --repo jnurre64/recipe-manager-demo --status in_progress
-gh run list --repo jnurre64/dodge-the-creeps-demo --status in_progress
+gh run list --repo Frightful-Games/recipe-manager-demo --status in_progress
+gh run list --repo Frightful-Games/dodge-the-creeps-demo --status in_progress
 ```
 
 Expected: No in-progress runs.
@@ -477,7 +477,7 @@ Expected: No in-progress runs.
 - [ ] **Step 4: Test the dispatch path**
 
 ```bash
-gh api repos/jnurre64/recipe-manager-demo/dispatches \
+gh api repos/Frightful-Games/recipe-manager-demo/dispatches \
   -f event_type=agent-triage \
   -f 'client_payload[issue_number]=1'
 ```

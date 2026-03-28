@@ -2,18 +2,18 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build a functional .NET 8 Razor Pages recipe manager with basic CRUD, SQLite persistence, and seed data. This is the primary demo app for the April 2, 2026 presentation on Claude Agent Dispatch.
+**Goal:** Build a functional .NET 9 Razor Pages recipe manager with basic CRUD, SQLite persistence, and seed data. This is the primary demo app for the April 2, 2026 presentation on Claude Agent Dispatch.
 
-**Architecture:** .NET 8 Razor Pages app with Entity Framework Core and SQLite. Minimal design — just enough to look like a real app. The agent will later add features (dark mode, ratings, favorites, search) to this app during the demo issue staging phase (Plan D).
+**Architecture:** .NET 9 Razor Pages app with Entity Framework Core and SQLite. Minimal design — just enough to look like a real app. The agent will later add features (dark mode, ratings, favorites, search) to this app during the demo issue staging phase (Plan D).
 
-**Tech Stack:** .NET 8, Razor Pages, Entity Framework Core, SQLite, Bootstrap 5 (comes with default template)
+**Tech Stack:** .NET 9, Razor Pages, Entity Framework Core, SQLite, Bootstrap 5 (comes with default template)
 
-**Machine:** Windows — .NET 8 SDK required. The repo was created in Plan A at `jnurre64/recipe-manager-demo`.
+**Machine:** Windows — .NET 9 SDK required. The repo was created in Plan A at `Frightful-Games/recipe-manager-demo`.
 
 **Prerequisites:**
-- .NET 8 SDK installed (`dotnet --version` should show 8.x)
+- .NET 9 SDK installed (`dotnet --version` should show 9.x)
 - Git configured
-- Repo cloned: `git clone https://github.com/jnurre64/recipe-manager-demo.git`
+- Repo cloned: `git clone https://github.com/Frightful-Games/recipe-manager-demo.git`
 - Plan A completed (repo exists on GitHub with agent-dispatch config)
 
 **Design spec:** `docs/superpowers/specs/2026-03-26-presentation-demo-design.md` in the claude-agent-dispatch repo (branch `presentation/demo-prep`)
@@ -112,7 +112,7 @@ Expected: 1 default test passes.
 
 ```bash
 git add -A
-git commit -m "feat: initialize .NET 8 solution with Razor Pages and xUnit test project"
+git commit -m "feat: initialize .NET 9 solution with Razor Pages and xUnit test project"
 git push
 ```
 
