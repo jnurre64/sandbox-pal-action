@@ -37,6 +37,8 @@ On PR review with changes requested: `agent:pr-open` → `agent:revision` → `a
 - **Timeouts** — configurable per-job timeout prevents runaway sessions
 - **Two-phase dispatch** — human reviews the plan before any code is written
 
+> **Data privacy:** Issue content is sent to the Anthropic API for inference. Never put secrets, API keys, or PII in GitHub issues. See [docs/security.md](docs/security.md#data-privacy) for details.
+
 ## Quick Start
 
 ### Prerequisites

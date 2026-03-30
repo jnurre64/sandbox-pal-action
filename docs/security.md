@@ -105,6 +105,16 @@ Issue titles, bodies, and comments are passed to Claude via environment variable
 
 If `AGENT_TEST_COMMAND` is configured, the dispatch script runs the test suite after implementation and before creating a PR. If tests fail, the agent sets `agent:failed` and posts the test output -- no PR is created with broken code.
 
+### Data Privacy
+
+Issue content (titles, bodies, comments, attached gists/files) is sent to the Anthropic API for inference. This is the same trust boundary as using Claude Code interactively on your codebase.
+
+**Best practices:**
+- Never put secrets, API keys, passwords, or credentials in GitHub issues -- this is a GitHub best practice regardless of whether agents are involved
+- Avoid including personally identifiable information (PII) in issue descriptions
+- If your organization has data residency requirements (GDPR, etc.), verify that Anthropic's data processing locations are acceptable
+- Review Anthropic's privacy policy for data retention terms
+
 ## Security Checklist
 
 Review this checklist periodically and after any changes to the agent system.
