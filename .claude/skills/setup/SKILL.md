@@ -67,6 +67,12 @@ Create the `.agent-dispatch/` directory in the user's target repo. Copy:
 
 Make all scripts executable after copying.
 
+**Gitignore check:** Many `.gitignore` templates (e.g., VisualStudio, Node) include `*.env` which will block `config.defaults.env` from being committed. After copying files, check if the target repo's `.gitignore` excludes `*.env`. If so, add an exception:
+```
+!.agent-dispatch/config.defaults.env
+```
+Warn the user about this and make the change for them.
+
 ## Step 4: Review Default Prompts
 
 Show the user the default prompts in `prompts/` (repo root). Explain what each one does:
