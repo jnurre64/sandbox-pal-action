@@ -28,6 +28,14 @@ _on_unexpected_error() {
     [ "$exit_code" -eq 0 ] && return 0
     # Best-effort: every command uses || true since gh/notify may be
     # unavailable (they might be the thing that's broken).
+    # Capture common diagnostic context
+    local diag_hints=""
+    case "$exit_code" in
+        127) diag_hints="**Likely cause:** A required command was not found. Check that \`claude\`, \`gh\`, \`jq\`, and project tools (e.g., \`dotnet\`, \`npm\`) are installed on the runner." ;;
+        1)   diag_hints="**Likely cause:** A command or config assertion failed. Check the workflow run logs for the specific error message." ;;
+        124) diag_hints="**Likely cause:** A command timed out." ;;
+    esac
+
     gh issue comment "$NUMBER" --repo "$REPO" \
         --body "## Agent Infrastructure Error
 
@@ -39,6 +47,8 @@ The agent encountered an unexpected error and could not complete.
 | **Event** | \`$EVENT_TYPE\` |
 | **Exit code** | $exit_code |
 | **Runner** | ${RUNNER_NAME:-unknown} |
+
+${diag_hints}
 
 Check the [workflow run logs](https://github.com/${REPO}/actions) for details." 2>/dev/null || true
 
@@ -201,10 +211,30 @@ ${plan_content}
             log "Plan posted. Awaiting human approval."
         else
             log "Claude reported plan_ready but no plan file found."
+            # Diagnose the failure
+            local diag=""
+            if [[ "$AGENT_ALLOWED_TOOLS_TRIAGE" != *"Write"* ]]; then
+                diag="**Root cause:** The \`Write\` tool is not in \`AGENT_ALLOWED_TOOLS_TRIAGE\`. The agent needs \`Write\` to create the plan file. Add \`Write\` to the triage tool allowlist in your config."
+            elif [ ! -d "${WORKTREE_DIR}/.agent-data" ]; then
+                diag="**Root cause:** The \`.agent-data/\` directory does not exist in the worktree."
+            else
+                diag="The \`.agent-data/\` directory exists and \`Write\` is allowed, but the plan file was not created. This may be intermittent — retry by re-labeling with \`agent\`."
+            fi
             set_label "agent:failed"
             notify "agent_failed" "$issue_title" "https://github.com/${REPO}/issues/${NUMBER}" "Plan file not found"
             gh issue comment "$NUMBER" --repo "$REPO" \
-                --body "Agent created a plan but failed to write it to the expected file. Please re-label with \`agent\` to retry." 2>/dev/null || true
+                --body "## Agent Error: Plan file not found
+
+The agent reported that the plan was ready, but the expected file (\`.agent-data/plan.md\`) was not created.
+
+${diag}
+
+<details><summary>Diagnostic info</summary>
+
+- **Triage tools:** \`${AGENT_ALLOWED_TOOLS_TRIAGE}\`
+- **Worktree:** \`${WORKTREE_DIR}\`
+- **Plan file path:** \`${plan_file}\`
+</details>" 2>/dev/null || true
             cleanup_worktree
         fi
         # NOTE: worktree is intentionally NOT cleaned up — the implement phase reuses it
