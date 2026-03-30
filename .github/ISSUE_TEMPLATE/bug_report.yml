@@ -1,0 +1,43 @@
+name: Bug Report
+description: Report a bug or unexpected behavior
+labels: ["bug"]
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: What happened? What did you expect to happen?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to Reproduce
+      description: How can we reproduce this?
+      placeholder: |
+        1. Configure with...
+        2. Label issue with...
+        3. See error...
+    validations:
+      required: true
+  - type: dropdown
+    id: mode
+    attributes:
+      label: Installation Mode
+      options:
+        - Standalone
+        - Reference
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant Logs
+      description: Paste any relevant output from agent-dispatch.log or GitHub Actions
+      render: shell
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, Node.js version, Claude Code version
+      placeholder: Ubuntu 22.04, Node 18.x, Claude Code v1.x
