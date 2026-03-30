@@ -23,17 +23,17 @@ If any required tools are missing, help the user install them before continuing.
 
 Use the `AskUserQuestion` tool to ask the user which mode they prefer:
 
-**Reference mode** (recommended):
+**Standalone mode** (recommended):
+- All scripts, prompts, config, and workflows are copied directly into the user's repo under `.agent-dispatch/`
+- No upstream dependency — the user owns every file and can modify freely
+- No automatic updates — the user manages their own copy
+- Best for: most users, full control, easy to customize, no external dependencies
+
+**Reference mode**:
 - Thin workflow files in the user's repo call back to this upstream repo via `uses: jnurre64/claude-agent-dispatch/...@v1`
 - Scripts run from a clone of this repo on the runner (`~/agent-infra/`)
 - Updates come automatically via version tags and `git pull`
 - Best for: users who want automatic updates and minimal files in their repo
-
-**Standalone mode**:
-- All scripts, prompts, config, and workflows are copied directly into the user's repo under `.agent-dispatch/`
-- No upstream dependency — the user owns every file and can modify freely
-- No automatic updates — the user manages their own copy
-- Best for: users who want full control, plan to customize heavily, or prefer no external dependencies
 
 ## Step 2: Gather Project Information
 
