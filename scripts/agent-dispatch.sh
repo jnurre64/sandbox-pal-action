@@ -24,6 +24,8 @@ NUMBER="${3:?}"  # Issue or PR number
 _on_unexpected_error() {
     local exit_code=$?
     local line=${1:-unknown}
+    # EXIT trap fires on success too — only act on errors
+    [ "$exit_code" -eq 0 ] && return 0
     # Best-effort: every command uses || true since gh/notify may be
     # unavailable (they might be the thing that's broken).
     gh issue comment "$NUMBER" --repo "$REPO" \
@@ -55,6 +57,7 @@ Check the [workflow run logs](https://github.com/${REPO}/actions) for details." 
     fi
 }
 trap '_on_unexpected_error $LINENO' ERR
+trap '_on_unexpected_error exit' EXIT
 
 # ─── Load configuration ─────────────────────────────────────────
 # Layered config: defaults (committed) → overrides (gitignored) → defaults.sh
