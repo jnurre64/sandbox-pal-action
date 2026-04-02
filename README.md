@@ -126,6 +126,7 @@ The system adapts to any project through:
 | [Security](docs/security.md) | Threat model, safety mechanisms, security checklist |
 | [Testing](docs/testing.md) | BATS test suite — 52 tests, regression coverage, writing new tests |
 | [Troubleshooting](docs/troubleshooting.md) | Common issues and solutions |
+| [Versioning](docs/versioning.md) | SemVer policy, release process, changelog conventions |
 
 ## How This Differs from claude-code-action
 

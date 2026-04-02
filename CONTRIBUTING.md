@@ -59,6 +59,10 @@ Tests use a shared helper (`tests/helpers/test_helper.bash`) that provides:
 
 When adding a new feature, add a test that verifies the behavior. For bug fixes, add a regression test named `REGRESSION vX.Y.Z: description`.
 
+## Versioning
+
+This project follows [Semantic Versioning](https://semver.org/). See [docs/versioning.md](docs/versioning.md) for the full policy, including what counts as the public interface, when to release, and the release checklist.
+
 ## Reporting Issues
 
 Open an issue with:
