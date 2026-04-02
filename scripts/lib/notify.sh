@@ -1,7 +1,8 @@
 #!/bin/bash
 # ─── Notification layer (optional) ─────────────────────────────────
+# Provides: notify
 # Sends notifications at dispatch milestones to configured platforms.
-# Currently supports Discord webhooks. Slack and Telegram planned.
+# Currently supports Discord webhooks and Discord bot. Slack and Telegram planned.
 # Silently no-ops if no platform is configured.
 
 # ─── Notification level check ──────────────────────────────────────

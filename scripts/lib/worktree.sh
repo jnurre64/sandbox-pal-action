@@ -1,5 +1,6 @@
 #!/bin/bash
 # ─── Git worktree management ────────────────────────────────────
+# Provides: ensure_repo, setup_worktree, run_worktree_setup, cleanup_worktree
 
 # Ensure the base repo is cloned and up to date.
 ensure_repo() {

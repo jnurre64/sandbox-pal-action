@@ -1,5 +1,8 @@
 #!/bin/bash
 # ─── Common functions: logging, labels, circuit breaker, memory, claude runner ──
+# Provides: log, set_label, remove_all_agent_labels, check_circuit_breaker,
+#           load_shared_memory, detect_label_tools, get_implementation_tools,
+#           load_prompt, run_claude, parse_claude_output, handle_post_implementation
 
 # ─── Logging ─────────────────────────────────────────────────────
 log() {

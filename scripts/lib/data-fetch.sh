@@ -1,5 +1,7 @@
 #!/bin/bash
 # ─── Extract debug data from issue/PR comments ──────────────────
+# Provides: extract_debug_data
+# Sets globals: EXTRACTED_DATA_COMMENT_FILE, EXTRACTED_GIST_FILES, EXTRACTED_DATA_ERRORS
 # Pre-fetches save/log data so Claude can read them as local files.
 # Supports three formats:
 #   1. submit-logs skill: comments with "### Environment" marker

@@ -1,5 +1,8 @@
 #!/bin/bash
 # ─── Default configuration values ────────────────────────────────
+# Provides: AGENT_BOT_USER, AGENT_MAX_TURNS, AGENT_TIMEOUT, AGENT_CIRCUIT_BREAKER_LIMIT,
+#           AGENT_ALLOWED_TOOLS_*, AGENT_EXTRA_TOOLS, AGENT_DISALLOWED_TOOLS,
+#           AGENT_PROMPT_*, AGENT_NOTIFY_*, AGENT_DISCORD_*, AGENT_LOG_DIR
 # These are overridden by config.env (sourced before this file)
 # or by environment variables set by the caller.
 
