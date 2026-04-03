@@ -5,6 +5,15 @@
 
 A reusable dispatch system for running [Claude Code](https://claude.com/claude-code) agents on GitHub issues — autonomously triaging, planning, implementing, and addressing PR review feedback, all orchestrated through GitHub Actions and a label-driven state machine.
 
+## Key Benefits
+
+- **No additional subscriptions** — runs on Claude Code CLI and GitHub Actions. No third-party platform subscriptions, no per-token API billing layers, no external SaaS dependencies to manage.
+- **Low complexity, fast setup** — a small dependency chain (shell scripts, GitHub Actions, Claude Code CLI). Configure and deploy in about 5 minutes with the `/setup` skill.
+- **Two-phase human approval** — the agent writes a plan and waits for your approval before writing any code. You stay in control of what gets built.
+- **Async by default** — label an issue before bed, wake up to a plan awaiting approval. Brainstorm a new issue while the agent works on an existing one.
+- **Fresh context every session** — no long-running conversations that drift. Each agent run loads just what it needs from the issue, codebase, and project context.
+- **Deeply configurable** — override prompts per phase, tune tool allowlists, set test gates, add project-specific tools. Designed as a starting point you shape to your workflow.
+
 ## How It Works
 
 When you label a GitHub issue with `agent`, the system:
