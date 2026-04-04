@@ -3,9 +3,15 @@
 </p>
 <h1 align="center">claude-agent-dispatch</h1>
 
+<p align="center">
+  <a href="https://github.com/jnurre64/claude-agent-dispatch/actions/workflows/ci.yml"><img src="https://github.com/jnurre64/claude-agent-dispatch/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/jnurre64/claude-agent-dispatch/releases/latest"><img src="https://img.shields.io/github/v/release/jnurre64/claude-agent-dispatch" alt="Latest Release"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/jnurre64/claude-agent-dispatch" alt="License: MIT"></a>
+</p>
+
 A reusable dispatch system for running [Claude Code](https://claude.com/claude-code) agents on GitHub issues — autonomously triaging, planning, implementing, and addressing PR review feedback, all orchestrated through GitHub Actions and a label-driven state machine.
 
-## Key Benefits
+## Features
 
 - **No additional subscriptions** — runs on Claude Code CLI and GitHub Actions. No third-party platform subscriptions, no per-token API billing layers, no external SaaS dependencies to manage.
 - **Low complexity, fast setup** — a small dependency chain (shell scripts, GitHub Actions, Claude Code CLI). Configure and deploy in about 5 minutes with the `/setup` skill.
@@ -39,12 +45,7 @@ On PR review with changes requested: `agent:pr-open` → `agent:revision` → `a
 
 ### Safety
 
-- **Circuit breaker** — halts after 8 bot comments/hour per issue (configurable)
-- **Tool restrictions** — agents can only use explicitly allowed tools (no sudo, no network, no force push)
-- **Actor filter** — bot's own actions don't re-trigger workflows
-- **Concurrency groups** — one agent job at a time per issue/PR
-- **Timeouts** — configurable per-job timeout prevents runaway sessions
-- **Two-phase dispatch** — human reviews the plan before any code is written
+Built-in protections at every layer: circuit breaker (8 bot comments/hour), phase-specific tool restrictions, actor filters to prevent self-triggering, concurrency groups, configurable timeouts, and two-phase dispatch ensuring human review before any code is written. See [docs/security.md](docs/security.md) for the full threat model.
 
 > **Data privacy:** Issue content is sent to the Anthropic API for inference. Never put secrets, API keys, or PII in GitHub issues. See [docs/security.md](docs/security.md#data-privacy) for details.
 
@@ -110,16 +111,7 @@ All settings live in `config.env` (or `.agent-dispatch/config.env` for standalon
 | `AGENT_EXTRA_TOOLS` | (none) | Project-specific tools (e.g., `Bash(npm:*)`) |
 | `AGENT_PROMPT_*` | built-in | Custom prompt file paths |
 
-See [docs/configuration.md](docs/configuration.md) for the full reference.
-
-## Customization
-
-The system adapts to any project through:
-
-- **CLAUDE.md** — your project's conventions file. The agent reads it for coding style, architecture, and guidelines.
-- **Custom prompts** — override the default prompts to add project-specific instructions. See [docs/customization.md](docs/customization.md).
-- **Tool allowlists** — control exactly what the agent can do via `AGENT_ALLOWED_TOOLS_*` and `AGENT_EXTRA_TOOLS`.
-- **Test gate** — set `AGENT_TEST_COMMAND` to require passing tests before PR creation.
+The system adapts to any project through your CLAUDE.md (coding conventions), custom prompts per phase, tool allowlists, and test gates. See [docs/configuration.md](docs/configuration.md) for the full reference and [docs/customization.md](docs/customization.md) for prompt and tool customization.
 
 ## Documentation
 
@@ -138,6 +130,10 @@ The system adapts to any project through:
 | [Testing](docs/testing.md) | BATS test suite — 52 tests, regression coverage, writing new tests |
 | [Troubleshooting](docs/troubleshooting.md) | Common issues and solutions |
 | [Versioning](docs/versioning.md) | SemVer policy, release process, changelog conventions |
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for conventions, testing, and how to submit changes. Bug reports and feature requests are welcome via [GitHub Issues](https://github.com/jnurre64/claude-agent-dispatch/issues).
 
 ## Repository Structure
 
