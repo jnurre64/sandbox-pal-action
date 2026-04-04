@@ -34,6 +34,10 @@ If data files were attached ($AGENT_DATA_COMMENT_FILE or $AGENT_GIST_FILES are n
 - Read and analyze logs for error patterns, state transitions, and anomalies.
 - Use this data to inform your understanding of the root cause.
 
+If the issue describes a bug that depends on runtime state (timing, data-dependent behavior, environment-specific failures) and the attached data is insufficient or missing:
+- Note the gap in your implementation summary — describe what specific data would help and why.
+- Proceed with what you can determine from the code. Do not block on missing data if you can still make progress.
+
 ### Step 3: Follow TDD -- Red/Green/Refactor
 For each change in the plan:
 1. **RED**: Write a minimal failing test for the desired behavior

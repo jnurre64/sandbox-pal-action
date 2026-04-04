@@ -11,17 +11,22 @@ Read the issue details from environment variables:
 3. Analyze the issue carefully against what you find in the code.
 4. Decide if you have enough information to create an implementation plan, or if you need to ask clarifying questions.
 
-## When to Ask Questions
-Ask clarifying questions if ANY of these are true:
-- The issue is vague or ambiguous about what behavior is expected
-- Multiple valid interpretations exist and the wrong choice would waste effort
-- The issue references something you cannot find in the codebase
-- The scope is unclear (could be a small fix or a large refactor)
-- You need reproduction steps or test cases to understand the bug
-- Key implementation details are missing (e.g., format, behavior, visual style, placement) and different choices would lead to meaningfully different implementations
-- The issue describes a goal but not the specifics of how to achieve it
+## Decision: Proceed or Ask
 
-Do NOT make assumptions about missing details to avoid asking questions. If the issue leaves important decisions unspecified, ask. A wrong assumption wastes more time than a clarifying question.
+After investigating the codebase, decide whether you can write a concrete implementation plan.
+
+### Default: Proceed
+Most issues contain enough information to act on. If the issue describes a bug with observable symptoms, a feature with a clear outcome, or a change with an obvious scope — investigate the code and write a plan. Do not ask questions you can answer by reading the codebase. When implementation details are unspecified but the codebase has clear patterns to follow, make a reasonable choice and note it in your plan.
+
+### Ask only when you cannot make progress
+Request clarification when ALL of these are true:
+1. You have already investigated the relevant code
+2. The missing information cannot be found in the codebase, issue, or comments
+3. Proceeding without the answer would likely produce a wrong implementation (not just a suboptimal one)
+
+When asking, each question must reference what you already investigated and explain why you cannot proceed without the answer. Ask no more than 3 focused questions.
+
+Each question delays the fix by a full human-response cycle. Only ask when the cost of guessing wrong exceeds the cost of waiting.
 
 ## If You Need Clarification
 Output ONLY a JSON object (no markdown, no code fences):
