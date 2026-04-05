@@ -30,6 +30,9 @@ AGENT_TEST_COMMAND="${AGENT_TEST_COMMAND:-}"
 # Claude effort level for all agent runs
 AGENT_EFFORT_LEVEL="${AGENT_EFFORT_LEVEL:-high}"
 
+# Allow direct implementation via agent:implement label (skip triage)
+AGENT_ALLOW_DIRECT_IMPLEMENT="${AGENT_ALLOW_DIRECT_IMPLEMENT:-true}"
+
 # ─── Tool permissions ────────────────────────────────────────────
 # Triage/reply: read-only + Write (needed to output plan file to .agent-data/)
 AGENT_ALLOWED_TOOLS_TRIAGE="${AGENT_ALLOWED_TOOLS_TRIAGE:-Read,Write,Grep,Glob,Bash(echo:*),Bash(cat:*),Bash(ls:*),Bash(find:*)}"
@@ -50,6 +53,7 @@ AGENT_PROMPT_TRIAGE="${AGENT_PROMPT_TRIAGE:-}"
 AGENT_PROMPT_IMPLEMENT="${AGENT_PROMPT_IMPLEMENT:-}"
 AGENT_PROMPT_REPLY="${AGENT_PROMPT_REPLY:-}"
 AGENT_PROMPT_REVIEW="${AGENT_PROMPT_REVIEW:-}"
+AGENT_PROMPT_VALIDATE="${AGENT_PROMPT_VALIDATE:-}"
 
 # ─── Label-to-tool mapping ────────────────────────────────────────
 # Map issue labels to extra tools that get added when the label is present.

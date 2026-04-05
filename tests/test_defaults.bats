@@ -136,3 +136,34 @@ EOF
     # The start_sha line in handle_implement should reference origin/main
     echo "$implement_section" | grep 'start_sha=' | grep -q 'origin/main'
 }
+
+# ═══════════════════════════════════════════════════════════════
+# Direct implement configuration
+# ═══════════════════════════════════════════════════════════════
+
+@test "defaults.sh: AGENT_ALLOW_DIRECT_IMPLEMENT defaults to true" {
+    export AGENT_BOT_USER="test-bot"
+    unset AGENT_ALLOW_DIRECT_IMPLEMENT
+
+    source "${LIB_DIR}/defaults.sh"
+
+    assert_equal "$AGENT_ALLOW_DIRECT_IMPLEMENT" "true"
+}
+
+@test "defaults.sh: AGENT_ALLOW_DIRECT_IMPLEMENT can be overridden to false" {
+    export AGENT_BOT_USER="test-bot"
+    export AGENT_ALLOW_DIRECT_IMPLEMENT="false"
+
+    source "${LIB_DIR}/defaults.sh"
+
+    assert_equal "$AGENT_ALLOW_DIRECT_IMPLEMENT" "false"
+}
+
+@test "defaults.sh: AGENT_PROMPT_VALIDATE defaults to empty" {
+    export AGENT_BOT_USER="test-bot"
+    unset AGENT_PROMPT_VALIDATE
+
+    source "${LIB_DIR}/defaults.sh"
+
+    assert_equal "$AGENT_PROMPT_VALIDATE" ""
+}

@@ -8,3 +8,5 @@ agent:in-progress|FBCA04|Agent is implementing changes
 agent:pr-open|1D76DB|Agent created a PR, awaiting review
 agent:revision|FBCA04|Agent is addressing PR review feedback
 agent:failed|B60205|Agent encountered an error and stopped
+agent:implement|FBCA04|Skip triage — validate and implement a pre-written plan
+agent:validating|FBCA04|Agent is validating a pre-written plan against the codebase

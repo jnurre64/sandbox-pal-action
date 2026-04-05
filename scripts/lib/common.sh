@@ -21,6 +21,8 @@ ALL_AGENT_LABELS=(
     agent:failed
     agent:plan-review
     agent:plan-approved
+    agent:implement
+    agent:validating
 )
 
 remove_all_agent_labels() {

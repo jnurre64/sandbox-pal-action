@@ -51,6 +51,8 @@ setup() {
     export AGENT_PROMPT_IMPLEMENT=""
     export AGENT_PROMPT_REPLY=""
     export AGENT_PROMPT_REVIEW=""
+    export AGENT_PROMPT_VALIDATE=""
+    export AGENT_ALLOW_DIRECT_IMPLEMENT="true"
     export SCRIPT_DIR="$SCRIPTS_DIR"
     export CONFIG_DIR=""
     export WORKTREE_DIR="${TEST_TEMP_DIR}/worktree"
