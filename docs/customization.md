@@ -43,6 +43,7 @@ You only need to override the prompts you want to change. Unset variables use th
 | `AGENT_PROMPT_IMPLEMENT` | Code implementation from approved plan | `prompts/implement.md` |
 | `AGENT_PROMPT_REPLY` | Evaluating human replies to agent questions | `prompts/reply.md` |
 | `AGENT_PROMPT_REVIEW` | Addressing PR review feedback | `prompts/review.md` |
+| `AGENT_PROMPT_VALIDATE` | Pre-written plan validation | `prompts/validate.md` |
 
 ---
 

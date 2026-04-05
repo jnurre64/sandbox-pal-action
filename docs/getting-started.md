@@ -346,6 +346,18 @@ agent:triage            Agent is analyzing the issue
 
 At any point, if the agent encounters an unrecoverable error, the label is set to `agent:failed`.
 
+### Alternative: Direct Implementation
+
+If your issue already contains a complete implementation plan (detailed steps, file paths, expected changes), you can skip triage entirely by adding the `agent:implement` label instead of `agent`.
+
+When you use `agent:implement`:
+
+1. The agent validates the plan in the issue body against the current codebase
+2. If the plan is valid, the agent proceeds directly to implementation (no separate approval step)
+3. If validation finds issues (missing files, outdated references, ambiguous steps), the agent posts its findings as a comment and sets `agent:needs-info` for you to address
+
+This is useful when you have already written a detailed plan -- for example, from an interactive Claude Code session -- and want the agent to execute it without an extra triage round-trip.
+
 ### Retrying a failed issue
 
 1. Check the workflow run logs in the Actions tab

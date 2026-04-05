@@ -48,6 +48,28 @@ agent:triage  ................ agent is analyzing the issue
 At any point on failure: --> agent:failed
 ```
 
+### Direct Implement Path
+
+If an issue already contains a complete implementation plan, a human can add the `agent:implement` label to skip triage entirely. The agent validates the plan against the codebase, then proceeds directly to implementation in a single session (no human checkpoint between validation and implementation).
+
+```
+Human adds "agent:implement" label
+  |
+  v
+agent:validating ............. agent is verifying the plan against the codebase
+  |
+  +--> agent:needs-info ...... plan has issues, waiting for human to fix
+  |      |
+  |      +--> (human replies) --> re-validates plan
+  |
+  +--> agent:in-progress ..... plan valid, implementing (same as standard flow)
+         |
+         v
+       agent:pr-open ......... PR created, awaiting review (same as standard flow)
+```
+
+This path requires `AGENT_ALLOW_DIRECT_IMPLEMENT=true` (the default). Set to `false` to disable the `agent:implement` label entirely.
+
 All agent labels:
 
 | Label | Meaning |
@@ -61,6 +83,8 @@ All agent labels:
 | `agent:in-progress` | Agent is implementing code |
 | `agent:pr-open` | PR created, awaiting review |
 | `agent:revision` | Agent is addressing review feedback |
+| `agent:implement` | Human trigger: skip triage, validate and implement a pre-written plan |
+| `agent:validating` | Agent is validating a pre-written plan against the codebase |
 | `agent:failed` | Something went wrong; check logs |
 
 ## Event Triggers
@@ -72,6 +96,7 @@ The system uses four reusable GitHub Actions workflows (`dispatch-*.yml`) that y
 | `issues.labeled` | `agent` label added | `dispatch-triage.yml` | Label is `agent`, actor != `your-bot` |
 | `issues.labeled` | `agent:plan-approved` label added | `dispatch-implement.yml` | Label is `agent:plan-approved`, actor != `your-bot` |
 | `issue_comment.created` | Human replies on issue | `dispatch-reply.yml` | Issue has `agent:needs-info` label, commenter != `your-bot` |
+| `issues.labeled` | `agent:implement` label added | `dispatch-direct-implement.yml` | Label is `agent:implement`, actor != `your-bot` |
 | `pull_request_review.submitted` | Review with changes requested | `dispatch-review.yml` | State is `changes_requested`, reviewer != `your-bot` |
 
 The actor/commenter/reviewer filters are critical -- without them, the bot's own actions would re-trigger workflows in an infinite loop.
@@ -155,6 +180,24 @@ issues.labeled "agent:plan-approved"
         set agent:failed, post comment
 ```
 
+### Direct Implement (direct_implement)
+
+```
+issues.labeled "agent:implement"
+  --> check AGENT_ALLOW_DIRECT_IMPLEMENT (fail if disabled)
+  --> set_label("agent:validating")
+  --> check_circuit_breaker
+  --> ensure_repo, setup_worktree
+  --> fetch issue title, body, comments via gh CLI
+  --> extract debug data (gists, attachments) from comments and body
+  --> run claude -p with validate prompt (read-only tools)
+  --> parse response:
+      valid         -> set AGENT_PLAN_CONTENT, call handle_implement (same session)
+      issues_found  -> post comment with <!-- agent-direct-implement --> marker,
+                       set agent:needs-info
+      other         -> set agent:failed
+```
+
 ### PR Review (pr_review)
 
 ```
@@ -204,6 +247,7 @@ Default prompts for each dispatch mode. Each prompt instructs Claude on what to 
 | `reply.md` | `issue_reply` | Evaluate if questions are answered |
 | `implement.md` | `implement` | Implement approved plan with TDD |
 | `review.md` | `pr_review` | Address PR review feedback |
+| `validate.md` | `direct_implement` | Validate pre-written plan against codebase |
 
 ### Worktrees
 

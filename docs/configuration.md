@@ -134,6 +134,24 @@ AGENT_EFFORT_LEVEL="high"
 
 This is exported as `CLAUDE_CODE_EFFORT_LEVEL` for the `claude` CLI.
 
+### AGENT_ALLOW_DIRECT_IMPLEMENT
+
+Controls whether the `agent:implement` label is accepted as an entry point. When enabled, humans can skip triage by adding `agent:implement` to an issue that already contains a complete plan. When disabled, the label is rejected and the issue is marked as failed.
+
+| Key | Default | Type |
+|-----|---------|------|
+| `AGENT_ALLOW_DIRECT_IMPLEMENT` | `true` | boolean string (`true` or `false`) |
+
+```bash
+# Enable (default) — allow agent:implement label
+AGENT_ALLOW_DIRECT_IMPLEMENT="true"
+
+# Disable — reject agent:implement label, require standard triage flow
+AGENT_ALLOW_DIRECT_IMPLEMENT="false"
+```
+
+When disabled, any issue labeled with `agent:implement` will receive a comment explaining that direct implementation is not enabled and the label will be changed to `agent:failed`.
+
 ---
 
 ## Tool Permissions
@@ -206,6 +224,7 @@ You can override the default prompts for each agent phase by pointing to your ow
 | `AGENT_PROMPT_IMPLEMENT` | Implementation (code changes) | `prompts/implement.md` |
 | `AGENT_PROMPT_REPLY` | Reply (follow-up to questions) | `prompts/reply.md` |
 | `AGENT_PROMPT_REVIEW` | Review (PR feedback) | `prompts/review.md` |
+| `AGENT_PROMPT_VALIDATE` | Validation (pre-written plan check) | `prompts/validate.md` |
 
 ```bash
 AGENT_PROMPT_TRIAGE="/home/user/my-project/agent-prompts/triage.md"
@@ -234,7 +253,7 @@ Two types of logs are written here:
 
 ## Reusable Workflow Inputs
 
-The reusable workflows (`dispatch-triage.yml`, `dispatch-implement.yml`, `dispatch-reply.yml`, `dispatch-review.yml`) accept these inputs when called from your project's workflow:
+The reusable workflows (`dispatch-triage.yml`, `dispatch-implement.yml`, `dispatch-reply.yml`, `dispatch-review.yml`, `dispatch-direct-implement.yml`) accept these inputs when called from your project's workflow:
 
 | Input | Required | Default | Description |
 |-------|----------|---------|-------------|
@@ -278,7 +297,7 @@ The dispatch script exports these environment variables before invoking `claude 
 | `$AGENT_ISSUE_BODY` | Issue body (full markdown) |
 | `$AGENT_COMMENTS` | Last 20 issue comments, formatted as `[author] body` |
 | `$AGENT_ISSUE_NUMBER` | Issue number (implement phase only) |
-| `$AGENT_PLAN_CONTENT` | The approved plan comment body (implement phase only) |
+| `$AGENT_PLAN_CONTENT` | The approved plan comment body (implement phase), or the issue body (direct implement) |
 
 ### Debug Data (implement and review phases)
 

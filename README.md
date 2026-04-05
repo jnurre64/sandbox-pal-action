@@ -45,6 +45,8 @@ agent ──> agent:triage ──> agent:plan-review ──> agent:plan-approved
 
 On PR review with changes requested: `agent:pr-open` → `agent:revision` → `agent:pr-open`
 
+With `agent:implement` (skip triage): `agent:implement` → `agent:validating` → `agent:in-progress` → `agent:pr-open`
+
 ### Safety
 
 Built-in protections at every layer: circuit breaker (8 bot comments/hour), phase-specific tool restrictions, actor filters to prevent self-triggering, concurrency groups, configurable timeouts, and two-phase dispatch ensuring human review before any code is written. See [docs/security.md](docs/security.md) for the full threat model.
@@ -156,9 +158,11 @@ claude-agent-dispatch/
 │   ├── triage.md                # Default triage + plan prompt
 │   ├── implement.md             # Default TDD implementation prompt
 │   ├── reply.md                 # Default reply handling prompt
-│   └── review.md                # Default PR review prompt
+│   ├── review.md                # Default PR review prompt
+│   └── validate.md              # Default plan validation prompt
 ├── .github/workflows/
 │   ├── dispatch-triage.yml      # Reusable workflow: issue triage
+│   ├── dispatch-direct-implement.yml  # Reusable workflow: direct implement (skip triage)
 │   ├── dispatch-implement.yml   # Reusable workflow: plan implementation
 │   ├── dispatch-reply.yml       # Reusable workflow: reply handling
 │   ├── dispatch-review.yml      # Reusable workflow: PR review
