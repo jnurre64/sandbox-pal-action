@@ -146,7 +146,21 @@ Replace `my-project-bot` and `ghp_YOUR_BOT_PAT` with your actual bot username an
 
 claude-agent-dispatch supports two modes. Choose based on your needs:
 
-### Reference mode (recommended)
+### Standalone mode (recommended)
+
+All scripts, prompts, and workflow files are copied directly into your target repo under `.agent-dispatch/`. No external dependency.
+
+**Pros:**
+- Full control over every file -- customize freely
+- No external dependency at runtime
+- Everything is versioned alongside your project
+- Per-repo configuration isolation out of the box
+
+**Cons:**
+- More files in your repo
+- No automatic updates -- use the `/update` skill to sync improvements
+
+### Reference mode
 
 Thin caller workflow files live in your target repo and call back to the upstream `claude-agent-dispatch` reusable workflows. Scripts run from a clone of this repo on the runner.
 
@@ -159,20 +173,7 @@ Thin caller workflow files live in your target repo and call back to the upstrea
 - Requires cloning this repo on every runner
 - Depends on an external repository being available
 - Updates could introduce breaking changes (pin to a version tag to mitigate)
-
-### Standalone mode
-
-All scripts, prompts, and workflow files are copied directly into your target repo under `.agent-dispatch/`. No external dependency.
-
-**Pros:**
-- Full control over every file -- customize freely
-- No external dependency at runtime
-- Everything is versioned alongside your project
-
-**Cons:**
-- More files in your repo
-- No automatic updates -- you must manually sync improvements
-- Prompt and script drift if the upstream evolves
+- Shared config across repos on the same runner -- per-repo overrides require extra setup
 
 ---
 

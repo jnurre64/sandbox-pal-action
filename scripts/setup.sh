@@ -32,15 +32,15 @@ echo -e "${BOLD}Step 1: Setup Mode${NC}"
 echo ""
 echo "How would you like to set up the agent dispatch system?"
 echo ""
-echo "  [1] Reference mode (recommended)"
+echo "  [1] Standalone mode (recommended)"
+echo "      All scripts, prompts, and workflows are copied into your repo."
+echo "      You own everything and can modify freely."
+echo "      Per-repo config isolation out of the box."
+echo ""
+echo "  [2] Reference mode"
 echo "      Workflows in your repo call back to this upstream repo."
 echo "      Scripts run from a clone on your runner."
 echo "      You get updates automatically via version tags."
-echo ""
-echo "  [2] Standalone mode"
-echo "      All scripts, prompts, and workflows are copied into your repo."
-echo "      You own everything and can modify freely."
-echo "      No upstream dependency — but no automatic updates either."
 echo ""
 
 read -rp "Choose mode [1/2]: " SETUP_MODE
@@ -49,6 +49,13 @@ SETUP_MODE="${SETUP_MODE:-1}"
 if [[ "$SETUP_MODE" != "1" && "$SETUP_MODE" != "2" ]]; then
     echo -e "${RED}Invalid choice. Please enter 1 or 2.${NC}"
     exit 1
+fi
+
+# Map user-facing numbering to internal: 1=standalone(internal 2), 2=reference(internal 1)
+if [[ "$SETUP_MODE" == "1" ]]; then
+    SETUP_MODE="2"
+elif [[ "$SETUP_MODE" == "2" ]]; then
+    SETUP_MODE="1"
 fi
 
 echo ""

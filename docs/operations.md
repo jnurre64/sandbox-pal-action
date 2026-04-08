@@ -213,7 +213,7 @@ git -C ~/repos/default/my-repo worktree prune
 
 ## Updating the Dispatch Scripts
 
-### Reference Mode (recommended)
+### Reference Mode
 
 If your project calls the reusable workflows from this repository, you are already in reference mode. The dispatch scripts live in the `claude-agent-dispatch` repository and your project references them via `workflow_call`.
 

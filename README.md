@@ -95,8 +95,8 @@ Both options will:
 
 | Mode | How it works | Best for |
 |------|-------------|----------|
-| **Reference** | Thin workflow files in your repo call reusable workflows from this repo via `@v1` tags | Users who want automatic updates |
-| **Standalone** | All scripts, prompts, and workflows copied into your repo under `.agent-dispatch/` | Users who want full control and no upstream dependency |
+| **Standalone** (recommended) | All scripts, prompts, and workflows copied into your repo under `.agent-dispatch/` | Most users — full control, per-repo isolation |
+| **Reference** | Thin workflow files in your repo call reusable workflows from this repo via `@v1` tags | Advanced users who want automatic updates |
 
 ### Test It
 
