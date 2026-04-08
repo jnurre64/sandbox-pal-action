@@ -104,7 +104,45 @@ For each file that both sides modified:
 ### New files
 For each new upstream file, show its contents and ask if the user wants to add it.
 
-## Step 6: Update Tracking
+## Step 6: Detect New Workflow Templates
+
+After applying updates to `.agent-dispatch/`, check whether upstream has added any new workflow templates that the user's repo doesn't have yet.
+
+### Scan for new templates
+
+1. List all `.yml` files in the upstream clone's `.claude/skills/setup/templates/standalone/` directory.
+2. For each template file (e.g., `agent-direct-implement.yml`), check if `.github/workflows/<same-filename>` exists in the user's repo.
+3. Collect any templates that don't have a matching installed workflow — these are new.
+
+### If no new templates found
+
+Report: "No new workflow templates detected." and proceed to the next step.
+
+### If new templates found
+
+For each new template:
+
+1. **Describe it:** Read the template's `name:` field and `on:` trigger to give the user a one-line summary. Example:
+   ```
+   New workflow template available:
+     agent-direct-implement.yml — "Claude Agent: Direct Implement" (triggers on issues labeled)
+   ```
+
+2. **Confirm bot username:** Read `AGENT_BOT_USER` from `.agent-dispatch/config.defaults.env`. Ask the user to confirm: "I'll substitute `<bot-username>` for the bot user in the workflow — does that look right?"
+
+3. **Show the generated workflow:** Read the template, replace all `{{BOT_USER}}` occurrences with the confirmed bot username, and show the result to the user.
+
+4. **Ask to install:** "Install this workflow to `.github/workflows/agent-direct-implement.yml`?"
+   - If yes: write the file (create `.github/workflows/` if it doesn't exist).
+   - If no: skip it.
+
+5. Repeat for each new template.
+
+### Bot username confirmation
+
+Only ask for bot username confirmation once (on the first new template). Reuse the confirmed value for all subsequent templates in the same update run.
+
+## Step 7: Update Tracking
 
 After applying changes, update `.agent-dispatch/.upstream`:
 - Set `version` to the latest upstream commit SHA
@@ -112,12 +150,13 @@ After applying changes, update `.agent-dispatch/.upstream`:
 
 Write the updated `.upstream` file.
 
-## Step 7: Summary
+## Step 8: Summary
 
 Tell the user:
 - How many files were updated, skipped, and merged
+- How many new workflow templates were installed (if any)
 - If any manual review items remain
-- Remind them to commit the changes: `git add .agent-dispatch/ && git commit -m "Update agent-dispatch from upstream"`
+- Remind them to commit the changes: `git add .agent-dispatch/ .github/workflows/ && git commit -m "Update agent-dispatch from upstream"`
 
 ## File Format: .agent-dispatch/.upstream
 
