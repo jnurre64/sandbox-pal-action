@@ -334,3 +334,22 @@ EOF
 
     [ "$review_line" -lt "$impl_line" ]
 }
+
+@test "common.sh: handle_post_implementation calls run_post_impl_review" {
+    grep -q 'run_post_impl_review' "${LIB_DIR}/common.sh"
+}
+
+@test "common.sh: run_post_impl_review runs AFTER tests pass and BEFORE push" {
+    local tests_line review_line push_line
+    tests_line=$(grep -n 'tests_passed' "${LIB_DIR}/common.sh" | head -1 | cut -d: -f1)
+    review_line=$(grep -n 'run_post_impl_review' "${LIB_DIR}/common.sh" | head -1 | cut -d: -f1)
+    push_line=$(grep -n 'git.*push.*origin' "${LIB_DIR}/common.sh" | head -1 | cut -d: -f1)
+
+    [ "$tests_line" -lt "$review_line" ]
+    [ "$review_line" -lt "$push_line" ]
+}
+
+@test "common.sh: PR body includes review annotation when REVIEW_RETRY_CONCERNS is set" {
+    grep -q 'REVIEW_RETRY_CONCERNS' "${LIB_DIR}/common.sh"
+    grep -q 'Post-Implementation Review' "${LIB_DIR}/common.sh"
+}
