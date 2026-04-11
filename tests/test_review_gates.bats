@@ -214,3 +214,47 @@ _source_review_gates() {
     run handle_post_impl_review_retry "Read,Write"
     assert_success
 }
+
+# ═══════════════════════════════════════════════════════════════
+# Regression guards
+# ═══════════════════════════════════════════════════════════════
+
+@test "REGRESSION review-gates: both gates disabled produces unchanged flow" {
+    export AGENT_ADVERSARIAL_PLAN_REVIEW="false"
+    export AGENT_POST_IMPL_REVIEW="false"
+    _source_review_gates
+
+    # Gate A skips
+    run run_adversarial_plan_review
+    assert_success
+
+    # Gate B skips
+    run run_post_impl_review
+    assert_success
+}
+
+@test "REGRESSION review-gates: Gate A corrected preserves revised_plan in AGENT_PLAN_CONTENT" {
+    export AGENT_ADVERSARIAL_PLAN_REVIEW="true"
+    export AGENT_PLAN_CONTENT="Original plan with wrong metric"
+    create_mock "gh" ""
+    _source_review_gates
+
+    run_claude() {
+        echo '{"result":"{\"action\": \"corrected\", \"corrections\": [\"Changed metric A to metric B\"], \"revised_plan\": \"Plan with correct metric B\"}"}'
+    }
+
+    run_adversarial_plan_review
+    assert_equal "$AGENT_PLAN_CONTENT" "Plan with correct metric B"
+}
+
+@test "REGRESSION review-gates: Gate A uses triage tools (read-only)" {
+    # Verify the function uses AGENT_ALLOWED_TOOLS_TRIAGE, not implementation tools
+    grep -q 'AGENT_ALLOWED_TOOLS_TRIAGE' "${LIB_DIR}/review-gates.sh"
+}
+
+@test "REGRESSION review-gates: Gate B uses triage tools (read-only)" {
+    # Both review functions should use read-only tools
+    local triage_count
+    triage_count=$(grep -c 'AGENT_ALLOWED_TOOLS_TRIAGE' "${LIB_DIR}/review-gates.sh")
+    [ "$triage_count" -ge 2 ]
+}
