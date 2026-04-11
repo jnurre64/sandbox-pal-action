@@ -1,0 +1,9 @@
+# Default: let Git detect text files and normalize line endings
+* text=auto
+
+# Force LF line endings for shell scripts and related files
+# Prevents CRLF issues on Windows with core.autocrlf=true
+*.sh text eol=lf
+*.bash text eol=lf
+*.bats text eol=lf
+Makefile text eol=lf
