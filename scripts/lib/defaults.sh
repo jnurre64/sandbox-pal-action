@@ -55,6 +55,23 @@ AGENT_PROMPT_REPLY="${AGENT_PROMPT_REPLY:-}"
 AGENT_PROMPT_REVIEW="${AGENT_PROMPT_REVIEW:-}"
 AGENT_PROMPT_VALIDATE="${AGENT_PROMPT_VALIDATE:-}"
 
+# ─── Adversarial review gates ────────────────────────────────
+# Pre-implementation plan review (fresh session checks plan vs issue)
+AGENT_ADVERSARIAL_PLAN_REVIEW="${AGENT_ADVERSARIAL_PLAN_REVIEW:-true}"
+# Post-implementation diff review (fresh session checks diff vs issue/plan)
+AGENT_POST_IMPL_REVIEW="${AGENT_POST_IMPL_REVIEW:-true}"
+# Max retry attempts for post-impl review (0 = no retries, concerns go to human)
+AGENT_POST_IMPL_REVIEW_MAX_RETRIES="${AGENT_POST_IMPL_REVIEW_MAX_RETRIES:-1}"
+
+# Review gate prompt overrides (empty = use built-in defaults)
+AGENT_PROMPT_ADVERSARIAL_PLAN="${AGENT_PROMPT_ADVERSARIAL_PLAN:-}"
+AGENT_PROMPT_POST_IMPL_REVIEW="${AGENT_PROMPT_POST_IMPL_REVIEW:-}"
+AGENT_PROMPT_POST_IMPL_RETRY="${AGENT_PROMPT_POST_IMPL_RETRY:-}"
+
+# ─── Model configuration ────────────────────────────────────
+# Claude model to use (empty = use CLI default, currently Opus 4.6)
+AGENT_MODEL="${AGENT_MODEL:-}"
+
 # ─── Label-to-tool mapping ────────────────────────────────────────
 # Map issue labels to extra tools that get added when the label is present.
 # Format: AGENT_LABEL_TOOLS_<sanitized_label>="tool1,tool2"

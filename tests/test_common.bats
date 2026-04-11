@@ -293,3 +293,98 @@ _source_common() {
     assert_success
     assert_output "Custom validate prompt"
 }
+
+# ═══════════════════════════════════════════════════════════════
+# run_claude model configuration tests
+# ═══════════════════════════════════════════════════════════════
+
+@test "run_claude: passes --model flag when AGENT_MODEL is set" {
+    create_mock "claude" '{"result":"ok"}'
+    create_mock "timeout" '{"result":"ok"}'
+    export AGENT_MODEL="claude-opus-4-6"
+    export WORKTREE_DIR="$TEST_TEMP_DIR"
+    _source_common
+
+    # Create a wrapper that captures claude args
+    local mock_bin="${TEST_TEMP_DIR}/bin"
+    cat > "${mock_bin}/timeout" << 'MOCK'
+#!/bin/bash
+# Skip the timeout arg, capture the rest
+shift  # timeout value
+echo "$@" >> "${TEST_TEMP_DIR}/mock_calls_timeout"
+echo '{"result":"ok"}'
+MOCK
+    chmod +x "${mock_bin}/timeout"
+
+    run run_claude "test prompt" "Read,Write"
+    local calls
+    calls=$(cat "${TEST_TEMP_DIR}/mock_calls_timeout" 2>/dev/null || echo "")
+    [[ "$calls" == *"--model"* ]]
+    [[ "$calls" == *"claude-opus-4-6"* ]]
+}
+
+@test "run_claude: omits --model flag when AGENT_MODEL is empty" {
+    create_mock "claude" '{"result":"ok"}'
+    export AGENT_MODEL=""
+    export WORKTREE_DIR="$TEST_TEMP_DIR"
+    _source_common
+
+    local mock_bin="${TEST_TEMP_DIR}/bin"
+    cat > "${mock_bin}/timeout" << 'MOCK'
+#!/bin/bash
+shift
+echo "$@" >> "${TEST_TEMP_DIR}/mock_calls_timeout"
+echo '{"result":"ok"}'
+MOCK
+    chmod +x "${mock_bin}/timeout"
+
+    run run_claude "test prompt" "Read,Write"
+    local calls
+    calls=$(cat "${TEST_TEMP_DIR}/mock_calls_timeout" 2>/dev/null || echo "")
+    [[ "$calls" != *"--model"* ]]
+}
+
+# ═══════════════════════════════════════════════════════════════
+# Adversarial review prompt tests
+# ═══════════════════════════════════════════════════════════════
+
+@test "load_prompt: loads default adversarial-plan prompt" {
+    _source_common
+    run load_prompt "adversarial-plan" ""
+    assert_success
+    assert_output --partial "adversarial"
+}
+
+@test "load_prompt: loads custom adversarial-plan prompt from absolute path" {
+    _source_common
+    local prompt_file="${TEST_TEMP_DIR}/custom-adversarial.md"
+    echo "Custom adversarial prompt" > "$prompt_file"
+
+    run load_prompt "adversarial-plan" "$prompt_file"
+    assert_success
+    assert_output "Custom adversarial prompt"
+}
+
+@test "load_prompt: loads default post-impl-review prompt" {
+    _source_common
+    run load_prompt "post-impl-review" ""
+    assert_success
+    assert_output --partial "post-implementation"
+}
+
+@test "load_prompt: loads custom post-impl-review prompt from absolute path" {
+    _source_common
+    local prompt_file="${TEST_TEMP_DIR}/custom-post-impl.md"
+    echo "Custom post-impl review prompt" > "$prompt_file"
+
+    run load_prompt "post-impl-review" "$prompt_file"
+    assert_success
+    assert_output "Custom post-impl review prompt"
+}
+
+@test "load_prompt: loads default post-impl-retry prompt" {
+    _source_common
+    run load_prompt "post-impl-retry" ""
+    assert_success
+    assert_output --partial "review concerns"
+}

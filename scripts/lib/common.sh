@@ -158,6 +158,9 @@ run_claude() {
         --max-turns "$AGENT_MAX_TURNS"
         --output-format json
     )
+    if [ -n "${AGENT_MODEL:-}" ]; then
+        claude_args+=(--model "$AGENT_MODEL")
+    fi
     if [ -n "$memory" ]; then
         claude_args+=(--append-system-prompt "$memory")
     fi
@@ -235,6 +238,21 @@ $(echo "$test_output" | tail -100)
         fi
 
         notify "tests_passed" "$issue_title" "https://github.com/${REPO}/issues/${NUMBER}" "Pre-PR tests passed ($commit_count commits)"
+
+        # ── Post-implementation review (Gate B) ──────────────────
+        if ! run_post_impl_review; then
+            local impl_tools
+            impl_tools=$(get_implementation_tools)
+            if ! handle_post_impl_review_retry "$impl_tools"; then
+                log "Post-implementation review halted PR creation."
+                return 1
+            fi
+            # Update commit count after retry may have added commits
+            if [ -n "$start_sha" ]; then
+                commit_count=$(git -C "$WORKTREE_DIR" rev-list --count "${start_sha}..HEAD" 2>/dev/null || echo "0")
+            fi
+        fi
+
         log "Pushing $commit_count commit(s)..."
         git -C "$WORKTREE_DIR" push -u origin "$BRANCH_NAME" 2>/dev/null
 
@@ -242,12 +260,28 @@ $(echo "$test_output" | tail -100)
         local commit_log
         commit_log=$(git -C "$WORKTREE_DIR" log --format="- %s" origin/main..HEAD 2>/dev/null | head -20)
 
+        # Build review annotation if Gate B triggered a retry
+        local review_annotation=""
+        if [ -n "${REVIEW_RETRY_CONCERNS:-}" ]; then
+            review_annotation="
+### Post-Implementation Review
+
+The adversarial post-implementation review identified concerns that were addressed before this PR was created:
+
+**Concerns raised:**
+${REVIEW_RETRY_CONCERNS}
+
+**Commits addressing concerns:** ${REVIEW_RETRY_COMMITS}
+
+"
+        fi
+
         local pr_body="## Automated PR for #${NUMBER}
 
 This PR was created by the Claude Code agent.
 
 ${claude_output:0:2000}
-
+${review_annotation}
 ### Commits
 ${commit_log}
 

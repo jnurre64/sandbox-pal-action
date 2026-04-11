@@ -241,3 +241,115 @@ EOF
 
     echo "$reply_section" | grep -q 'handle_direct_implement'
 }
+
+# ═══════════════════════════════════════════════════════════════
+# Adversarial review gate configuration
+# ═══════════════════════════════════════════════════════════════
+
+@test "defaults.sh: AGENT_ADVERSARIAL_PLAN_REVIEW defaults to true" {
+    export AGENT_BOT_USER="test-bot"
+    unset AGENT_ADVERSARIAL_PLAN_REVIEW
+
+    source "${LIB_DIR}/defaults.sh"
+
+    assert_equal "$AGENT_ADVERSARIAL_PLAN_REVIEW" "true"
+}
+
+@test "defaults.sh: AGENT_POST_IMPL_REVIEW defaults to true" {
+    export AGENT_BOT_USER="test-bot"
+    unset AGENT_POST_IMPL_REVIEW
+
+    source "${LIB_DIR}/defaults.sh"
+
+    assert_equal "$AGENT_POST_IMPL_REVIEW" "true"
+}
+
+@test "defaults.sh: AGENT_POST_IMPL_REVIEW_MAX_RETRIES defaults to 1" {
+    export AGENT_BOT_USER="test-bot"
+    unset AGENT_POST_IMPL_REVIEW_MAX_RETRIES
+
+    source "${LIB_DIR}/defaults.sh"
+
+    assert_equal "$AGENT_POST_IMPL_REVIEW_MAX_RETRIES" "1"
+}
+
+@test "defaults.sh: AGENT_MODEL defaults to empty" {
+    export AGENT_BOT_USER="test-bot"
+    unset AGENT_MODEL
+
+    source "${LIB_DIR}/defaults.sh"
+
+    assert_equal "$AGENT_MODEL" ""
+}
+
+@test "defaults.sh: AGENT_PROMPT_ADVERSARIAL_PLAN defaults to empty" {
+    export AGENT_BOT_USER="test-bot"
+    unset AGENT_PROMPT_ADVERSARIAL_PLAN
+
+    source "${LIB_DIR}/defaults.sh"
+
+    assert_equal "$AGENT_PROMPT_ADVERSARIAL_PLAN" ""
+}
+
+@test "defaults.sh: AGENT_PROMPT_POST_IMPL_REVIEW defaults to empty" {
+    export AGENT_BOT_USER="test-bot"
+    unset AGENT_PROMPT_POST_IMPL_REVIEW
+
+    source "${LIB_DIR}/defaults.sh"
+
+    assert_equal "$AGENT_PROMPT_POST_IMPL_REVIEW" ""
+}
+
+@test "defaults.sh: AGENT_PROMPT_POST_IMPL_RETRY defaults to empty" {
+    export AGENT_BOT_USER="test-bot"
+    unset AGENT_PROMPT_POST_IMPL_RETRY
+
+    source "${LIB_DIR}/defaults.sh"
+
+    assert_equal "$AGENT_PROMPT_POST_IMPL_RETRY" ""
+}
+
+# ═══════════════════════════════════════════════════════════════
+# Review gates integration
+# ═══════════════════════════════════════════════════════════════
+
+@test "dispatch script: sources review-gates.sh" {
+    grep -q 'review-gates.sh' "${SCRIPTS_DIR}/agent-dispatch.sh"
+}
+
+@test "dispatch script: handle_implement calls run_adversarial_plan_review" {
+    local implement_section
+    implement_section=$(sed -n '/^handle_implement/,/^handle_direct_implement/p' "${SCRIPTS_DIR}/agent-dispatch.sh")
+
+    echo "$implement_section" | grep -q 'run_adversarial_plan_review'
+}
+
+@test "dispatch script: run_adversarial_plan_review runs BEFORE implementation claude session" {
+    local implement_section
+    implement_section=$(sed -n '/^handle_implement/,/^handle_direct_implement/p' "${SCRIPTS_DIR}/agent-dispatch.sh")
+
+    local review_line impl_line
+    review_line=$(echo "$implement_section" | grep -n 'run_adversarial_plan_review' | head -1 | cut -d: -f1)
+    impl_line=$(echo "$implement_section" | grep -n 'run_claude.*prompt.*impl_tools' | head -1 | cut -d: -f1)
+
+    [ "$review_line" -lt "$impl_line" ]
+}
+
+@test "common.sh: handle_post_implementation calls run_post_impl_review" {
+    grep -q 'run_post_impl_review' "${LIB_DIR}/common.sh"
+}
+
+@test "common.sh: run_post_impl_review runs AFTER tests pass and BEFORE push" {
+    local tests_line review_line push_line
+    tests_line=$(grep -n 'tests_passed' "${LIB_DIR}/common.sh" | head -1 | cut -d: -f1)
+    review_line=$(grep -n 'run_post_impl_review' "${LIB_DIR}/common.sh" | head -1 | cut -d: -f1)
+    push_line=$(grep -n 'git.*push.*origin' "${LIB_DIR}/common.sh" | head -1 | cut -d: -f1)
+
+    [ "$tests_line" -lt "$review_line" ]
+    [ "$review_line" -lt "$push_line" ]
+}
+
+@test "common.sh: PR body includes review annotation when REVIEW_RETRY_CONCERNS is set" {
+    grep -q 'REVIEW_RETRY_CONCERNS' "${LIB_DIR}/common.sh"
+    grep -q 'Post-Implementation Review' "${LIB_DIR}/common.sh"
+}

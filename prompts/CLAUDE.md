@@ -10,6 +10,10 @@ Default agent prompts for each dispatch phase. Each prompt is passed to `claude 
 | `reply.md` | `issue_reply` | Read-only | Evaluate if clarifying questions are answered |
 | `implement.md` | `implement` | Read-write | Execute approved plan using TDD |
 | `review.md` | `pr_review` | Read-write | Address PR review feedback with targeted fixes |
+| `validate.md` | `direct_implement` | Read-only | Validate pre-written plan against codebase |
+| `adversarial-plan.md` | `implement` (pre-gate) | Read-only | Fresh-session adversarial review of plan vs issue |
+| `post-impl-review.md` | `implement` (post-gate) | Read-only | Fresh-session review of diff vs issue/plan |
+| `post-impl-retry.md` | `implement` (retry) | Read-write | Address post-impl review concerns |
 
 ## Output Format Convention
 

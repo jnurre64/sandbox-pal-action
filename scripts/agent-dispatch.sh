@@ -131,6 +131,8 @@ source "${SCRIPT_DIR}/lib/worktree.sh"
 source "${SCRIPT_DIR}/lib/data-fetch.sh"
 # shellcheck source=lib/notify.sh
 source "${SCRIPT_DIR}/lib/notify.sh"
+# shellcheck source=lib/review-gates.sh
+source "${SCRIPT_DIR}/lib/review-gates.sh"
 
 # ═══════════════════════════════════════════════════════════════
 # EVENT: New issue labeled "agent" → Triage + Plan (no implementation)
@@ -412,6 +414,13 @@ handle_implement() {
     export AGENT_DATA_COMMENT_FILE="${EXTRACTED_DATA_COMMENT_FILE:-}"
     export AGENT_GIST_FILES="${EXTRACTED_GIST_FILES:-}"
     export AGENT_DATA_ERRORS="${EXTRACTED_DATA_ERRORS:-}"
+
+    # ── Adversarial plan review (Gate A) ─────────────────────────
+    if ! run_adversarial_plan_review; then
+        log "Adversarial plan review halted implementation."
+        cleanup_worktree
+        return
+    fi
 
     local prompt
     prompt=$(load_prompt "implement" "$AGENT_PROMPT_IMPLEMENT")
