@@ -36,6 +36,6 @@ Run `/setup` to configure this toolkit for your project.
 
 ### Local Test Prerequisites
 
-Required tools: `jq`, `shellcheck`, `grep -P` (PCRE support), BATS-Core (git submodule)
+Required tools: `jq`, `shellcheck`, BATS-Core (git submodule)
 
 Run `bash scripts/check-test-prereqs.sh` to detect missing tools with platform-specific install instructions. All tests should pass when prerequisites are met.
