@@ -49,6 +49,15 @@ echo ""
 check_tool "jq"
 check_tool "shellcheck"
 
+# ─── grep -P (PCRE) support check ─────────────────────────────
+
+if echo "test" | grep -P "test" &>/dev/null; then
+    echo -e "  ${GREEN}✓${NC} grep -P (PCRE) supported"
+else
+    echo -e "  ${RED}✗${NC} grep -P (PCRE) not supported"
+    MISSING+=("grep-pcre")
+fi
+
 # ─── Bats submodule check ─────────────────────────────────────
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -88,6 +97,14 @@ if [ ${#MISSING[@]} -ne 0 ]; then
                     macos)   echo "  shellcheck: brew install shellcheck" ;;
                     windows) echo "  shellcheck: winget install koalaman.shellcheck" ;;
                     *)       echo "  shellcheck: see https://github.com/koalaman/shellcheck#installing" ;;
+                esac
+                ;;
+            grep-pcre)
+                case "$PLATFORM" in
+                    linux)   echo "  grep -P:    sudo apt-get install -y grep  (usually pre-installed)" ;;
+                    macos)   echo "  grep -P:    brew install grep  (use ggrep or add to PATH)" ;;
+                    windows) echo "  grep -P:    pacman -S grep  (run in Git Bash as admin, requires MSYS2)" ;;
+                    *)       echo "  grep -P:    install GNU grep with PCRE support" ;;
                 esac
                 ;;
             bats)

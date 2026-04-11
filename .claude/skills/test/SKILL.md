@@ -47,19 +47,9 @@ Run the full test suite:
 
 ## Step 4: Interpret Results
 
-Categorize every failure as either a **known platform limitation** or a **real failure**.
+If Step 1 passed (all prerequisites met), all tests should pass. Any failure is a real regression — investigate it.
 
-### Known platform limitations (not real failures)
-
-| Platform | Issue | Affected Tests | Why |
-|----------|-------|---------------|-----|
-| Windows (git-bash) | `grep -P` unavailable | ~5 tests in `test_data_fetch.bats` | Git Bash ships BusyBox grep without PCRE. Tests pass in CI (Linux). |
-
-If a test fails and uses `grep -P` on Windows, count it as a known limitation, not a failure.
-
-### Everything else is a real failure
-
-Any test failure that is NOT in the known-limitations table above is a real regression. Investigate it.
+If tests fail with errors about `jq`, `shellcheck`, `grep -P`, or `bats`, re-run Step 1 — a prerequisite is missing.
 
 ## Step 5: Report Summary
 

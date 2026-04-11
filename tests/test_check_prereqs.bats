@@ -65,6 +65,16 @@ load 'helpers/test_helper'
 }
 
 # ═══════════════════════════════════════════════════════════════
+# grep -P (PCRE) detection
+# ═══════════════════════════════════════════════════════════════
+
+@test "check-test-prereqs: checks for grep -P support" {
+    run bash "${SCRIPTS_DIR}/check-test-prereqs.sh"
+    # Output should mention PCRE regardless of whether it's supported or not
+    assert_output --partial "grep -P"
+}
+
+# ═══════════════════════════════════════════════════════════════
 # Bats submodule detection
 # ═══════════════════════════════════════════════════════════════
 
