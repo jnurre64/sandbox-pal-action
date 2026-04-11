@@ -436,7 +436,14 @@ handle_implement() {
     claude_output=$(parse_claude_output "$result")
     log "Implementation output: ${claude_output:0:500}"
 
-    handle_post_implementation "$start_sha" "$issue_title" "$claude_output"
+    # handle_post_implementation returns non-zero on controlled failures
+    # (test gate fail, Gate B halt, no commits made). These are already
+    # reported to the issue and labeled agent:failed — we just need to
+    # clean up and exit without tripping set -e and the ERR trap, which
+    # would double-post an "Agent Infrastructure Error" comment.
+    if ! handle_post_implementation "$start_sha" "$issue_title" "$claude_output"; then
+        log "Post-implementation handler reported a controlled failure."
+    fi
     cleanup_worktree
 }
 

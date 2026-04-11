@@ -180,6 +180,34 @@ _source_common() {
     [ "$setup_line" -lt "$test_line" ]
 }
 
+# ─── REGRESSION: ERR trap double-report on controlled failures ──
+# handle_post_implementation returns non-zero on controlled failures
+# (test gate fail, Gate B halt, no commits made). Under `set -e` the
+# unguarded call at the end of handle_implement would propagate that
+# return to _on_unexpected_error via the ERR trap, which would
+# double-post an "Agent Infrastructure Error" comment after the
+# clean failure comment handle_post_implementation already posted.
+# Observed on Webber #59 run 24280942202.
+@test "REGRESSION: handle_post_implementation call in handle_implement is guarded" {
+    # The call at the end of handle_implement must be wrapped in
+    # `if ! handle_post_implementation ...; then ...; fi` (or equivalent
+    # set-e suppression) so controlled return 1 values don't fire the
+    # ERR trap.
+    grep -q 'if ! handle_post_implementation' "${SCRIPTS_DIR}/agent-dispatch.sh"
+}
+
+@test "REGRESSION: cleanup_worktree runs after guarded handle_post_implementation" {
+    # Even on controlled failure, cleanup must still happen so the
+    # worktree doesn't leak on the runner. The guard should use an
+    # if/fi block that falls through to cleanup_worktree, not a bare
+    # `|| return` that would skip cleanup.
+    local guard_line cleanup_line
+    guard_line=$(grep -n 'if ! handle_post_implementation' "${SCRIPTS_DIR}/agent-dispatch.sh" | head -1 | cut -d: -f1)
+    cleanup_line=$(awk "NR > ${guard_line} && /cleanup_worktree/ {print NR; exit}" "${SCRIPTS_DIR}/agent-dispatch.sh")
+    [ -n "$cleanup_line" ]
+    [ "$cleanup_line" -gt "$guard_line" ]
+}
+
 # ═══════════════════════════════════════════════════════════════
 # log function tests
 # ═══════════════════════════════════════════════════════════════
