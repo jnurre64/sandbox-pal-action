@@ -158,6 +158,9 @@ run_claude() {
         --max-turns "$AGENT_MAX_TURNS"
         --output-format json
     )
+    if [ -n "${AGENT_MODEL:-}" ]; then
+        claude_args+=(--model "$AGENT_MODEL")
+    fi
     if [ -n "$memory" ]; then
         claude_args+=(--append-system-prompt "$memory")
     fi

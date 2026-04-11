@@ -293,3 +293,53 @@ _source_common() {
     assert_success
     assert_output "Custom validate prompt"
 }
+
+# ═══════════════════════════════════════════════════════════════
+# run_claude model configuration tests
+# ═══════════════════════════════════════════════════════════════
+
+@test "run_claude: passes --model flag when AGENT_MODEL is set" {
+    create_mock "claude" '{"result":"ok"}'
+    create_mock "timeout" '{"result":"ok"}'
+    export AGENT_MODEL="claude-opus-4-6"
+    export WORKTREE_DIR="$TEST_TEMP_DIR"
+    _source_common
+
+    # Create a wrapper that captures claude args
+    local mock_bin="${TEST_TEMP_DIR}/bin"
+    cat > "${mock_bin}/timeout" << 'MOCK'
+#!/bin/bash
+# Skip the timeout arg, capture the rest
+shift  # timeout value
+echo "$@" >> "${TEST_TEMP_DIR}/mock_calls_timeout"
+echo '{"result":"ok"}'
+MOCK
+    chmod +x "${mock_bin}/timeout"
+
+    run run_claude "test prompt" "Read,Write"
+    local calls
+    calls=$(cat "${TEST_TEMP_DIR}/mock_calls_timeout" 2>/dev/null || echo "")
+    [[ "$calls" == *"--model"* ]]
+    [[ "$calls" == *"claude-opus-4-6"* ]]
+}
+
+@test "run_claude: omits --model flag when AGENT_MODEL is empty" {
+    create_mock "claude" '{"result":"ok"}'
+    export AGENT_MODEL=""
+    export WORKTREE_DIR="$TEST_TEMP_DIR"
+    _source_common
+
+    local mock_bin="${TEST_TEMP_DIR}/bin"
+    cat > "${mock_bin}/timeout" << 'MOCK'
+#!/bin/bash
+shift
+echo "$@" >> "${TEST_TEMP_DIR}/mock_calls_timeout"
+echo '{"result":"ok"}'
+MOCK
+    chmod +x "${mock_bin}/timeout"
+
+    run run_claude "test prompt" "Read,Write"
+    local calls
+    calls=$(cat "${TEST_TEMP_DIR}/mock_calls_timeout" 2>/dev/null || echo "")
+    [[ "$calls" != *"--model"* ]]
+}
