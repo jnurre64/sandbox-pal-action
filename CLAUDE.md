@@ -28,7 +28,14 @@ Run `/setup` to configure this toolkit for your project.
 - All shell scripts must pass `shellcheck` with zero warnings
 - Tests use BATS-Core (git submodules in `tests/`)
 - Run checks: `shellcheck scripts/*.sh scripts/lib/*.sh && ./tests/bats/bin/bats tests/`
+- Use `/test` skill for local testing (handles prerequisites and platform differences)
 - CI runs both ShellCheck and BATS on every push and PR
 - Use `set -euo pipefail` in all scripts
 - Keep functions focused — one purpose per function
 - Bug fix? Add a `REGRESSION vX.Y.Z:` test to prevent recurrence
+
+### Local Test Prerequisites
+
+Required tools: `jq`, `shellcheck`, `grep -P` (PCRE support), BATS-Core (git submodule)
+
+Run `bash scripts/check-test-prereqs.sh` to detect missing tools with platform-specific install instructions. All tests should pass when prerequisites are met.
