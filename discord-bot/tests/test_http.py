@@ -14,8 +14,15 @@ def mock_channel():
 
 
 @pytest.fixture
-def handler(mock_channel):
-    return create_notify_handler(mock_channel)
+def mock_bot(mock_channel):
+    bot = MagicMock()
+    bot.get_channel = MagicMock(return_value=mock_channel)
+    return bot
+
+
+@pytest.fixture
+def handler(mock_bot):
+    return create_notify_handler(mock_bot)
 
 
 @pytest.fixture
@@ -74,8 +81,10 @@ class TestNotifyHandler:
             assert "org/repo" in button.custom_id
 
     @pytest.mark.asyncio
-    async def test_returns_503_when_channel_is_none(self, make_request):
-        handler = create_notify_handler(None)
+    async def test_returns_503_when_channel_not_found(self, make_request):
+        bot = MagicMock()
+        bot.get_channel = MagicMock(return_value=None)
+        handler = create_notify_handler(bot)
         request = make_request(VALID_PAYLOAD)
         response = await handler(request)
         assert response.status == 503
