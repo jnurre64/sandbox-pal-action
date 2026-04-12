@@ -38,6 +38,7 @@ sed "s|WORKING_DIR|${SCRIPT_DIR}|g; s|CONFIG_PATH|${CONFIG_PATH}|g" \
     "${SCRIPT_DIR}/agent-dispatch-bot.service" > "$SERVICE_FILE"
 
 systemctl --user daemon-reload
+systemctl --user disable "$SERVICE_NAME" 2>/dev/null || true
 systemctl --user enable "$SERVICE_NAME"
 
 echo ""
@@ -55,3 +56,9 @@ echo "  AGENT_DISCORD_GUILD_ID"
 echo "  AGENT_DISCORD_ALLOWED_USERS or AGENT_DISCORD_ALLOWED_ROLE"
 echo "  AGENT_DISPATCH_REPO (owner/repo format)"
 echo "  AGENT_NOTIFY_BACKEND=\"bot\""
+echo ""
+echo "For the bot to start at boot (without requiring login):"
+echo "  sudo loginctl enable-linger \$(whoami)"
+echo ""
+echo "Note: After enabling linger, 'sudo systemctl --user ...' won't work."
+echo "Use 'ssh <user>@localhost' or export XDG_RUNTIME_DIR=/run/user/\$(id -u)"
