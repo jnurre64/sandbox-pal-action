@@ -146,6 +146,7 @@ load_prompt() {
 run_claude() {
     local prompt="$1"
     local allowed_tools="${2:-$AGENT_ALLOWED_TOOLS_IMPLEMENT}"
+    local model_override="${3:-}"
     local memory
     memory=$(load_shared_memory)
 
@@ -158,8 +159,9 @@ run_claude() {
         --max-turns "$AGENT_MAX_TURNS"
         --output-format json
     )
-    if [ -n "${AGENT_MODEL:-}" ]; then
-        claude_args+=(--model "$AGENT_MODEL")
+    local effective_model="${model_override:-${AGENT_MODEL:-}}"
+    if [ -n "$effective_model" ]; then
+        claude_args+=(--model "$effective_model")
     fi
     if [ -n "$memory" ]; then
         claude_args+=(--append-system-prompt "$memory")

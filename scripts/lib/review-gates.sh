@@ -68,7 +68,7 @@ run_adversarial_plan_review() {
     prompt=$(load_prompt "adversarial-plan" "${AGENT_PROMPT_ADVERSARIAL_PLAN}")
 
     local result
-    result=$(run_claude "$prompt" "$AGENT_ALLOWED_TOOLS_TRIAGE")
+    result=$(run_claude "$prompt" "$AGENT_ALLOWED_TOOLS_TRIAGE" "$AGENT_MODEL_ADVERSARIAL_PLAN")
 
     local claude_output
     claude_output=$(parse_claude_output "$result")
@@ -154,7 +154,7 @@ run_post_impl_review() {
     prompt=$(load_prompt "post-impl-review" "${AGENT_PROMPT_POST_IMPL_REVIEW}")
 
     local result
-    result=$(run_claude "$prompt" "$AGENT_ALLOWED_TOOLS_TRIAGE")
+    result=$(run_claude "$prompt" "$AGENT_ALLOWED_TOOLS_TRIAGE" "$AGENT_MODEL_POST_IMPL_REVIEW")
 
     local claude_output
     claude_output=$(parse_claude_output "$result")
@@ -224,7 +224,7 @@ Retries are disabled. Please review the branch manually." 2>/dev/null || true
     prompt=$(load_prompt "post-impl-retry" "${AGENT_PROMPT_POST_IMPL_RETRY}")
 
     local result
-    result=$(run_claude "$prompt" "$impl_tools")
+    result=$(run_claude "$prompt" "$impl_tools" "$AGENT_MODEL_POST_IMPL_RETRY")
 
     local claude_output
     claude_output=$(parse_claude_output "$result")

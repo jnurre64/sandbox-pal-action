@@ -282,6 +282,66 @@ EOF
     assert_equal "$AGENT_MODEL" ""
 }
 
+@test "defaults.sh: AGENT_MODEL_TRIAGE defaults to empty" {
+    export AGENT_BOT_USER="test-bot"
+    unset AGENT_MODEL_TRIAGE
+
+    source "${LIB_DIR}/defaults.sh"
+
+    [ "${AGENT_MODEL_TRIAGE+set}" = "set" ] || { echo "AGENT_MODEL_TRIAGE not set by defaults.sh"; return 1; }
+    assert_equal "$AGENT_MODEL_TRIAGE" ""
+}
+
+@test "defaults.sh: AGENT_MODEL_IMPLEMENT defaults to empty" {
+    export AGENT_BOT_USER="test-bot"
+    unset AGENT_MODEL_IMPLEMENT
+
+    source "${LIB_DIR}/defaults.sh"
+
+    [ "${AGENT_MODEL_IMPLEMENT+set}" = "set" ] || { echo "AGENT_MODEL_IMPLEMENT not set by defaults.sh"; return 1; }
+    assert_equal "$AGENT_MODEL_IMPLEMENT" ""
+}
+
+@test "defaults.sh: AGENT_MODEL_REVIEW defaults to empty" {
+    export AGENT_BOT_USER="test-bot"
+    unset AGENT_MODEL_REVIEW
+
+    source "${LIB_DIR}/defaults.sh"
+
+    [ "${AGENT_MODEL_REVIEW+set}" = "set" ] || { echo "AGENT_MODEL_REVIEW not set by defaults.sh"; return 1; }
+    assert_equal "$AGENT_MODEL_REVIEW" ""
+}
+
+@test "defaults.sh: AGENT_MODEL_ADVERSARIAL_PLAN defaults to empty" {
+    export AGENT_BOT_USER="test-bot"
+    unset AGENT_MODEL_ADVERSARIAL_PLAN
+
+    source "${LIB_DIR}/defaults.sh"
+
+    [ "${AGENT_MODEL_ADVERSARIAL_PLAN+set}" = "set" ] || { echo "AGENT_MODEL_ADVERSARIAL_PLAN not set by defaults.sh"; return 1; }
+    assert_equal "$AGENT_MODEL_ADVERSARIAL_PLAN" ""
+}
+
+@test "defaults.sh: AGENT_MODEL_POST_IMPL_REVIEW defaults to empty" {
+    export AGENT_BOT_USER="test-bot"
+    unset AGENT_MODEL_POST_IMPL_REVIEW
+
+    source "${LIB_DIR}/defaults.sh"
+
+    [ "${AGENT_MODEL_POST_IMPL_REVIEW+set}" = "set" ] || { echo "AGENT_MODEL_POST_IMPL_REVIEW not set by defaults.sh"; return 1; }
+    assert_equal "$AGENT_MODEL_POST_IMPL_REVIEW" ""
+}
+
+@test "defaults.sh: AGENT_MODEL_POST_IMPL_RETRY defaults to empty" {
+    export AGENT_BOT_USER="test-bot"
+    unset AGENT_MODEL_POST_IMPL_RETRY
+
+    source "${LIB_DIR}/defaults.sh"
+
+    [ "${AGENT_MODEL_POST_IMPL_RETRY+set}" = "set" ] || { echo "AGENT_MODEL_POST_IMPL_RETRY not set by defaults.sh"; return 1; }
+    assert_equal "$AGENT_MODEL_POST_IMPL_RETRY" ""
+}
+
 @test "defaults.sh: AGENT_PROMPT_ADVERSARIAL_PLAN defaults to empty" {
     export AGENT_BOT_USER="test-bot"
     unset AGENT_PROMPT_ADVERSARIAL_PLAN

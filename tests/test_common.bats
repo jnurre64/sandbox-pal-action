@@ -372,6 +372,111 @@ MOCK
     [[ "$calls" != *"--model"* ]]
 }
 
+@test "run_claude: per-workflow override passes as --model" {
+    create_mock "claude" '{"result":"ok"}'
+    export AGENT_MODEL=""
+    export WORKTREE_DIR="$TEST_TEMP_DIR"
+    _source_common
+
+    local mock_bin="${TEST_TEMP_DIR}/bin"
+    cat > "${mock_bin}/timeout" << 'MOCK'
+#!/bin/bash
+shift
+echo "$@" >> "${TEST_TEMP_DIR}/mock_calls_timeout"
+echo '{"result":"ok"}'
+MOCK
+    chmod +x "${mock_bin}/timeout"
+
+    run run_claude "test prompt" "Read,Write" "claude-haiku-4-5"
+    local calls
+    calls=$(cat "${TEST_TEMP_DIR}/mock_calls_timeout" 2>/dev/null || echo "")
+    [[ "$calls" == *"--model"* ]]
+    [[ "$calls" == *"claude-haiku-4-5"* ]]
+}
+
+@test "run_claude: per-workflow override wins over AGENT_MODEL" {
+    create_mock "claude" '{"result":"ok"}'
+    export AGENT_MODEL="claude-opus-4-6"
+    export WORKTREE_DIR="$TEST_TEMP_DIR"
+    _source_common
+
+    local mock_bin="${TEST_TEMP_DIR}/bin"
+    cat > "${mock_bin}/timeout" << 'MOCK'
+#!/bin/bash
+shift
+echo "$@" >> "${TEST_TEMP_DIR}/mock_calls_timeout"
+echo '{"result":"ok"}'
+MOCK
+    chmod +x "${mock_bin}/timeout"
+
+    run run_claude "test prompt" "Read,Write" "claude-haiku-4-5"
+    local calls
+    calls=$(cat "${TEST_TEMP_DIR}/mock_calls_timeout" 2>/dev/null || echo "")
+    [[ "$calls" == *"claude-haiku-4-5"* ]]
+    [[ "$calls" != *"claude-opus-4-6"* ]]
+}
+
+@test "run_claude: falls back to AGENT_MODEL when override arg is empty" {
+    create_mock "claude" '{"result":"ok"}'
+    export AGENT_MODEL="claude-opus-4-6"
+    export WORKTREE_DIR="$TEST_TEMP_DIR"
+    _source_common
+
+    local mock_bin="${TEST_TEMP_DIR}/bin"
+    cat > "${mock_bin}/timeout" << 'MOCK'
+#!/bin/bash
+shift
+echo "$@" >> "${TEST_TEMP_DIR}/mock_calls_timeout"
+echo '{"result":"ok"}'
+MOCK
+    chmod +x "${mock_bin}/timeout"
+
+    run run_claude "test prompt" "Read,Write" ""
+    local calls
+    calls=$(cat "${TEST_TEMP_DIR}/mock_calls_timeout" 2>/dev/null || echo "")
+    [[ "$calls" == *"--model"* ]]
+    [[ "$calls" == *"claude-opus-4-6"* ]]
+}
+
+# Guards against accidental regression to a pinned default. With no model vars
+# set, --model must not appear so the CLI picks its current latest model.
+@test "run_claude: default-default omits --model entirely (lets CLI pick latest)" {
+    create_mock "claude" '{"result":"ok"}'
+    export AGENT_MODEL=""
+    export WORKTREE_DIR="$TEST_TEMP_DIR"
+    _source_common
+
+    local mock_bin="${TEST_TEMP_DIR}/bin"
+    cat > "${mock_bin}/timeout" << 'MOCK'
+#!/bin/bash
+shift
+echo "$@" >> "${TEST_TEMP_DIR}/mock_calls_timeout"
+echo '{"result":"ok"}'
+MOCK
+    chmod +x "${mock_bin}/timeout"
+
+    run run_claude "test prompt" "Read,Write" ""
+    local calls
+    calls=$(cat "${TEST_TEMP_DIR}/mock_calls_timeout" 2>/dev/null || echo "")
+    [[ "$calls" != *"--model"* ]]
+}
+
+@test "defaults.sh: AGENT_MODEL and all per-workflow overrides default to empty (CLI picks latest)" {
+    export AGENT_BOT_USER="test-bot"
+    unset AGENT_MODEL AGENT_MODEL_TRIAGE AGENT_MODEL_IMPLEMENT AGENT_MODEL_REVIEW \
+          AGENT_MODEL_ADVERSARIAL_PLAN AGENT_MODEL_POST_IMPL_REVIEW AGENT_MODEL_POST_IMPL_RETRY
+
+    source "${LIB_DIR}/defaults.sh"
+
+    assert_equal "$AGENT_MODEL" ""
+    assert_equal "$AGENT_MODEL_TRIAGE" ""
+    assert_equal "$AGENT_MODEL_IMPLEMENT" ""
+    assert_equal "$AGENT_MODEL_REVIEW" ""
+    assert_equal "$AGENT_MODEL_ADVERSARIAL_PLAN" ""
+    assert_equal "$AGENT_MODEL_POST_IMPL_REVIEW" ""
+    assert_equal "$AGENT_MODEL_POST_IMPL_RETRY" ""
+}
+
 # ═══════════════════════════════════════════════════════════════
 # Adversarial review prompt tests
 # ═══════════════════════════════════════════════════════════════

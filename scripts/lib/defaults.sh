@@ -72,6 +72,16 @@ AGENT_PROMPT_POST_IMPL_RETRY="${AGENT_PROMPT_POST_IMPL_RETRY:-}"
 # Claude model to use (empty = use CLI default, currently Opus 4.6)
 AGENT_MODEL="${AGENT_MODEL:-}"
 
+# Per-workflow model overrides (empty = fall back to AGENT_MODEL, then CLI default).
+# Use these to pick a faster/cheaper model for read-only review phases while
+# keeping a stronger model for implementation, or vice versa.
+AGENT_MODEL_TRIAGE="${AGENT_MODEL_TRIAGE:-}"
+AGENT_MODEL_IMPLEMENT="${AGENT_MODEL_IMPLEMENT:-}"
+AGENT_MODEL_REVIEW="${AGENT_MODEL_REVIEW:-}"
+AGENT_MODEL_ADVERSARIAL_PLAN="${AGENT_MODEL_ADVERSARIAL_PLAN:-}"
+AGENT_MODEL_POST_IMPL_REVIEW="${AGENT_MODEL_POST_IMPL_REVIEW:-}"
+AGENT_MODEL_POST_IMPL_RETRY="${AGENT_MODEL_POST_IMPL_RETRY:-}"
+
 # ─── Label-to-tool mapping ────────────────────────────────────────
 # Map issue labels to extra tools that get added when the label is present.
 # Format: AGENT_LABEL_TOOLS_<sanitized_label>="tool1,tool2"

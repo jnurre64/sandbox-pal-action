@@ -164,7 +164,7 @@ handle_new_issue() {
     prompt=$(load_prompt "triage" "$AGENT_PROMPT_TRIAGE")
 
     local result
-    result=$(run_claude "$prompt" "$AGENT_ALLOWED_TOOLS_TRIAGE")
+    result=$(run_claude "$prompt" "$AGENT_ALLOWED_TOOLS_TRIAGE" "$AGENT_MODEL_TRIAGE")
 
     local claude_output
     claude_output=$(parse_claude_output "$result")
@@ -308,7 +308,7 @@ handle_issue_reply() {
     prompt=$(load_prompt "reply" "$AGENT_PROMPT_REPLY")
 
     local result
-    result=$(run_claude "$prompt" "$AGENT_ALLOWED_TOOLS_TRIAGE")
+    result=$(run_claude "$prompt" "$AGENT_ALLOWED_TOOLS_TRIAGE" "$AGENT_MODEL_TRIAGE")
     local claude_output
     claude_output=$(parse_claude_output "$result")
 
@@ -429,7 +429,7 @@ handle_implement() {
     impl_tools=$(get_implementation_tools)
 
     local result
-    result=$(run_claude "$prompt" "$impl_tools")
+    result=$(run_claude "$prompt" "$impl_tools" "$AGENT_MODEL_IMPLEMENT")
 
     log "Raw claude output length: ${#result}"
     local claude_output
@@ -496,7 +496,7 @@ handle_direct_implement() {
     prompt=$(load_prompt "validate" "$AGENT_PROMPT_VALIDATE")
 
     local result
-    result=$(run_claude "$prompt" "$AGENT_ALLOWED_TOOLS_TRIAGE")
+    result=$(run_claude "$prompt" "$AGENT_ALLOWED_TOOLS_TRIAGE" "$AGENT_MODEL_TRIAGE")
 
     local claude_output
     claude_output=$(parse_claude_output "$result")
@@ -656,7 +656,7 @@ handle_pr_review() {
     pr_tools=$(get_implementation_tools)
 
     local result
-    result=$(run_claude "$prompt" "$pr_tools")
+    result=$(run_claude "$prompt" "$pr_tools" "$AGENT_MODEL_REVIEW")
 
     log "PR review raw output length: ${#result}"
     local claude_output
