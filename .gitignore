@@ -15,3 +15,8 @@ discord-bot/.venv/
 discord-bot/__pycache__/
 discord-bot/tests/__pycache__/
 discord-bot/.pytest_cache/
+
+# Python packaging artifacts
+**/__pycache__/
+**/*.egg-info/
+**/.pytest_cache/

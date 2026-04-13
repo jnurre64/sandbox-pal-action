@@ -1,6 +1,0 @@
-pyproject.toml
-dispatch_bot/__init__.py
-dispatch_bot.egg-info/PKG-INFO
-dispatch_bot.egg-info/SOURCES.txt
-dispatch_bot.egg-info/dependency_links.txt
-dispatch_bot.egg-info/top_level.txt
