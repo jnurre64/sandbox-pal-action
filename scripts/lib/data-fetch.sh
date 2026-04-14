@@ -22,7 +22,7 @@ _download_linked_files() {
 
     # Download gist content
     local gist_urls
-    gist_urls=$(echo "$text" | grep -oP 'https://gist\.github\.com/[a-zA-Z0-9_-]+/[a-f0-9]+' | sort -u)
+    gist_urls=$(echo "$text" | grep -oE 'https://gist\.github\.com/[a-zA-Z0-9_-]+/[a-f0-9]+' | sort -u)
     for gist_url in $gist_urls; do
         local gist_id
         gist_id=$(basename "$gist_url")
@@ -39,14 +39,21 @@ _download_linked_files() {
 
     # Download GitHub file attachments (drag-and-drop uploads)
     local attachment_urls
-    attachment_urls=$(echo "$text" | grep -oP 'https://github\.com/user-attachments/(?:assets|files)/[a-zA-Z0-9_./-]+' | sort -u)
+    attachment_urls=$(echo "$text" | grep -oE 'https://github\.com/user-attachments/(assets|files)/[a-zA-Z0-9_./-]+' | sort -u)
     for attach_url in $attachment_urls; do
         local attach_filename
         attach_filename=$(basename "$attach_url")
         # If basename is a uuid (no extension), try to get name from markdown link
         if [[ "$attach_filename" != *.* ]]; then
-            local md_name
-            md_name=$(echo "$text" | grep -oP '\[([^\]]+)\]\('"$(echo "$attach_url" | sed 's/[\/&]/\\&/g')"'\)' | grep -oP '^\[[^\]]+\]' | tr -d '[]' | head -1 || true)
+            # Try to find the markdown link label for this URL: [label](attach_url)
+            # Escape dots in URL for use in bash regex. The attachment-URL regex
+            # above constrains characters to [a-zA-Z0-9_./-], so . is the only
+            # regex metacharacter we need to handle.
+            local url_re="${attach_url//./"\\."}"
+            local md_name=""
+            if [[ "$text" =~ \[([^]]+)\]\($url_re\) ]]; then
+                md_name="${BASH_REMATCH[1]}"
+            fi
             [ -n "$md_name" ] && attach_filename="$md_name"
         fi
         [ -z "$attach_filename" ] && attach_filename="attachment-$(echo "$attach_url" | md5sum | cut -c1-8)"
@@ -104,7 +111,7 @@ extract_debug_data() {
     # Also check the extra text (issue body / PR body) for attachments
     if [ -n "$extra_text" ]; then
         local has_links=false
-        echo "$extra_text" | grep -qP 'gist\.github\.com|user-attachments/' && has_links=true
+        echo "$extra_text" | grep -qE 'gist\.github\.com|user-attachments/' && has_links=true
         if [ "$has_links" = true ]; then
             log "Found linked files in issue/PR body"
             if [ -z "$EXTRACTED_DATA_COMMENT_FILE" ]; then
