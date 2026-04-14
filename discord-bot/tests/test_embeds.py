@@ -1,6 +1,6 @@
 import discord
 
-from bot import build_embed, build_buttons, EVENT_COLORS, EVENT_LABELS, EVENT_INDICATORS
+from bot import build_embed, build_buttons, EVENT_COLORS
 
 
 class TestBuildEmbed:

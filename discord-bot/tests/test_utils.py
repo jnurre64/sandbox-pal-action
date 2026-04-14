@@ -1,4 +1,6 @@
-from bot import sanitize_input, parse_custom_id, is_authorized_check
+from bot import parse_custom_id
+from dispatch_bot.auth import is_authorized_check
+from dispatch_bot.sanitize import sanitize_input
 
 
 class TestSanitizeInput:

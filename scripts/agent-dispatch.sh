@@ -173,7 +173,7 @@ handle_new_issue() {
     # Parse the action
     local triage_json action
     set +e
-    triage_json=$(echo "$claude_output" | grep -oP '\{[^{}]*"action"[^{}]*\}' | tail -1)
+    triage_json=$(echo "$claude_output" | grep -oE '[{][^{}]*"action"[^{}]*[}]' | tail -1)
     if [ -z "$triage_json" ]; then
         triage_json="$claude_output"
     fi
@@ -313,11 +313,13 @@ handle_issue_reply() {
     claude_output=$(parse_claude_output "$result")
 
     local triage_json action
-    triage_json=$(echo "$claude_output" | grep -oP '\{[^{}]*"action"[^{}]*\}' | tail -1)
+    set +e
+    triage_json=$(echo "$claude_output" | grep -oE '[{][^{}]*"action"[^{}]*[}]' | tail -1)
     if [ -z "$triage_json" ]; then
         triage_json="$claude_output"
     fi
     action=$(echo "$triage_json" | jq -r '.action // empty' 2>/dev/null || echo "")
+    set -e
 
     if [ "$action" = "ask_questions" ]; then
         local questions
@@ -505,7 +507,7 @@ handle_direct_implement() {
     # Parse the action
     local validate_json action
     set +e
-    validate_json=$(echo "$claude_output" | grep -oP '\{[^{}]*"action"[^{}]*\}' | tail -1)
+    validate_json=$(echo "$claude_output" | grep -oE '[{][^{}]*"action"[^{}]*[}]' | tail -1)
     if [ -z "$validate_json" ]; then
         validate_json="$claude_output"
     fi
@@ -566,7 +568,10 @@ handle_pr_review() {
 
     # Extract issue number from branch name (agent/issue-N)
     local issue_num
-    issue_num=$(echo "$branch" | grep -oP 'issue-\K\d+' || echo "$pr_number")
+    issue_num=$(echo "$branch" | sed -nE 's/.*issue-([0-9]+).*/\1/p')
+    if [ -z "$issue_num" ]; then
+        issue_num="$pr_number"
+    fi
 
     # Check label-based tool extensions from the linked issue
     detect_label_tools "$issue_num"

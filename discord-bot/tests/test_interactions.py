@@ -5,14 +5,13 @@ import discord
 import pytest
 
 from bot import (
-    gh_command,
-    gh_dispatch,
     handle_button_interaction,
     parse_custom_id,
     FeedbackModal,
     ALLOWED_USERS,
     ALLOWED_ROLE,
 )
+from dispatch_bot.github import gh_command, gh_dispatch
 
 
 class TestParseCustomId:
@@ -48,7 +47,7 @@ class TestParseCustomId:
 
 
 class TestGhCommand:
-    @patch("bot.subprocess.run")
+    @patch("dispatch_bot.github.subprocess.run")
     def test_calls_gh_with_args(self, mock_run):
         mock_run.return_value = MagicMock(stdout="ok\n", returncode=0)
         result = gh_command(["issue", "edit", "42", "--repo", "org/repo", "--add-label", "agent"])
@@ -58,21 +57,21 @@ class TestGhCommand:
         assert "issue" in args
         assert "42" in args
 
-    @patch("bot.subprocess.run")
+    @patch("dispatch_bot.github.subprocess.run")
     def test_returns_success_tuple_with_stripped_stdout(self, mock_run):
         mock_run.return_value = MagicMock(stdout="  result  \n", returncode=0)
         ok, output = gh_command(["issue", "view", "1"])
         assert ok is True
         assert output == "result"
 
-    @patch("bot.subprocess.run")
+    @patch("dispatch_bot.github.subprocess.run")
     def test_handles_timeout(self, mock_run):
         mock_run.side_effect = subprocess.TimeoutExpired(cmd="gh", timeout=30)
         ok, output = gh_command(["issue", "view", "1"])
         assert ok is False
         assert "timed out" in output.lower()
 
-    @patch("bot.subprocess.run")
+    @patch("dispatch_bot.github.subprocess.run")
     def test_handles_error(self, mock_run):
         mock_run.return_value = MagicMock(stdout="", stderr="not found", returncode=1)
         ok, output = gh_command(["issue", "view", "999"])
@@ -235,7 +234,7 @@ class TestHandleButtonInteraction:
 
 
 class TestGhDispatch:
-    @patch("bot.gh_command")
+    @patch("dispatch_bot.github.gh_command")
     def test_fires_repository_dispatch(self, mock_gh):
         mock_gh.return_value = (True, "")
         gh_dispatch("org/repo", "agent-implement", 42)
@@ -244,7 +243,7 @@ class TestGhDispatch:
         assert args[0] == "api"
         assert "repos/org/repo/dispatches" in args[1]
 
-    @patch("bot.gh_command")
+    @patch("dispatch_bot.github.gh_command")
     def test_passes_event_type_and_issue_number(self, mock_gh):
         mock_gh.return_value = (True, "")
         gh_dispatch("org/repo", "agent-triage", 7)
@@ -252,7 +251,7 @@ class TestGhDispatch:
         assert "event_type=agent-triage" in " ".join(args)
         assert "client_payload[issue_number]=7" in " ".join(args)
 
-    @patch("bot.gh_command")
+    @patch("dispatch_bot.github.gh_command")
     def test_returns_gh_command_result(self, mock_gh):
         mock_gh.return_value = (False, "not found")
         ok, err = gh_dispatch("org/repo", "agent-implement", 1)
