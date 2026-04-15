@@ -1,0 +1,4 @@
+slack-bolt>=1.18,<2
+slack-sdk>=3.27,<4
+aiohttp>=3.9,<4
+-e ../shared
