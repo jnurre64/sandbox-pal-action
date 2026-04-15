@@ -178,7 +178,7 @@ async def handle_approve(ack, body, client) -> None:
         "--remove-label", "agent:plan-review", "--add-label", "agent:plan-approved",
     ])
     if not ok:
-        await client.chat_postEphemeral(channel=channel, user=user_id, text=f"Failed to update GitHub issue #{issue_number}: {err}")
+        await client.chat_postEphemeral(channel=channel, user=user_id, text=f"Failed to update GitHub issue #{issue_number}. Check bot logs for details.")
         return
 
     dispatch_ok, dispatch_err = gh_dispatch(repo, "agent-implement", issue_number)
@@ -213,7 +213,7 @@ async def handle_retry(ack, body, client) -> None:
         "--remove-label", ",".join(ALL_AGENT_LABELS), "--add-label", "agent",
     ])
     if not ok:
-        await client.chat_postEphemeral(channel=channel, user=user_id, text=f"Failed to update GitHub issue #{issue_number}: {err}")
+        await client.chat_postEphemeral(channel=channel, user=user_id, text=f"Failed to update GitHub issue #{issue_number}. Check bot logs for details.")
         return
 
     dispatch_ok, dispatch_err = gh_dispatch(repo, "agent-triage", issue_number)
@@ -324,7 +324,7 @@ async def handle_feedback_submit(ack, body, client, view) -> None:
 
     ok, err = gh_command(["issue", "comment", str(issue_number), "--repo", repo, "--body", feedback])
     if not ok:
-        await client.chat_postEphemeral(channel=channel, user=user_id, text=f"Failed to comment on #{issue_number}: {err}")
+        await client.chat_postEphemeral(channel=channel, user=user_id, text=f"Failed to comment on #{issue_number}. Check bot logs for details.")
         return
 
     action_label = "Changes requested" if action == "changes" else "Comment posted"
@@ -358,7 +358,7 @@ async def cmd_approve(ack, respond, body, client) -> None:
         "--remove-label", "agent:plan-review", "--add-label", "agent:plan-approved",
     ])
     if not ok:
-        await respond(text=f"Failed to approve #{issue_number}: {err}")
+        await respond(text=f"Failed to approve #{issue_number}. Check bot logs for details.")
         return
 
     gh_dispatch(repo, "agent-implement", issue_number)
@@ -386,7 +386,7 @@ async def cmd_reject(ack, respond, body, client) -> None:
 
     ok, err = gh_command(["issue", "comment", str(issue_number), "--repo", repo, "--body", reason])
     if not ok:
-        await respond(text=f"Failed to reject #{issue_number}: {err}")
+        await respond(text=f"Failed to reject #{issue_number}. Check bot logs for details.")
         return
 
     gh_command([
@@ -418,7 +418,7 @@ async def cmd_comment(ack, respond, body, client) -> None:
 
     ok, err = gh_command(["issue", "comment", str(issue_number), "--repo", repo, "--body", comment_text])
     if not ok:
-        await respond(text=f"Failed to comment on #{issue_number}: {err}")
+        await respond(text=f"Failed to comment on #{issue_number}. Check bot logs for details.")
         return
 
     gh_dispatch(repo, "agent-reply", issue_number)
@@ -444,7 +444,7 @@ async def cmd_status(ack, respond, body, client) -> None:
 
     ok, output = gh_command(["issue", "view", str(issue_number), "--repo", repo, "--json", "labels,title,state"])
     if not ok:
-        await respond(text=f"Failed to get status for #{issue_number}: {output}")
+        await respond(text=f"Failed to get status for #{issue_number}. Check bot logs for details.")
         return
 
     data = json.loads(output)
@@ -478,7 +478,7 @@ async def cmd_retry(ack, respond, body, client) -> None:
         "--remove-label", ",".join(ALL_AGENT_LABELS), "--add-label", "agent",
     ])
     if not ok:
-        await respond(text=f"Failed to retry #{issue_number}: {err}")
+        await respond(text=f"Failed to retry #{issue_number}. Check bot logs for details.")
         return
 
     gh_dispatch(repo, "agent-triage", issue_number)

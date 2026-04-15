@@ -96,3 +96,67 @@ If the bot is unreachable (crashed, restarting), notifications automatically fal
 ### Security
 
 Only users listed in `AGENT_DISCORD_ALLOWED_USERS` or with the role in `AGENT_DISCORD_ALLOWED_ROLE` can click action buttons and use slash commands. View/link buttons work for anyone. Unauthorized clicks get a private rejection message.
+
+## Phase 3: Slack Bot
+
+The Slack bot provides the same interactive experience as the Discord bot but in Slack — buttons, slash commands, and modals for managing agent work.
+
+### Setup
+
+1. Create a Slack app with Socket Mode — see `slack-bot/README.md` for detailed steps
+2. Add the Slack configuration to your `config.env`:
+
+   ```bash
+   AGENT_SLACK_BOT_TOKEN="xoxb-your-bot-token"
+   AGENT_SLACK_APP_TOKEN="xapp-your-app-token"
+   AGENT_SLACK_CHANNEL_ID="C0123456789"
+   AGENT_SLACK_ALLOWED_USERS="U0123456789"
+   AGENT_NOTIFY_BACKEND="slack"
+   ```
+
+3. Install and start the bot:
+
+   ```bash
+   cd slack-bot && ./install.sh
+   systemctl --user start agent-dispatch-slack
+   ```
+
+### Dual-Channel Mode
+
+To send notifications to both Discord and Slack simultaneously, use a comma-separated backend list:
+
+```bash
+AGENT_NOTIFY_BACKEND="bot,slack"
+```
+
+Each backend operates independently — if one bot is down, the other still receives notifications. Per-backend fallback is preserved:
+
+- Discord bot unreachable → falls back to Discord webhook (if configured)
+- Slack bot unreachable → falls back to Slack webhook (if configured)
+
+### Available Backends
+
+| Backend | Description | Fallback |
+|---|---|---|
+| `webhook` | Discord webhook (Phase 1, no interactivity) | None |
+| `bot` | Discord bot (interactive buttons and slash commands) | Discord webhook |
+| `slack` | Slack bot (interactive buttons and slash commands) | Slack webhook |
+
+### Examples
+
+```bash
+# Discord webhook only (Phase 1 default)
+AGENT_NOTIFY_BACKEND="webhook"
+
+# Discord bot only
+AGENT_NOTIFY_BACKEND="bot"
+
+# Slack bot only
+AGENT_NOTIFY_BACKEND="slack"
+
+# Both bots (dual-channel)
+AGENT_NOTIFY_BACKEND="bot,slack"
+
+# Discord webhook + Slack bot
+AGENT_NOTIFY_BACKEND="webhook,slack"
+```

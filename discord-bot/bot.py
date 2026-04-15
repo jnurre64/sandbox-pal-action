@@ -117,7 +117,7 @@ class FeedbackModal(discord.ui.Modal):
         ok, err = gh_command(["issue", "comment", str(self.issue_number), "--repo", self.repo, "--body", text])
         if not ok:
             await interaction.followup.send(
-                f"Failed to comment on #{self.issue_number}: {err}", ephemeral=True
+                f"Failed to comment on #{self.issue_number}. Check bot logs for details.", ephemeral=True
             )
             return
 
@@ -175,7 +175,7 @@ async def handle_button_interaction(interaction: discord.Interaction) -> None:
 
     if not ok:
         await interaction.followup.send(
-            f"Failed to update GitHub issue #{issue_number}: {err}", ephemeral=True
+            f"Failed to update GitHub issue #{issue_number}. Check bot logs for details.", ephemeral=True
         )
         return
 

@@ -466,3 +466,191 @@ MOCK
     echo "$calls" | grep -q "discord.com/api/webhooks"
     ! echo "$calls" | grep -q "127.0.0.1"
 }
+
+# ===================================================================
+# Phase 3: Slack bot backend routing
+# ===================================================================
+
+@test "notify: routes to Slack bot HTTP API when AGENT_NOTIFY_BACKEND=slack" {
+    export AGENT_NOTIFY_BACKEND="slack"
+    export AGENT_SLACK_BOT_PORT="8676"
+    export AGENT_NOTIFY_LEVEL="all"
+    create_mock "curl" ""
+    _source_notify
+
+    run notify "plan_posted" "Test Issue" "https://github.com/test/1" "Plan summary"
+    assert_success
+
+    local calls
+    calls=$(get_mock_calls "curl")
+    echo "$calls" | grep -q "127.0.0.1:8676/notify"
+}
+
+@test "notify: Slack bot sends JSON with event_type and issue_number" {
+    export AGENT_NOTIFY_BACKEND="slack"
+    export AGENT_SLACK_BOT_PORT="8676"
+    export AGENT_NOTIFY_LEVEL="all"
+    create_mock "curl" ""
+    _source_notify
+
+    run notify "plan_posted" "Test Issue" "https://github.com/test/1" "Plan summary"
+    assert_success
+
+    local calls
+    calls=$(get_mock_calls "curl")
+    echo "$calls" | grep -q "event_type"
+    echo "$calls" | grep -q "issue_number"
+}
+
+@test "notify: Slack backend falls back to Slack webhook when bot curl fails" {
+    export AGENT_NOTIFY_SLACK_WEBHOOK="https://hooks.slack.com/services/T00/B00/xxx"
+    export AGENT_NOTIFY_BACKEND="slack"
+    export AGENT_SLACK_BOT_PORT="8676"
+    export AGENT_NOTIFY_LEVEL="all"
+    _source_notify
+
+    local mock_bin="${TEST_TEMP_DIR}/bin"
+    mkdir -p "$mock_bin"
+    cat > "${mock_bin}/curl" << 'MOCK'
+#!/bin/bash
+echo "$@" >> "${TEST_TEMP_DIR}/mock_calls_curl"
+if echo "$@" | grep -q "127.0.0.1"; then
+    exit 1
+fi
+exit 0
+MOCK
+    chmod +x "${mock_bin}/curl"
+    export PATH="${mock_bin}:${PATH}"
+
+    run notify "plan_posted" "Test Issue" "https://github.com/test/1" "Plan summary"
+    assert_success
+
+    local calls
+    calls=$(get_mock_calls "curl")
+    local call_count
+    call_count=$(echo "$calls" | wc -l)
+    [ "$call_count" -eq 2 ]
+    echo "$calls" | tail -1 | grep -q "hooks.slack.com"
+}
+
+@test "notify: Slack webhook message includes indicator and title" {
+    _source_notify
+    export NUMBER=42
+
+    run _notify_build_slack_message "plan_posted" "Add caching" "https://github.com/org/repo/issues/42" "Plan here"
+    assert_success
+
+    local text
+    text=$(echo "$output" | jq -r '.text')
+    [[ "$text" == *"[INFO]"* ]]
+    [[ "$text" == *"Plan Ready"* ]]
+    [[ "$text" == *"Add caching"* ]]
+}
+
+# ===================================================================
+# Phase 3: Multi-backend (comma-separated)
+# ===================================================================
+
+@test "notify: comma-separated 'bot,slack' sends to both backends" {
+    export AGENT_NOTIFY_BACKEND="bot,slack"
+    export AGENT_DISCORD_BOT_PORT="8675"
+    export AGENT_SLACK_BOT_PORT="8676"
+    export AGENT_NOTIFY_LEVEL="all"
+    create_mock "curl" ""
+    _source_notify
+
+    run notify "plan_posted" "Test Issue" "https://github.com/test/1" "Plan summary"
+    assert_success
+
+    local calls
+    calls=$(get_mock_calls "curl")
+    echo "$calls" | grep -q "127.0.0.1:8675"
+    echo "$calls" | grep -q "127.0.0.1:8676"
+}
+
+@test "notify: one backend failure does not block another" {
+    export AGENT_NOTIFY_BACKEND="bot,slack"
+    export AGENT_DISCORD_BOT_PORT="8675"
+    export AGENT_SLACK_BOT_PORT="8676"
+    export AGENT_NOTIFY_LEVEL="all"
+    _source_notify
+
+    # Mock curl: Discord bot fails, Slack bot succeeds
+    local mock_bin="${TEST_TEMP_DIR}/bin"
+    mkdir -p "$mock_bin"
+    cat > "${mock_bin}/curl" << 'MOCK'
+#!/bin/bash
+echo "$@" >> "${TEST_TEMP_DIR}/mock_calls_curl"
+if echo "$@" | grep -q "8675"; then
+    exit 1
+fi
+exit 0
+MOCK
+    chmod +x "${mock_bin}/curl"
+    export PATH="${mock_bin}:${PATH}"
+
+    run notify "plan_posted" "Test Issue" "https://github.com/test/1" "Plan summary"
+    assert_success
+
+    local calls
+    calls=$(get_mock_calls "curl")
+    # Discord bot tried and failed (port 8675), Slack bot tried and succeeded (port 8676)
+    echo "$calls" | grep -q "8675"
+    echo "$calls" | grep -q "8676"
+}
+
+@test "notify: 'webhook,slack' sends Discord webhook and Slack bot" {
+    export AGENT_NOTIFY_DISCORD_WEBHOOK="https://discord.com/api/webhooks/123/abc"
+    export AGENT_NOTIFY_BACKEND="webhook,slack"
+    export AGENT_SLACK_BOT_PORT="8676"
+    export AGENT_NOTIFY_LEVEL="all"
+    create_mock "curl" ""
+    _source_notify
+
+    run notify "plan_posted" "Test Issue" "https://github.com/test/1" "Plan summary"
+    assert_success
+
+    local calls
+    calls=$(get_mock_calls "curl")
+    echo "$calls" | grep -q "discord.com/api/webhooks"
+    echo "$calls" | grep -q "127.0.0.1:8676"
+}
+
+@test "notify: spaces in comma-separated backends are trimmed" {
+    export AGENT_NOTIFY_BACKEND="bot , slack"
+    export AGENT_DISCORD_BOT_PORT="8675"
+    export AGENT_SLACK_BOT_PORT="8676"
+    export AGENT_NOTIFY_LEVEL="all"
+    create_mock "curl" ""
+    _source_notify
+
+    run notify "plan_posted" "Test Issue" "https://github.com/test/1" "Plan summary"
+    assert_success
+
+    local calls
+    calls=$(get_mock_calls "curl")
+    echo "$calls" | grep -q "127.0.0.1:8675"
+    echo "$calls" | grep -q "127.0.0.1:8676"
+}
+
+# ===================================================================
+# Phase 3: Slack configuration defaults
+# ===================================================================
+
+@test "defaults: AGENT_SLACK_BOT_PORT defaults to 8676" {
+    export AGENT_BOT_USER="test-bot"
+    unset AGENT_SLACK_BOT_PORT
+
+    source "${LIB_DIR}/defaults.sh"
+
+    assert_equal "$AGENT_SLACK_BOT_PORT" "8676"
+}
+
+@test "defaults: AGENT_NOTIFY_SLACK_WEBHOOK defaults to empty" {
+    export AGENT_BOT_USER="test-bot"
+    unset AGENT_NOTIFY_SLACK_WEBHOOK
+
+    source "${LIB_DIR}/defaults.sh"
+
+    assert_equal "$AGENT_NOTIFY_SLACK_WEBHOOK" ""
+}

@@ -2,7 +2,7 @@
 # ─── Notification layer (optional) ─────────────────────────────────
 # Provides: notify
 # Sends notifications at dispatch milestones to configured platforms.
-# Currently supports Discord webhooks and Discord bot. Slack and Telegram planned.
+# Supports Discord webhooks, Discord bot, and Slack bot. Backends are comma-separated.
 # Silently no-ops if no platform is configured.
 
 # ─── Notification level check ──────────────────────────────────────
@@ -132,15 +132,15 @@ _notify_send_discord() {
         -d "$json" 2>/dev/null || true
 }
 
-# ─── Send to bot local HTTP API ──────────────────────────────────
-# Usage: _notify_send_bot <event_type> <title> <url> <description>
+# ─── Send to bot local HTTP API (shared) ──────────────────────────
+# Usage: _notify_send_to_bot_api <port> <event_type> <title> <url> <description>
 # Returns 0 on success, 1 on failure (caller should fallback)
-_notify_send_bot() {
-    local event_type="$1"
-    local title="$2"
-    local url="$3"
-    local description="$4"
-    local port="${AGENT_DISCORD_BOT_PORT:-8675}"
+_notify_send_to_bot_api() {
+    local port="$1"
+    local event_type="$2"
+    local title="$3"
+    local url="$4"
+    local description="$5"
 
     local json
     json=$(jq -cn \
@@ -164,38 +164,105 @@ _notify_send_bot() {
         -d "$json" 2>/dev/null
 }
 
+# ─── Send to Discord bot ──────────────────────────────────────────
+# Usage: _notify_send_bot <event_type> <title> <url> <description>
+_notify_send_bot() {
+    _notify_send_to_bot_api "${AGENT_DISCORD_BOT_PORT:-8675}" "$@"
+}
+
+# ─── Send to Slack bot ────────────────────────────────────────────
+# Usage: _notify_send_slack_bot <event_type> <title> <url> <description>
+_notify_send_slack_bot() {
+    _notify_send_to_bot_api "${AGENT_SLACK_BOT_PORT:-8676}" "$@"
+}
+
+
+# ─── Build Slack webhook message ──────────────────────────────────
+# Usage: _notify_build_slack_message <event_type> <title> <url> <description>
+# Builds a simple mrkdwn message for Slack incoming webhooks (fallback mode).
+_notify_build_slack_message() {
+    local event_type="$1"
+    local title="$2"
+    local url="$3"
+    local description="$4"
+
+    local indicator label
+    indicator=$(_notify_event_indicator "$event_type")
+    label=$(_notify_event_label "$event_type")
+
+    local text="${indicator} *${label}* -- <${url}|#${NUMBER:-0}: ${title}>"
+    if [ -n "$description" ]; then
+        description="${description:0:2000}"
+        text="${text}\n${description}"
+    fi
+
+    jq -cn --arg text "$text" '{text: $text}'
+}
+
+# ─── Send to Slack webhook ────────────────────────────────────────
+# Usage: _notify_send_slack_webhook <json_payload>
+_notify_send_slack_webhook() {
+    local json="$1"
+    local webhook_url="${AGENT_NOTIFY_SLACK_WEBHOOK}"
+
+    curl -s -o /dev/null -X POST "$webhook_url" \
+        -H "Content-Type: application/json" \
+        -d "$json" 2>/dev/null || true
+}
+
 # ─── Main notification function ────────────────────────────────────
 # Usage: notify <event_type> <title> <url> [description]
+# Routes to one or more backends via AGENT_NOTIFY_BACKEND (comma-separated).
+# Supported backends: webhook (Discord webhook), bot (Discord bot), slack (Slack bot)
 notify() {
     local event_type="${1:-}"
     local title="${2:-}"
     local url="${3:-}"
     local description="${4:-}"
 
-    local backend="${AGENT_NOTIFY_BACKEND:-webhook}"
-
-    # No-op if no notification platform is configured
-    if [ "$backend" != "bot" ] && [ -z "${AGENT_NOTIFY_DISCORD_WEBHOOK:-}" ]; then
-        return 0
-    fi
-
     # Check notification level filter
     _notify_should_send "$event_type" || return 0
 
-    # ── Route based on backend ──
-    if [ "$backend" = "bot" ]; then
-        # Try bot first, fall back to webhook if available
-        if ! _notify_send_bot "$event_type" "$title" "$url" "$description"; then
-            if [ -n "${AGENT_NOTIFY_DISCORD_WEBHOOK:-}" ]; then
-                local discord_json
-                discord_json=$(_notify_build_discord_embed "$event_type" "$title" "$url" "$description")
-                _notify_send_discord "$discord_json"
-            fi
-        fi
-    else
-        # Webhook mode (Phase 1 default)
-        local discord_json
-        discord_json=$(_notify_build_discord_embed "$event_type" "$title" "$url" "$description")
-        _notify_send_discord "$discord_json"
-    fi
+    # Parse comma-separated backends
+    local backend_list="${AGENT_NOTIFY_BACKEND:-webhook}"
+    local backends
+    IFS=',' read -ra backends <<< "$backend_list"
+
+    local backend
+    for backend in "${backends[@]}"; do
+        # Trim whitespace
+        backend="${backend#"${backend%%[![:space:]]*}"}"
+        backend="${backend%"${backend##*[![:space:]]}"}"
+
+        case "$backend" in
+            webhook)
+                if [ -n "${AGENT_NOTIFY_DISCORD_WEBHOOK:-}" ]; then
+                    local discord_json
+                    discord_json=$(_notify_build_discord_embed "$event_type" "$title" "$url" "$description")
+                    _notify_send_discord "$discord_json"
+                fi
+                ;;
+            bot)
+                if ! _notify_send_bot "$event_type" "$title" "$url" "$description"; then
+                    if [ -n "${AGENT_NOTIFY_DISCORD_WEBHOOK:-}" ]; then
+                        local discord_json
+                        discord_json=$(_notify_build_discord_embed "$event_type" "$title" "$url" "$description")
+                        _notify_send_discord "$discord_json"
+                    fi
+                fi
+                ;;
+            slack)
+                if ! _notify_send_slack_bot "$event_type" "$title" "$url" "$description"; then
+                    if [ -n "${AGENT_NOTIFY_SLACK_WEBHOOK:-}" ]; then
+                        local slack_json
+                        slack_json=$(_notify_build_slack_message "$event_type" "$title" "$url" "$description")
+                        _notify_send_slack_webhook "$slack_json"
+                    fi
+                fi
+                ;;
+            *)
+                echo "WARNING: unknown notification backend '${backend}'" >&2
+                ;;
+        esac
+    done
 }
