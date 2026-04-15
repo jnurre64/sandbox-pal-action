@@ -35,3 +35,57 @@ EVENT_COLORS: dict[str, str] = {
     "plan_posted": "#3498DB", "questions_asked": "#3498DB",
     "review_feedback": "#FFFF00",
 }
+
+
+def build_blocks(
+    event_type: str, title: str, url: str, description: str, issue_number: int, repo: str,
+) -> list[dict]:
+    """Build Block Kit blocks for notification content."""
+    indicator = EVENT_INDICATORS.get(event_type, "[INFO]")
+    label = EVENT_LABELS.get(event_type, "Agent Update")
+
+    blocks: list[dict] = [
+        {
+            "type": "section",
+            "text": {
+                "type": "mrkdwn",
+                "text": f"*{indicator} {label} -- <{url}|#{issue_number}: {title}>*",
+            },
+        },
+    ]
+    if description:
+        blocks.append({
+            "type": "section",
+            "text": {"type": "mrkdwn", "text": description[:3000]},
+        })
+    blocks.append({
+        "type": "context",
+        "elements": [
+            {"type": "mrkdwn", "text": f"Automated by claude-agent-dispatch | {repo} #{issue_number}"},
+        ],
+    })
+    return blocks
+
+
+def build_actions(event_type: str, issue_number: int, url: str, repo: str) -> list[dict]:
+    """Build action button elements for a notification."""
+    value = f"{repo}:{issue_number}"
+    elements: list[dict] = [
+        {
+            "type": "button",
+            "text": {"type": "plain_text", "text": "View"},
+            "url": url,
+            "action_id": "view_link",
+        },
+    ]
+    if event_type in PLAN_EVENTS:
+        elements.extend([
+            {"type": "button", "text": {"type": "plain_text", "text": "Approve"}, "action_id": "approve", "value": value, "style": "primary"},
+            {"type": "button", "text": {"type": "plain_text", "text": "Request Changes"}, "action_id": "changes", "value": value, "style": "danger"},
+            {"type": "button", "text": {"type": "plain_text", "text": "Comment"}, "action_id": "comment", "value": value},
+        ])
+    elif event_type in RETRY_EVENTS:
+        elements.append(
+            {"type": "button", "text": {"type": "plain_text", "text": "Retry"}, "action_id": "retry", "value": value, "style": "primary"},
+        )
+    return [{"type": "actions", "elements": elements}]
