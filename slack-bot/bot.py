@@ -157,3 +157,73 @@ def build_updated_attachments(message: dict, action_text: str) -> list[dict]:
         "elements": [{"type": "mrkdwn", "text": action_text}],
     })
     return [{"color": color, "blocks": updated}]
+
+
+async def handle_approve(ack, body, client) -> None:
+    """Handle Approve button click: add plan-approved label, trigger implementation."""
+    await ack()
+    user_id = body["user"]["id"]
+    channel = body["channel"]["id"]
+
+    if not await is_authorized(user_id, client):
+        await client.chat_postEphemeral(channel=channel, user=user_id, text="You don't have permission to perform this action.")
+        return
+
+    repo, issue_number = parse_value(body["actions"][0]["value"])
+    if repo is None:
+        return
+
+    ok, err = gh_command([
+        "issue", "edit", str(issue_number), "--repo", repo,
+        "--remove-label", "agent:plan-review", "--add-label", "agent:plan-approved",
+    ])
+    if not ok:
+        await client.chat_postEphemeral(channel=channel, user=user_id, text=f"Failed to update GitHub issue #{issue_number}: {err}")
+        return
+
+    dispatch_ok, dispatch_err = gh_dispatch(repo, "agent-implement", issue_number)
+
+    action_text = f"Approved by <@{user_id}>"
+    attachments = build_updated_attachments(body["message"], action_text)
+    await client.chat_update(channel=channel, ts=body["message"]["ts"], attachments=attachments, text=body["message"].get("text", ""))
+
+    status = f"Done: Approved by <@{user_id}>"
+    if not dispatch_ok:
+        status += f" (warning: workflow trigger failed -- {dispatch_err})"
+    await client.chat_postEphemeral(channel=channel, user=user_id, text=status)
+    log.info("ACTION: approve on %s#%d by %s", repo, issue_number, user_id)
+
+
+async def handle_retry(ack, body, client) -> None:
+    """Handle Retry button click: reset labels, re-trigger triage."""
+    await ack()
+    user_id = body["user"]["id"]
+    channel = body["channel"]["id"]
+
+    if not await is_authorized(user_id, client):
+        await client.chat_postEphemeral(channel=channel, user=user_id, text="You don't have permission to perform this action.")
+        return
+
+    repo, issue_number = parse_value(body["actions"][0]["value"])
+    if repo is None:
+        return
+
+    ok, err = gh_command([
+        "issue", "edit", str(issue_number), "--repo", repo,
+        "--remove-label", ",".join(ALL_AGENT_LABELS), "--add-label", "agent",
+    ])
+    if not ok:
+        await client.chat_postEphemeral(channel=channel, user=user_id, text=f"Failed to update GitHub issue #{issue_number}: {err}")
+        return
+
+    dispatch_ok, dispatch_err = gh_dispatch(repo, "agent-triage", issue_number)
+
+    action_text = f"Retried by <@{user_id}>"
+    attachments = build_updated_attachments(body["message"], action_text)
+    await client.chat_update(channel=channel, ts=body["message"]["ts"], attachments=attachments, text=body["message"].get("text", ""))
+
+    status = f"Done: Retried by <@{user_id}>"
+    if not dispatch_ok:
+        status += f" (warning: workflow trigger failed -- {dispatch_err})"
+    await client.chat_postEphemeral(channel=channel, user=user_id, text=status)
+    log.info("ACTION: retry on %s#%d by %s", repo, issue_number, user_id)
