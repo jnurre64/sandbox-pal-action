@@ -6,7 +6,7 @@
 <p align="center">
   <a href="https://github.com/jnurre64/claude-agent-dispatch/actions/workflows/ci.yml"><img src="https://github.com/jnurre64/claude-agent-dispatch/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="https://github.com/jnurre64/claude-agent-dispatch/releases/latest"><img src="https://img.shields.io/github/v/release/jnurre64/claude-agent-dispatch" alt="Latest Release"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/github/license/jnurre64/claude-agent-dispatch" alt="License: MIT"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="License: MIT"></a>
 </p>
 
 A reusable dispatch system for running [Claude Code](https://claude.com/claude-code) agents on GitHub issues — autonomously triaging, planning, implementing, and addressing PR review feedback, all orchestrated through GitHub Actions and a label-driven state machine.
