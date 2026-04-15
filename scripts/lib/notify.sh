@@ -176,6 +176,40 @@ _notify_send_slack_bot() {
     _notify_send_to_bot_api "${AGENT_SLACK_BOT_PORT:-8676}" "$@"
 }
 
+
+# ─── Build Slack webhook message ──────────────────────────────────
+# Usage: _notify_build_slack_message <event_type> <title> <url> <description>
+# Builds a simple mrkdwn message for Slack incoming webhooks (fallback mode).
+_notify_build_slack_message() {
+    local event_type="$1"
+    local title="$2"
+    local url="$3"
+    local description="$4"
+
+    local indicator label
+    indicator=$(_notify_event_indicator "$event_type")
+    label=$(_notify_event_label "$event_type")
+
+    local text="${indicator} *${label}* -- <${url}|#${NUMBER:-0}: ${title}>"
+    if [ -n "$description" ]; then
+        description="${description:0:2000}"
+        text="${text}\n${description}"
+    fi
+
+    jq -cn --arg text "$text" '{text: $text}'
+}
+
+# ─── Send to Slack webhook ────────────────────────────────────────
+# Usage: _notify_send_slack_webhook <json_payload>
+_notify_send_slack_webhook() {
+    local json="$1"
+    local webhook_url="${AGENT_NOTIFY_SLACK_WEBHOOK}"
+
+    curl -s -o /dev/null -X POST "$webhook_url" \
+        -H "Content-Type: application/json" \
+        -d "$json" 2>/dev/null || true
+}
+
 # ─── Main notification function ────────────────────────────────────
 # Usage: notify <event_type> <title> <url> [description]
 notify() {
