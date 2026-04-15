@@ -132,15 +132,15 @@ _notify_send_discord() {
         -d "$json" 2>/dev/null || true
 }
 
-# ─── Send to bot local HTTP API ──────────────────────────────────
-# Usage: _notify_send_bot <event_type> <title> <url> <description>
+# ─── Send to bot local HTTP API (shared) ──────────────────────────
+# Usage: _notify_send_to_bot_api <port> <event_type> <title> <url> <description>
 # Returns 0 on success, 1 on failure (caller should fallback)
-_notify_send_bot() {
-    local event_type="$1"
-    local title="$2"
-    local url="$3"
-    local description="$4"
-    local port="${AGENT_DISCORD_BOT_PORT:-8675}"
+_notify_send_to_bot_api() {
+    local port="$1"
+    local event_type="$2"
+    local title="$3"
+    local url="$4"
+    local description="$5"
 
     local json
     json=$(jq -cn \
@@ -162,6 +162,18 @@ _notify_send_bot() {
     curl -sf -o /dev/null -X POST "http://127.0.0.1:${port}/notify" \
         -H "Content-Type: application/json" \
         -d "$json" 2>/dev/null
+}
+
+# ─── Send to Discord bot ──────────────────────────────────────────
+# Usage: _notify_send_bot <event_type> <title> <url> <description>
+_notify_send_bot() {
+    _notify_send_to_bot_api "${AGENT_DISCORD_BOT_PORT:-8675}" "$@"
+}
+
+# ─── Send to Slack bot ────────────────────────────────────────────
+# Usage: _notify_send_slack_bot <event_type> <title> <url> <description>
+_notify_send_slack_bot() {
+    _notify_send_to_bot_api "${AGENT_SLACK_BOT_PORT:-8676}" "$@"
 }
 
 # ─── Main notification function ────────────────────────────────────
