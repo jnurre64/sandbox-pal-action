@@ -227,3 +227,111 @@ async def handle_retry(ack, body, client) -> None:
         status += f" (warning: workflow trigger failed -- {dispatch_err})"
     await client.chat_postEphemeral(channel=channel, user=user_id, text=status)
     log.info("ACTION: retry on %s#%d by %s", repo, issue_number, user_id)
+
+
+async def _open_feedback_modal(
+    client, trigger_id: str, action: str, repo: str,
+    issue_number: int, channel: str, ts: str,
+) -> None:
+    """Open a Slack modal for free-text feedback."""
+    title = f"Changes #{issue_number}" if action == "changes" else f"Comment #{issue_number}"
+    placeholder = "Describe the changes you'd like..." if action == "changes" else "Enter your comment..."
+
+    metadata = json.dumps({
+        "action": action, "repo": repo, "issue_number": issue_number,
+        "channel": channel, "ts": ts,
+    })
+    await client.views_open(
+        trigger_id=trigger_id,
+        view={
+            "type": "modal",
+            "callback_id": "feedback_modal",
+            "private_metadata": metadata,
+            "title": {"type": "plain_text", "text": title[:24]},
+            "submit": {"type": "plain_text", "text": "Submit"},
+            "blocks": [{
+                "type": "input",
+                "block_id": "feedback_block",
+                "element": {
+                    "type": "plain_text_input",
+                    "action_id": "feedback_input",
+                    "multiline": True,
+                    "min_length": 10,
+                    "max_length": 2000,
+                    "placeholder": {"type": "plain_text", "text": placeholder},
+                },
+                "label": {"type": "plain_text", "text": "Feedback"},
+            }],
+        },
+    )
+
+
+async def handle_changes(ack, body, client) -> None:
+    """Handle Request Changes button: open feedback modal."""
+    await ack()
+    user_id = body["user"]["id"]
+    if not await is_authorized(user_id, client):
+        await client.chat_postEphemeral(channel=body["channel"]["id"], user=user_id, text="You don't have permission to perform this action.")
+        return
+
+    repo, issue_number = parse_value(body["actions"][0]["value"])
+    if repo is None:
+        return
+
+    await _open_feedback_modal(
+        client, body["trigger_id"], "changes", repo, issue_number,
+        body["channel"]["id"], body["message"]["ts"],
+    )
+
+
+async def handle_comment(ack, body, client) -> None:
+    """Handle Comment button: open feedback modal."""
+    await ack()
+    user_id = body["user"]["id"]
+    if not await is_authorized(user_id, client):
+        await client.chat_postEphemeral(channel=body["channel"]["id"], user=user_id, text="You don't have permission to perform this action.")
+        return
+
+    repo, issue_number = parse_value(body["actions"][0]["value"])
+    if repo is None:
+        return
+
+    await _open_feedback_modal(
+        client, body["trigger_id"], "comment", repo, issue_number,
+        body["channel"]["id"], body["message"]["ts"],
+    )
+
+
+async def handle_view_link(ack) -> None:
+    """No-op handler for View link buttons (Slack requires ack)."""
+    await ack()
+
+
+async def handle_feedback_submit(ack, body, client, view) -> None:
+    """Handle feedback modal submission: post comment to GitHub, reply in thread."""
+    await ack()
+    meta = json.loads(view["private_metadata"])
+    action = meta["action"]
+    repo = meta["repo"]
+    issue_number = meta["issue_number"]
+    channel = meta["channel"]
+    ts = meta["ts"]
+    user_id = body["user"]["id"]
+
+    feedback = sanitize_input(
+        view["state"]["values"]["feedback_block"]["feedback_input"]["value"]
+    )
+
+    ok, err = gh_command(["issue", "comment", str(issue_number), "--repo", repo, "--body", feedback])
+    if not ok:
+        await client.chat_postEphemeral(channel=channel, user=user_id, text=f"Failed to comment on #{issue_number}: {err}")
+        return
+
+    action_label = "Changes requested" if action == "changes" else "Comment posted"
+    await client.chat_postMessage(
+        channel=channel, thread_ts=ts,
+        text=f"{action_label} by <@{user_id}>",
+    )
+
+    gh_dispatch(repo, "agent-reply", issue_number)
+    log.info("MODAL: %s on %s#%d by %s", action, repo, issue_number, user_id)

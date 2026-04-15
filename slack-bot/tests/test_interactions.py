@@ -2,7 +2,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from bot import handle_approve, handle_retry
+from bot import handle_approve, handle_retry, handle_changes, handle_comment, handle_feedback_submit, handle_view_link
 
 
 def _make_body(action_id: str, value: str, user_id: str = "U123"):
@@ -155,3 +155,167 @@ class TestHandleRetry:
             await handle_retry(ack=ack, body=body, client=client)
         client.chat_postEphemeral.assert_called_once()
         assert "permission" in client.chat_postEphemeral.call_args.kwargs["text"].lower()
+
+
+class TestHandleChanges:
+    @pytest.mark.asyncio
+    async def test_opens_modal_with_trigger_id(self):
+        ack, client = AsyncMock(), AsyncMock()
+        body = _make_body("changes", "org/repo:42")
+        body["trigger_id"] = "T123"
+        with patch("bot.ALLOWED_USERS", {"U123"}):
+            await handle_changes(ack=ack, body=body, client=client)
+        ack.assert_called_once()
+        client.views_open.assert_called_once()
+        call_kwargs = client.views_open.call_args.kwargs
+        assert call_kwargs["trigger_id"] == "T123"
+
+    @pytest.mark.asyncio
+    async def test_modal_has_feedback_input(self):
+        ack, client = AsyncMock(), AsyncMock()
+        body = _make_body("changes", "org/repo:42")
+        body["trigger_id"] = "T123"
+        with patch("bot.ALLOWED_USERS", {"U123"}):
+            await handle_changes(ack=ack, body=body, client=client)
+        view = client.views_open.call_args.kwargs["view"]
+        assert view["type"] == "modal"
+        assert view["callback_id"] == "feedback_modal"
+        assert view["blocks"][0]["block_id"] == "feedback_block"
+
+    @pytest.mark.asyncio
+    async def test_modal_metadata_includes_repo_and_issue(self):
+        ack, client = AsyncMock(), AsyncMock()
+        body = _make_body("changes", "org/repo:42")
+        body["trigger_id"] = "T123"
+        with patch("bot.ALLOWED_USERS", {"U123"}):
+            await handle_changes(ack=ack, body=body, client=client)
+        view = client.views_open.call_args.kwargs["view"]
+        import json
+        meta = json.loads(view["private_metadata"])
+        assert meta["action"] == "changes"
+        assert meta["repo"] == "org/repo"
+        assert meta["issue_number"] == 42
+
+    @pytest.mark.asyncio
+    async def test_unauthorized_user_rejected(self):
+        ack, client = AsyncMock(), AsyncMock()
+        body = _make_body("changes", "org/repo:42", user_id="U999")
+        with patch("bot.ALLOWED_USERS", {"U123"}), patch("bot.ALLOWED_GROUP", ""):
+            await handle_changes(ack=ack, body=body, client=client)
+        client.views_open.assert_not_called()
+
+
+class TestHandleComment:
+    @pytest.mark.asyncio
+    async def test_opens_modal_with_comment_action(self):
+        ack, client = AsyncMock(), AsyncMock()
+        body = _make_body("comment", "org/repo:42")
+        body["trigger_id"] = "T123"
+        with patch("bot.ALLOWED_USERS", {"U123"}):
+            await handle_comment(ack=ack, body=body, client=client)
+        view = client.views_open.call_args.kwargs["view"]
+        import json
+        meta = json.loads(view["private_metadata"])
+        assert meta["action"] == "comment"
+
+
+class TestHandleViewLink:
+    @pytest.mark.asyncio
+    async def test_acks_without_error(self):
+        ack = AsyncMock()
+        await handle_view_link(ack=ack)
+        ack.assert_called_once()
+
+
+class TestHandleFeedbackSubmit:
+    def _make_view_body(self, action="changes", feedback_text="Please add more tests to the PR"):
+        import json
+        return {
+            "user": {"id": "U123"},
+        }, {
+            "private_metadata": json.dumps({
+                "action": action,
+                "repo": "org/repo",
+                "issue_number": 42,
+                "channel": "C456",
+                "ts": "123.456",
+            }),
+            "state": {
+                "values": {
+                    "feedback_block": {
+                        "feedback_input": {"value": feedback_text},
+                    },
+                },
+            },
+        }
+
+    @patch("bot.gh_dispatch", return_value=(True, ""))
+    @patch("bot.gh_command", return_value=(True, ""))
+    @pytest.mark.asyncio
+    async def test_posts_comment_to_github(self, mock_gh, mock_dispatch):
+        ack, client = AsyncMock(), AsyncMock()
+        body, view = self._make_view_body()
+        with patch("bot.ALLOWED_USERS", {"U123"}):
+            await handle_feedback_submit(ack=ack, body=body, client=client, view=view)
+        mock_gh.assert_called_once()
+        args = mock_gh.call_args[0][0]
+        assert "issue" in args
+        assert "comment" in args
+        assert "org/repo" in args
+
+    @patch("bot.gh_dispatch", return_value=(True, ""))
+    @patch("bot.gh_command", return_value=(True, ""))
+    @pytest.mark.asyncio
+    async def test_posts_thread_reply(self, mock_gh, mock_dispatch):
+        ack, client = AsyncMock(), AsyncMock()
+        body, view = self._make_view_body()
+        with patch("bot.ALLOWED_USERS", {"U123"}):
+            await handle_feedback_submit(ack=ack, body=body, client=client, view=view)
+        client.chat_postMessage.assert_called_once()
+        call_kwargs = client.chat_postMessage.call_args.kwargs
+        assert call_kwargs["thread_ts"] == "123.456"
+        assert call_kwargs["channel"] == "C456"
+
+    @patch("bot.gh_dispatch", return_value=(True, ""))
+    @patch("bot.gh_command", return_value=(True, ""))
+    @pytest.mark.asyncio
+    async def test_fires_reply_dispatch(self, mock_gh, mock_dispatch):
+        ack, client = AsyncMock(), AsyncMock()
+        body, view = self._make_view_body()
+        with patch("bot.ALLOWED_USERS", {"U123"}):
+            await handle_feedback_submit(ack=ack, body=body, client=client, view=view)
+        mock_dispatch.assert_called_once_with("org/repo", "agent-reply", 42)
+
+    @patch("bot.gh_dispatch", return_value=(True, ""))
+    @patch("bot.gh_command", return_value=(False, "API error"))
+    @pytest.mark.asyncio
+    async def test_gh_failure_posts_ephemeral_error(self, mock_gh, mock_dispatch):
+        ack, client = AsyncMock(), AsyncMock()
+        body, view = self._make_view_body()
+        with patch("bot.ALLOWED_USERS", {"U123"}):
+            await handle_feedback_submit(ack=ack, body=body, client=client, view=view)
+        client.chat_postEphemeral.assert_called_once()
+        assert "Failed" in client.chat_postEphemeral.call_args.kwargs["text"]
+        client.chat_postMessage.assert_not_called()
+
+    @patch("bot.gh_dispatch", return_value=(True, ""))
+    @patch("bot.gh_command", return_value=(True, ""))
+    @pytest.mark.asyncio
+    async def test_changes_action_label(self, mock_gh, mock_dispatch):
+        ack, client = AsyncMock(), AsyncMock()
+        body, view = self._make_view_body(action="changes")
+        with patch("bot.ALLOWED_USERS", {"U123"}):
+            await handle_feedback_submit(ack=ack, body=body, client=client, view=view)
+        text = client.chat_postMessage.call_args.kwargs["text"]
+        assert "Changes requested" in text
+
+    @patch("bot.gh_dispatch", return_value=(True, ""))
+    @patch("bot.gh_command", return_value=(True, ""))
+    @pytest.mark.asyncio
+    async def test_comment_action_label(self, mock_gh, mock_dispatch):
+        ack, client = AsyncMock(), AsyncMock()
+        body, view = self._make_view_body(action="comment")
+        with patch("bot.ALLOWED_USERS", {"U123"}):
+            await handle_feedback_submit(ack=ack, body=body, client=client, view=view)
+        text = client.chat_postMessage.call_args.kwargs["text"]
+        assert "Comment posted" in text
