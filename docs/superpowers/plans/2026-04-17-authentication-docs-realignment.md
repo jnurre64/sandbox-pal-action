@@ -289,30 +289,56 @@ EOF
 ## Task 3: Update `docs/security.md`
 
 **Files:**
-- Modify: `docs/security.md` (lines 122-135 and checklist around line 150)
+- Modify: `docs/security.md` (insert new section after Data Privacy; add checklist lines in Authentication and Secrets)
 
-- [ ] **Step 1: Rewrite the "Anthropic Authentication Model" section**
+**Note for the implementer:** The committed `main` version of this file does NOT yet contain an "Anthropic Authentication Model" section — this task is an ADDITION, not a rewrite. Use the Edit tool with a unique anchor (the closing bullet of the Data Privacy section) to insert the new section in the right place.
 
-Replace the entire section (currently lines 122-135) from the heading through the closing italic caveat:
+- [ ] **Step 1: Add the "Anthropic Authentication Model" section after Data Privacy**
 
-```markdown
+In `docs/security.md`, find the closing bullet of the Data Privacy section:
+
+```
+- Review Anthropic's privacy policy for data retention terms
+```
+
+Immediately after it, and before the `## Security Checklist` heading, insert a blank line followed by the new section. Use this Edit operation (old_string followed by new_string):
+
+**old_string (note trailing blank line is part of the match):**
+
+```
+- Review Anthropic's privacy policy for data retention terms
+
+## Security Checklist
+```
+
+**new_string:**
+
+```
+- Review Anthropic's privacy policy for data retention terms
+
 ## Anthropic Authentication Model
 
-The Claude Code CLI authenticates via the `ANTHROPIC_API_KEY` environment variable — a Console API key issued from the Anthropic Console. This is the authentication path Anthropic's documentation directs developers toward for products and services that interact with Claude programmatically, including agentic workloads like this one.
+Claude Code supports two authentication paths for the runner: `ANTHROPIC_API_KEY` (Console API key) and `CLAUDE_CODE_OAUTH_TOKEN` (subscription OAuth token from `claude setup-token`). See [authentication.md](authentication.md) for the full decision matrix, Terms of Service boundaries, and path-specific configuration.
 
-**Do not substitute a subscription OAuth token** (from `claude login` or `claude setup-token`, typically set via `CLAUDE_CODE_OAUTH_TOKEN`) in place of `ANTHROPIC_API_KEY`, and do not route requests from multiple people through a single teammate's subscription credential on a shared runner. Subscription credentials are intended for ordinary individual use of Claude Code.
+The dispatch scripts are agnostic to which path is configured — the `claude -p` invocation in `scripts/lib/common.sh` does not specify an env var, and Claude Code's own authentication precedence handles the rest.
 
-If you need per-user attribution or per-user billing, issue a separate Console API key per user and select the correct key based on `github.actor` in the workflow — do not use subscription tokens for this.
+**Summary of path selection:**
+
+- Team deployments, shared-access runners, commercial/customer-facing use, and any Agent SDK integration: `ANTHROPIC_API_KEY` is required.
+- Individual solo-developer use on your own repo and runner: either path works. Subscription OAuth comes with additional guardrails documented in [authentication.md](authentication.md).
 
 **Operator responsibilities:**
 
-- Confirm the installed key is a Console API key (`sk-ant-api...`), not a token from a different source.
-- Confirm the Anthropic account or workspace that owns the key is appropriate for your intended use (personal vs. organization; Consumer vs. Commercial Terms).
+- Confirm exactly one of `ANTHROPIC_API_KEY` or `CLAUDE_CODE_OAUTH_TOKEN` is set on the runner. Never both — `ANTHROPIC_API_KEY` silently overrides `CLAUDE_CODE_OAUTH_TOKEN` and routes billing to the Console account.
+- Verify the active authentication method with `claude /status` on the runner.
+- Confirm the Anthropic account or workspace that owns the credential is appropriate for your intended use (personal vs. organization; Consumer vs. Commercial Terms).
 
-*This section describes how the system is designed to align with Anthropic's documented developer authentication path. It is not legal advice — review Anthropic's current Terms of Service, Usage Policies, and Claude Code documentation to confirm fit for your specific use.*
+*This section describes how the system is designed to align with Anthropic's documented authentication paths. It is not legal advice — review Anthropic's current Terms of Service, Usage Policies, and Claude Code documentation to confirm fit for your specific use.*
+
+## Security Checklist
 ```
 
-With:
+For reference, the full text of the inserted section (what it should contain, without the surrounding anchors):
 
 ```markdown
 ## Anthropic Authentication Model
@@ -335,20 +361,27 @@ The dispatch scripts are agnostic to which path is configured — the `claude -p
 *This section describes how the system is designed to align with Anthropic's documented authentication paths. It is not legal advice — review Anthropic's current Terms of Service, Usage Policies, and Claude Code documentation to confirm fit for your specific use.*
 ```
 
-- [ ] **Step 2: Update the Security Checklist entry for authentication**
+- [ ] **Step 2: Add three authentication checklist lines to the Security Checklist**
 
-In the "Authentication and Secrets" subsection of the Security Checklist, replace the existing line:
+In the "Authentication and Secrets" subsection of the Security Checklist, add three new lines after the existing "No secrets appear in workflow logs" line. Use this Edit operation:
 
-```markdown
-- [ ] `ANTHROPIC_API_KEY` is a Console API key (`sk-ant-api...`), not a subscription OAuth token from `claude login` or `claude setup-token` (see [Anthropic authentication model](#anthropic-authentication-model))
+**old_string:**
+
+```
+- [ ] No secrets appear in workflow logs (check recent runs)
+
+### Branch Protection
 ```
 
-With these three lines:
+**new_string:**
 
-```markdown
+```
+- [ ] No secrets appear in workflow logs (check recent runs)
 - [ ] Authentication configured on the runner matches the intended use path per [authentication.md](authentication.md) — API key for team/commercial/shared-runner use; OAuth token only for individual solo-developer use
 - [ ] Exactly one of `ANTHROPIC_API_KEY` or `CLAUDE_CODE_OAUTH_TOKEN` is set on the runner (never both — `ANTHROPIC_API_KEY` silently overrides `CLAUDE_CODE_OAUTH_TOKEN` and routes billing to the Console account)
 - [ ] `claude /status` on the runner confirms the active auth method matches expectations
+
+### Branch Protection
 ```
 
 - [ ] **Step 3: Verify the file is internally consistent**
@@ -381,51 +414,55 @@ EOF
 ## Task 4: Update `docs/faq.md`
 
 **Files:**
-- Modify: `docs/faq.md` (lines 29-31 ToS Q; lines 43-45 costs Q; new Q inserted)
+- Modify: `docs/faq.md` (add two new Qs after SOC2 Q; rewrite existing costs Q)
 
-- [ ] **Step 1: Rewrite the "Is this setup aligned with Anthropic's Terms of Service?" answer**
+**Note for the implementer:** The committed `main` version of this file does NOT yet contain an "Is this setup aligned with Anthropic's Terms of Service?" Q — Step 1 is an ADDITION, not a rewrite. The existing "What about costs?" answer on committed `main` is the Claude-Max-subscription wording (not the API-key wording used in earlier drafts) — use the exact text below.
 
-Replace:
+- [ ] **Step 1: Add the ToS Q and the "Can I use Pro/Max?" Q after the SOC2 compliance Q**
 
-```markdown
-### Is this setup aligned with Anthropic's Terms of Service?
+Use this Edit operation:
 
-The system is designed around the Console API key (`ANTHROPIC_API_KEY`) authentication path, which Anthropic's documentation identifies as the appropriate credential type for programmatic and agentic workloads. See [security.md](security.md#anthropic-authentication-model) for the full posture, what not to substitute in, and operator responsibilities. Review Anthropic's current Terms of Service, Usage Policies, and Claude Code documentation for the authoritative statement.
+**old_string:**
+
+```
+For formal compliance, evaluate Anthropic as a subprocessor under your organization's requirements, ensure log retention meets your standards, and document the agent in your change management process. This is a risk assessment exercise specific to your organization.
+
+## Usage
 ```
 
-With:
+**new_string:**
 
-```markdown
+```
+For formal compliance, evaluate Anthropic as a subprocessor under your organization's requirements, ensure log retention meets your standards, and document the agent in your change management process. This is a risk assessment exercise specific to your organization.
+
 ### Is this setup aligned with Anthropic's Terms of Service?
 
 The system supports two Anthropic-documented authentication paths and is agnostic to which you configure. For team deployments, shared-access runners, commercial use, or any Agent SDK integration, `ANTHROPIC_API_KEY` (a Console API key) is required. For an individual solo developer using this on their own repo with their own self-hosted runner, `CLAUDE_CODE_OAUTH_TOKEN` (from `claude setup-token`, backed by a Pro/Max/Team/Enterprise subscription) is also supported per Anthropic's Claude Code authentication documentation. See [authentication.md](authentication.md) for the full decision matrix, ToS boundaries, and configuration steps. Review Anthropic's current Terms of Service, Usage Policies, and Claude Code documentation for the authoritative statement.
-```
 
-- [ ] **Step 2: Add a new Q/A after the ToS question**
-
-Insert the following immediately after the updated ToS answer and before the `## Usage` heading:
-
-```markdown
 ### Can I use my Pro/Max subscription instead of an API key?
 
 Yes — for individual solo-developer use on your own repo and your own self-hosted runner. Generate a token with `claude setup-token` and set it as `CLAUDE_CODE_OAUTH_TOKEN` on the runner. Do not set `ANTHROPIC_API_KEY` in the same environment — it silently overrides the OAuth token and routes billing to your Console account.
 
 The OAuth path is **not** appropriate for team deployments, shared-access runners, 24/7 operation, or any scenario where multiple humans trigger workflows through a single token (this would violate Consumer Terms' account-sharing prohibition). See [authentication.md](authentication.md) for the full guardrails.
+
+## Usage
 ```
 
-- [ ] **Step 3: Update the "What about costs?" answer**
+- [ ] **Step 2: Rewrite the "What about costs?" answer**
 
-Replace:
+Use this Edit operation (note the committed `main` text uses the Claude-Max-subscription wording):
 
-```markdown
+**old_string:**
+
+```
 ### What about costs?
 
-The system uses a Console API key (`ANTHROPIC_API_KEY`), so usage is billed per token against the Anthropic account that owns the key. Cost controls built into the system: the circuit breaker limits the agent to 8 bot comments per hour per issue, preventing runaway loops; timeouts kill stuck processes; and you control which issues get the `agent` label — it's opt-in per issue, not automatic.
+With a Claude Max subscription, there's no per-token billing — the CLI uses your existing subscription. The circuit breaker limits the agent to 8 bot comments per hour per issue, preventing runaway loops. Timeouts kill stuck processes. And you control which issues get the `agent` label — it's opt-in per issue, not automatic.
 ```
 
-With:
+**new_string:**
 
-```markdown
+```
 ### What about costs?
 
 Billing depends on the authentication path you configured (see [authentication.md](authentication.md)). With `ANTHROPIC_API_KEY`, usage is billed per token against the Anthropic Console account that owns the key. With `CLAUDE_CODE_OAUTH_TOKEN`, usage counts against your Pro/Max/Team/Enterprise subscription's "ordinary individual usage" quota — no separate per-token charges, but sustained heavy automation may push you toward the subscription's limits or into API-key territory.
@@ -433,23 +470,23 @@ Billing depends on the authentication path you configured (see [authentication.m
 Cost controls built into the system regardless of auth path: the circuit breaker limits the agent to 8 bot comments per hour per issue, preventing runaway loops; timeouts kill stuck processes; and you control which issues get the `agent` label — it's opt-in per issue, not automatic.
 ```
 
-- [ ] **Step 4: Verify the FAQ renders and reads cleanly**
+- [ ] **Step 3: Verify the FAQ renders and reads cleanly**
 
 Open `docs/faq.md` in a Markdown viewer. Verify:
-- The ToS answer renders in one flowing paragraph
+- The new ToS Q appears between the SOC2 Q and the new Pro/Max Q, rendering in one flowing paragraph
 - The new "Can I use my Pro/Max subscription" Q appears between the ToS Q and the `## Usage` heading
 - The costs answer has two paragraphs, both rendering correctly
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 4: Commit**
 
 ```bash
 git add docs/faq.md
 git commit -m "$(cat <<'EOF'
-docs(faq): present both auth paths in ToS and costs answers
+docs(faq): add ToS and Pro/Max Qs, rewrite costs answer
 
-Rewrites the ToS Q to name both paths and link to authentication.md.
-Adds a dedicated Q/A for the subscription-OAuth path with its
-guardrails. Updates the costs Q to distinguish per-token billing
+Adds a neutral ToS alignment Q and a dedicated Q/A for the
+subscription-OAuth path with its guardrails. Rewrites the costs
+Q to distinguish per-token billing
 from subscription-covered usage.
 
 Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
@@ -466,12 +503,12 @@ EOF
 
 - [ ] **Step 1: Broaden the `ANTHROPIC_API_KEY` subsection to cover both paths**
 
-Replace the entire subsection (currently starting at the `### ANTHROPIC_API_KEY` heading through the line `- Revoke the old key only after verifying the new key works`). Outer fences below use four backticks so the inner triple-backtick blocks render correctly — when doing the actual Edit, omit the outer fence lines:
+Replace the entire subsection (currently starting at the `### ANTHROPIC_API_KEY` heading through the line `- Revoke the old key only after verifying the new key works`). The committed `main` version of this section does NOT mention Console API key vs OAuth token in its opening sentence — use the text below as the exact "before" text. Outer fences below use four backticks so the inner triple-backtick blocks render correctly — when doing the actual Edit, omit the outer fence lines:
 
 ````markdown
 ### ANTHROPIC_API_KEY
 
-The Claude Code CLI requires `ANTHROPIC_API_KEY` in its environment. This must be a Console API key (`sk-ant-api...`) issued from the Anthropic Console — not a subscription OAuth token from `claude login` or `claude setup-token`. See [Anthropic authentication model](security.md#anthropic-authentication-model) for the reasoning. Add it to the runner's `.env` file:
+The Claude Code CLI requires `ANTHROPIC_API_KEY` in its environment. Add it to the runner's `.env` file:
 
 ```bash
 # In the runner installation directory (e.g., ~/actions-runner-<repo-name>/)
