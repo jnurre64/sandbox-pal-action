@@ -10,6 +10,9 @@ generated-workflows/
 # Git worktrees for isolated development
 .worktrees/
 
+# Claude Code working scratch directory
+claude-work/
+
 # Python bot
 discord-bot/.venv/
 discord-bot/__pycache__/
