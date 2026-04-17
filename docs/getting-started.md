@@ -85,28 +85,26 @@ Install the Claude CLI on the runner machine:
 npm install -g @anthropic-ai/claude-code
 ```
 
-Set the Anthropic API key so the runner's service user can access it. The recommended approach is to add it to the runner service user's environment:
+Configure Claude Code authentication on the runner. Choose one of two paths — see [authentication.md](authentication.md) for the decision matrix and Terms of Service boundaries. In brief: use `ANTHROPIC_API_KEY` for team, shared-runner, or commercial deployments; use `CLAUDE_CODE_OAUTH_TOKEN` only for individual solo-developer use on your own repo.
+
+Add exactly one of these to the runner's `.env` file (in the runner installation directory — not `~/.bashrc`; systemd services do not source shell profiles):
 
 ```bash
-# Add to the runner user's shell profile (~/.bashrc or ~/.profile)
-export ANTHROPIC_API_KEY="sk-ant-..."
+# Option A: Console API key
+echo 'ANTHROPIC_API_KEY=sk-ant-api...' >> .env
+
+# Option B: Subscription OAuth token
+# Generate on a machine where you've logged in: `claude setup-token`
+echo 'CLAUDE_CODE_OAUTH_TOKEN=sk-ant-oat01-...' >> .env
+
+chmod 600 .env
 ```
 
-If you run the runner as a systemd service, you may need to add the environment variable to the service override:
+> **Warning.** Never set both. `ANTHROPIC_API_KEY` silently overrides `CLAUDE_CODE_OAUTH_TOKEN` in Claude Code's resolution order. Verify the active path with `claude /status` after restarting the runner service.
+
+If you run the runner as a systemd service (the usual case), restart it so the new `.env` values are picked up:
 
 ```bash
-sudo systemctl edit actions.runner.<org>-<repo>.<runner-name>.service
-```
-
-Add:
-```ini
-[Service]
-Environment="ANTHROPIC_API_KEY=sk-ant-..."
-```
-
-Then reload and restart:
-```bash
-sudo systemctl daemon-reload
 sudo systemctl restart actions.runner.<org>-<repo>.<runner-name>.service
 ```
 

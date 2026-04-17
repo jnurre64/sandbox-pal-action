@@ -26,6 +26,16 @@ The audit trail exists natively in GitHub — every plan, approval, comment, com
 
 For formal compliance, evaluate Anthropic as a subprocessor under your organization's requirements, ensure log retention meets your standards, and document the agent in your change management process. This is a risk assessment exercise specific to your organization.
 
+### Is this setup aligned with Anthropic's Terms of Service?
+
+The system supports two Anthropic-documented authentication paths and is agnostic to which you configure. For team deployments, shared-access runners, commercial use, or any Agent SDK integration, `ANTHROPIC_API_KEY` (a Console API key) is required. For an individual solo developer using this on their own repo with their own self-hosted runner, `CLAUDE_CODE_OAUTH_TOKEN` (from `claude setup-token`, backed by a Pro/Max/Team/Enterprise subscription) is also supported per Anthropic's Claude Code authentication documentation. See [authentication.md](authentication.md) for the full decision matrix, ToS boundaries, and configuration steps. Review Anthropic's current Terms of Service, Usage Policies, and Claude Code documentation for the authoritative statement.
+
+### Can I use my Pro/Max subscription instead of an API key?
+
+Yes — for individual solo-developer use on your own repo and your own self-hosted runner. Generate a token with `claude setup-token` and set it as `CLAUDE_CODE_OAUTH_TOKEN` on the runner. Do not set `ANTHROPIC_API_KEY` in the same environment — it silently overrides the OAuth token and routes billing to your Console account.
+
+The OAuth path is **not** appropriate for team deployments, shared-access runners, 24/7 operation, or any scenario where multiple humans trigger workflows through a single token (this would violate Consumer Terms' account-sharing prohibition). See [authentication.md](authentication.md) for the full guardrails.
+
 ## Usage
 
 ### Can it handle complex tasks?
@@ -38,7 +48,9 @@ The plan review step catches bad approaches early — a couple minutes to read a
 
 ### What about costs?
 
-With a Claude Max subscription, there's no per-token billing — the CLI uses your existing subscription. The circuit breaker limits the agent to 8 bot comments per hour per issue, preventing runaway loops. Timeouts kill stuck processes. And you control which issues get the `agent` label — it's opt-in per issue, not automatic.
+Billing depends on the authentication path you configured (see [authentication.md](authentication.md)). With `ANTHROPIC_API_KEY`, usage is billed per token against the Anthropic Console account that owns the key. With `CLAUDE_CODE_OAUTH_TOKEN`, usage counts against your Pro/Max/Team/Enterprise subscription's "ordinary individual usage" quota — no separate per-token charges, but sustained heavy automation may push you toward the subscription's limits or into API-key territory.
+
+Cost controls built into the system regardless of auth path: the circuit breaker limits the agent to 8 bot comments per hour per issue, preventing runaway loops; timeouts kill stuck processes; and you control which issues get the `agent` label — it's opt-in per issue, not automatic.
 
 ### Will this replace developers?
 

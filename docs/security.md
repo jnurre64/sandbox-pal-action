@@ -119,6 +119,25 @@ Issue content (titles, bodies, comments, attached gists/files) is sent to the An
 - If your organization has data residency requirements (GDPR, etc.), verify that Anthropic's data processing locations are acceptable
 - Review Anthropic's privacy policy for data retention terms
 
+## Anthropic Authentication Model
+
+Claude Code supports two authentication paths for the runner: `ANTHROPIC_API_KEY` (Console API key) and `CLAUDE_CODE_OAUTH_TOKEN` (subscription OAuth token from `claude setup-token`). See [authentication.md](authentication.md) for the full decision matrix, Terms of Service boundaries, and path-specific configuration.
+
+The dispatch scripts are agnostic to which path is configured — the `claude -p` invocation in `scripts/lib/common.sh` does not specify an env var, and Claude Code's own authentication precedence handles the rest.
+
+**Summary of path selection:**
+
+- Team deployments, shared-access runners, commercial/customer-facing use, and any Agent SDK integration: `ANTHROPIC_API_KEY` is required.
+- Individual solo-developer use on your own repo and runner: either path works. Subscription OAuth comes with additional guardrails documented in [authentication.md](authentication.md).
+
+**Operator responsibilities:**
+
+- Confirm exactly one of `ANTHROPIC_API_KEY` or `CLAUDE_CODE_OAUTH_TOKEN` is set on the runner. Never both — `ANTHROPIC_API_KEY` silently overrides `CLAUDE_CODE_OAUTH_TOKEN` and routes billing to the Console account.
+- Verify the active authentication method with `claude /status` on the runner.
+- Confirm the Anthropic account or workspace that owns the credential is appropriate for your intended use (personal vs. organization; Consumer vs. Commercial Terms).
+
+*This section describes how the system is designed to align with Anthropic's documented authentication paths. It is not legal advice — review Anthropic's current Terms of Service, Usage Policies, and Claude Code documentation to confirm fit for your specific use.*
+
 ## Security Checklist
 
 Review this checklist periodically and after any changes to the agent system.
@@ -132,6 +151,9 @@ Review this checklist periodically and after any changes to the agent system.
 - [ ] `GITHUB_TOKEN` on the runner machine (if set in shell profile) is not committed to any repository
 - [ ] `~/.git-credentials` on the runner is not committed to any repository
 - [ ] No secrets appear in workflow logs (check recent runs)
+- [ ] Authentication configured on the runner matches the intended use path per [authentication.md](authentication.md) — API key for team/commercial/shared-runner use; OAuth token only for individual solo-developer use
+- [ ] Exactly one of `ANTHROPIC_API_KEY` or `CLAUDE_CODE_OAUTH_TOKEN` is set on the runner (never both — `ANTHROPIC_API_KEY` silently overrides `CLAUDE_CODE_OAUTH_TOKEN` and routes billing to the Console account)
+- [ ] `claude /status` on the runner confirms the active auth method matches expectations
 
 ### Branch Protection
 
