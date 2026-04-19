@@ -2,7 +2,7 @@
 # shellcheck disable=SC1091  # Sourced files are resolved at runtime
 set -euo pipefail
 
-# ─── Interactive setup wizard for claude-agent-dispatch ──────────
+# ─── Interactive setup wizard for claude-pal-action ──────────
 # Alternative to the /setup Claude Code skill for users without Claude Code.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -158,7 +158,7 @@ if [ "$SETUP_MODE" = "2" ]; then
     {
         echo "# Upstream tracking for standalone agent-dispatch installation"
         echo "# Do not edit manually — managed by /update skill and setup.sh"
-        echo "repo: https://github.com/jnurre64/claude-agent-dispatch.git"
+        echo "repo: https://github.com/jnurre64/claude-pal-action.git"
         echo "version: $CURRENT_SHA"
         echo "synced_at: \"$(date -u '+%Y-%m-%dT%H:%M:%SZ')\""
         echo "checksums:"
@@ -357,7 +357,7 @@ echo ""
 if [ "$SETUP_MODE" = "1" ]; then
     echo "  7. Clone the upstream repo on the runner and copy config:"
     echo ""
-    echo -e "     ${CYAN}git clone https://github.com/jnurre64/claude-agent-dispatch.git ~/agent-infra${NC}"
+    echo -e "     ${CYAN}git clone https://github.com/jnurre64/claude-pal-action.git ~/agent-infra${NC}"
     echo -e "     ${CYAN}cp $CONFIG_FILE ~/agent-infra/config.env${NC}"
     echo ""
     echo "  8. Commit and push the workflow files to $TARGET_REPO"

@@ -5,7 +5,7 @@
 If you discover a security vulnerability in this project, please report it responsibly:
 
 1. **Do not** open a public issue for security vulnerabilities
-2. Open a [private security advisory](https://github.com/jnurre64/claude-agent-dispatch/security/advisories/new) on this repository
+2. Open a [private security advisory](https://github.com/jnurre64/claude-pal-action/security/advisories/new) on this repository
 3. Or contact the maintainer directly
 
 ## Security Considerations

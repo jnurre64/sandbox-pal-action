@@ -1,11 +1,11 @@
 <p align="center">
-  <img src=".github/icon.png" width="150" alt="Claude Agent Dispatch">
+  <img src=".github/icon.png" width="150" alt="Claude Pal Action">
 </p>
-<h1 align="center">claude-agent-dispatch</h1>
+<h1 align="center">claude-pal-action</h1>
 
 <p align="center">
-  <a href="https://github.com/jnurre64/claude-agent-dispatch/actions/workflows/ci.yml"><img src="https://github.com/jnurre64/claude-agent-dispatch/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <a href="https://github.com/jnurre64/claude-agent-dispatch/releases/latest"><img src="https://img.shields.io/github/v/release/jnurre64/claude-agent-dispatch" alt="Latest Release"></a>
+  <a href="https://github.com/jnurre64/claude-pal-action/actions/workflows/ci.yml"><img src="https://github.com/jnurre64/claude-pal-action/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/jnurre64/claude-pal-action/releases/latest"><img src="https://img.shields.io/github/v/release/jnurre64/claude-pal-action" alt="Latest Release"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="License: MIT"></a>
 </p>
 
@@ -69,7 +69,7 @@ Built-in protections at every layer: circuit breaker (8 bot comments/hour), phas
 **Option A: Claude-assisted (recommended)**
 
 ```bash
-git clone https://github.com/jnurre64/claude-agent-dispatch.git ~/agent-infra
+git clone https://github.com/jnurre64/claude-pal-action.git ~/agent-infra
 cd ~/agent-infra
 claude  # then type: /setup
 ```
@@ -79,7 +79,7 @@ The `/setup` skill walks you through everything interactively.
 **Option B: Shell script**
 
 ```bash
-git clone https://github.com/jnurre64/claude-agent-dispatch.git ~/agent-infra
+git clone https://github.com/jnurre64/claude-pal-action.git ~/agent-infra
 cd ~/agent-infra
 ./scripts/setup.sh
 ```
@@ -138,12 +138,12 @@ The system adapts to any project through your CLAUDE.md (coding conventions), cu
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for conventions, testing, and how to submit changes. Bug reports and feature requests are welcome via [GitHub Issues](https://github.com/jnurre64/claude-agent-dispatch/issues).
+See [CONTRIBUTING.md](CONTRIBUTING.md) for conventions, testing, and how to submit changes. Bug reports and feature requests are welcome via [GitHub Issues](https://github.com/jnurre64/claude-pal-action/issues).
 
 ## Repository Structure
 
 ```
-claude-agent-dispatch/
+claude-pal-action/
 ├── scripts/
 │   ├── agent-dispatch.sh        # Main dispatch entry point
 │   ├── cleanup.sh               # Scheduled cleanup (branches, gists, logs)
@@ -178,7 +178,7 @@ claude-agent-dispatch/
 
 ## Disclaimer
 
-Claude Agent Dispatch is an independent, community-built open-source project. It is not affiliated with, endorsed by, or sponsored by Anthropic, PBC. "Claude" and "Claude Code" are trademarks of Anthropic. This project uses Claude Code as its underlying agent and references these trademarks solely to describe that functionality.
+Claude Pal Action is an independent, community-built open-source project. It is not affiliated with, endorsed by, or sponsored by Anthropic, PBC. "Claude" and "Claude Code" are trademarks of Anthropic. This project uses Claude Code as its underlying agent and references these trademarks solely to describe that functionality.
 
 ## License
 
