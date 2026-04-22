@@ -1,5 +1,7 @@
 # Authentication Documentation Realignment Implementation Plan
 
+> **Status — 2026-04-21:** This plan was executed and its work has since been superseded by the [auth-agnostic posture spec](../specs/2026-04-21-auth-agnostic-posture-design.md). Preserved as a historical record.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Rewrite the project's authentication documentation so both `ANTHROPIC_API_KEY` (Console API key) and `CLAUDE_CODE_OAUTH_TOKEN` (subscription OAuth) are presented as legitimate paths, with Terms of Service boundaries documented up front — informational-neutral framing, no steering.

@@ -1,5 +1,7 @@
 # Authentication Documentation Realignment
 
+> **Status — 2026-04-21:** Superseded by [`2026-04-21-auth-agnostic-posture-design.md`](2026-04-21-auth-agnostic-posture-design.md), which moves the project from informational-neutral path-documentation to full auth-agnosticism. This spec is preserved as a historical record.
+
 **Status:** Draft
 **Date:** 2026-04-17
 **Author:** jnurre64 (with Claude)
