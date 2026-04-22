@@ -119,33 +119,23 @@ echo "PATH=$HOME/.nvm/versions/node/$(node -v)/bin:$PATH" >> .env
 
 ### Claude Code authentication
 
-The Claude Code CLI needs one of two environment variables set: `ANTHROPIC_API_KEY` (Console API key) or `CLAUDE_CODE_OAUTH_TOKEN` (subscription OAuth token). The dispatch scripts do not specify which — Claude Code's own authentication precedence picks up whichever is set.
+The Claude Code CLI must be authenticated on the runner. The dispatch scripts do not reference any credential environment variable — see [authentication.md](authentication.md) and Anthropic's [Claude Code authentication docs](https://code.claude.com/docs/en/authentication) for the available methods.
 
-See [authentication.md](authentication.md) for the decision matrix and Terms of Service boundaries. In brief: API key is required for team, shared-runner, or commercial use; OAuth token is acceptable only for individual solo-developer use on your own repo.
-
-Add exactly one of these to the runner's `.env` file (in the runner installation directory):
+If you choose a method that uses environment variables, the runner's `.env` file (in the runner installation directory, not `~/.bashrc` — systemd services do not source shell profiles) is where the runner makes variables available to workflow jobs:
 
 ```bash
-# Option A: Console API key — required for team/commercial/shared-runner use
-echo 'ANTHROPIC_API_KEY=sk-ant-api...' >> .env
-
-# Option B: Subscription OAuth token — individual solo-developer use only
-# Generate on a machine where you've logged in: `claude setup-token`
-echo 'CLAUDE_CODE_OAUTH_TOKEN=sk-ant-oat01-...' >> .env
-
+# The exact variable depends on the method you chose
 chmod 600 .env
 ```
 
-> **Warning — silent override footgun.** Never set both variables simultaneously. `ANTHROPIC_API_KEY` takes precedence over `CLAUDE_CODE_OAUTH_TOKEN` in Claude Code's resolution order, so if both are present, the API key is used silently and charges route to the Console account. After configuring the runner, verify the active path with `claude /status`.
-
-The runner reads `.env` on startup and injects these variables into every workflow job. **Do not** add credentials to `~/.bashrc` — systemd services do not source shell profiles.
+After configuring authentication (by whichever method), verify with `claude /status` on the runner before the first dispatch run.
 
 **Security notes:**
-- The `.env` file must be `chmod 600` (readable only by the runner user)
-- Every workflow job on this runner can access whichever credential is set
-- If you want per-workflow injection instead, store the credential as a [GitHub Actions secret](https://docs.github.com/en/actions/security-for-github-actions/security-guides/using-secrets-in-github-actions) and reference it in the `env:` block of your workflow files
-- Rotate Console API keys every 90 days, or immediately if you suspect exposure; revoke the old key only after verifying the new one works
-- Regenerate OAuth tokens before the ~1-year expiry, and remember they require an active subscription
+
+- If `.env` holds any credential, it must be `chmod 600` (readable only by the runner user).
+- Every workflow job on this runner can access credentials present in `.env`.
+- If you want per-workflow injection instead, store the credential as a [GitHub Actions secret](https://docs.github.com/en/actions/security-for-github-actions/security-guides/using-secrets-in-github-actions) and reference it in the `env:` block of your workflow files.
+- Refer to Anthropic's authentication docs for guidance on rotating or refreshing whichever credential type you chose.
 
 ### GitHub bot PAT
 
