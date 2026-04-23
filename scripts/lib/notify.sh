@@ -101,7 +101,7 @@ _notify_build_discord_embed() {
         --arg url "$url" \
         --arg description "$description" \
         --argjson color "$color" \
-        --arg footer "Automated by claude-pal-action | ${REPO:-unknown} #${NUMBER:-0}" \
+        --arg footer "Automated by sandbox-pal-action | ${REPO:-unknown} #${NUMBER:-0}" \
         --arg timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
         '{
             username: $username,

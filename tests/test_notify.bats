@@ -233,7 +233,7 @@ _source_notify() {
 
     local footer
     footer=$(echo "$output" | jq -r '.embeds[0].footer.text')
-    [[ "$footer" == *"Automated by claude-pal-action"* ]]
+    [[ "$footer" == *"Automated by sandbox-pal-action"* ]]
 }
 
 @test "notify embed: includes issue URL in field" {

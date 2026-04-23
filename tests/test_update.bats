@@ -46,7 +46,7 @@ _create_mock_install() {
 
     # Write .upstream tracking file
     {
-        echo "repo: https://github.com/jnurre64/claude-pal-action.git"
+        echo "repo: https://github.com/jnurre64/sandbox-pal-action.git"
         echo "version: $version"
         echo "synced_at: \"2026-03-21T00:00:00Z\""
         echo "checksums:"

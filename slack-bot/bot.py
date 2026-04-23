@@ -1,4 +1,4 @@
-"""Slack bot for claude-pal-action interactive notifications."""
+"""Slack bot for sandbox-pal-action interactive notifications."""
 
 import json
 import logging
@@ -63,7 +63,7 @@ def build_blocks(
     blocks.append({
         "type": "context",
         "elements": [
-            {"type": "mrkdwn", "text": f"Automated by claude-pal-action | {repo} #{issue_number}"},
+            {"type": "mrkdwn", "text": f"Automated by sandbox-pal-action | {repo} #{issue_number}"},
         ],
     })
     return blocks
