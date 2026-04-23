@@ -30,7 +30,7 @@ Use the `AskUserQuestion` tool to ask the user which mode they prefer:
 - Best for: most users, full control, easy to customize, no external dependencies
 
 **Reference mode**:
-- Thin workflow files in the user's repo call back to this upstream repo via `uses: jnurre64/claude-pal-action/...@v1`
+- Thin workflow files in the user's repo call back to this upstream repo via `uses: jnurre64/sandbox-pal-action/...@v1`
 - Scripts run from a clone of this repo on the runner (`~/agent-infra/`)
 - Updates come automatically via version tags and `git pull`
 - Best for: users who want automatic updates and minimal files in their repo
@@ -280,7 +280,7 @@ It should show as **Idle** with the labels `self-hosted` and `agent`.
 For reference mode, the dispatch scripts run from a clone of this repo on the runner:
 
 ```bash
-git clone https://github.com/jnurre64/claude-pal-action.git ~/agent-infra
+git clone https://github.com/jnurre64/sandbox-pal-action.git ~/agent-infra
 cp <path-to-config.env> ~/agent-infra/config.env
 ```
 
