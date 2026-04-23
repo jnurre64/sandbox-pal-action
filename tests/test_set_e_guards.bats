@@ -7,7 +7,7 @@ load 'helpers/test_helper'
 
 # shellcheck disable=SC2154
 @test "REGRESSION v0.1.0: all triage-JSON extraction sites have set +e guard" {
-    local script="${SCRIPTS_DIR}/agent-dispatch.sh"
+    local script="${SCRIPTS_DIR}/sandbox-pal-dispatch.sh"
 
     # Find all line numbers with the JSON extraction pattern
     local extraction_lines

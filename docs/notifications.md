@@ -51,7 +51,7 @@ Optional Discord notifications for agent dispatch milestones. When configured, t
 - The webhook URL is stored in `config.env` which is not committed to git
 - Notifications are sent via HTTPS to Discord's API
 - No user data is collected or stored
-- All notifications include an "Automated by claude-pal-action" footer
+- All notifications include an "Automated by sandbox-pal-action" footer
 
 ## Phase 2: Interactive Bot
 
@@ -74,7 +74,7 @@ The Discord bot adds interactive buttons and slash commands on top of webhook no
 
    ```bash
    cd discord-bot && ./install.sh
-   systemctl --user start agent-dispatch-bot
+   systemctl --user start sandbox-pal-dispatch-bot
    ```
 
 ### How It Works
@@ -85,9 +85,9 @@ Button clicks and slash commands translate to `gh` CLI calls -- adding labels, p
 
 1. Agent posts plan -> Discord notification with Approve/Request Changes buttons
 2. You click Request Changes -> modal appears -> you type feedback
-3. Feedback posted as GitHub comment -> triggers dispatch-reply -> agent re-triages
+3. Feedback posted as GitHub comment -> triggers sandbox-pal-reply -> agent re-triages
 4. Updated plan notification -> you click Approve
-5. Label added -> dispatch-implement triggers -> agent implements -> PR notification
+5. Label added -> sandbox-pal-implement triggers -> agent implements -> PR notification
 
 ### Fallback
 
@@ -118,7 +118,7 @@ The Slack bot provides the same interactive experience as the Discord bot but in
 
    ```bash
    cd slack-bot && ./install.sh
-   systemctl --user start agent-dispatch-slack
+   systemctl --user start sandbox-pal-dispatch-slack
    ```
 
 ### Dual-Channel Mode

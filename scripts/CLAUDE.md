@@ -2,11 +2,11 @@
 
 ## Entry Point
 
-`agent-dispatch.sh` is the main entry point. It takes `<event_type> <repo> <number>` and dispatches to one of four handler functions: `handle_new_issue`, `handle_issue_reply`, `handle_implement`, `handle_pr_review`.
+`sandbox-pal-dispatch.sh` is the main entry point. It takes `<event_type> <repo> <number>` and dispatches to one of four handler functions: `handle_new_issue`, `handle_issue_reply`, `handle_implement`, `handle_pr_review`.
 
 ## Sourcing Chain
 
-`agent-dispatch.sh` loads config, then sources all `lib/` modules in order: `common.sh`, `worktree.sh`, `data-fetch.sh`, `notify.sh`. All functions from lib/ are available globally after sourcing.
+`sandbox-pal-dispatch.sh` loads config, then sources all `lib/` modules in order: `common.sh`, `worktree.sh`, `data-fetch.sh`, `notify.sh`. All functions from lib/ are available globally after sourcing.
 
 ## Config Loading Order
 

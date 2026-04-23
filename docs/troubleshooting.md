@@ -117,7 +117,7 @@ The circuit breaker triggered. The bot account posted `AGENT_CIRCUIT_BREAKER_LIM
 1. Wait for the 1-hour window to pass
 2. Check the dispatch log to understand what caused the loop:
    ```bash
-   grep "#<issue-number>" ~/.claude/agent-logs/agent-dispatch.log | tail -30
+   grep "#<issue-number>" ~/.claude/agent-logs/sandbox-pal-dispatch.log | tail -30
    ```
 3. Fix the underlying cause (clarify the issue, fix the prompt, etc.)
 4. Remove all `agent:*` labels, then re-add `agent`
@@ -396,7 +396,7 @@ A syntax error in the workflow file silently prevents it from running. Validate 
 
 ```bash
 # Install actionlint (optional but helpful)
-actionlint .github/workflows/claude-agent.yml
+actionlint .github/workflows/sandbox-pal-dispatch.yml
 ```
 
 Or check the Actions tab in GitHub for any workflow configuration errors.
@@ -416,7 +416,7 @@ When reporting issues or investigating problems, gather these pieces of informat
 ### 1. Dispatch Log (Last 50 Lines for the Issue)
 
 ```bash
-grep "#<issue-number>" ~/.claude/agent-logs/agent-dispatch.log | tail -50
+grep "#<issue-number>" ~/.claude/agent-logs/sandbox-pal-dispatch.log | tail -50
 ```
 
 ### 2. Claude Stderr Log

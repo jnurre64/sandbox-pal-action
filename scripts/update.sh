@@ -2,8 +2,8 @@
 # shellcheck disable=SC1091  # Sourced files are resolved at runtime
 set -euo pipefail
 
-# ─── Update a standalone agent-dispatch installation from upstream ──
-# Usage: update.sh [path-to-.agent-dispatch]
+# ─── Update a standalone sandbox-pal-dispatch installation from upstream ──
+# Usage: update.sh [path-to-.sandbox-pal-dispatch]
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -13,7 +13,7 @@ BOLD='\033[1m'
 NC='\033[0m'
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-INSTALL_DIR="${1:-.agent-dispatch}"
+INSTALL_DIR="${1:-.sandbox-pal-dispatch}"
 
 # Secret-detection keywords — vars matching these are flagged and never written
 SECRET_KEYWORDS="TOKEN|KEY|SECRET|WEBHOOK|PASSWORD|CREDENTIAL"
@@ -23,7 +23,7 @@ SECRET_KEYWORDS="TOKEN|KEY|SECRET|WEBHOOK|PASSWORD|CREDENTIAL"
 
 if [ ! -d "$INSTALL_DIR" ]; then
     echo -e "${RED}Installation directory not found: $INSTALL_DIR${NC}"
-    echo "Usage: update.sh [path-to-.agent-dispatch]"
+    echo "Usage: update.sh [path-to-.sandbox-pal-dispatch]"
     exit 1
 fi
 
@@ -411,7 +411,7 @@ fi
 # ── Update .upstream tracking ────────────────────────────────────
 echo -e "${CYAN}Updating version tracking...${NC}"
 {
-    echo "# Upstream tracking for standalone agent-dispatch installation"
+    echo "# Upstream tracking for standalone sandbox-pal-dispatch installation"
     echo "# Do not edit manually — managed by /update skill and setup.sh"
     echo "repo: $UPSTREAM_REPO"
     echo "version: $LATEST_SHA"
@@ -456,5 +456,5 @@ if [ "$CONFIG_TOTAL" -gt 0 ]; then
     fi
 fi
 
-echo "Don't forget to commit: git add .agent-dispatch/ && git commit -m 'Update agent-dispatch from upstream'"
+echo "Don't forget to commit: git add .sandbox-pal-dispatch/ && git commit -m 'Update sandbox-pal-dispatch from upstream'"
 echo ""

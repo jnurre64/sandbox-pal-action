@@ -25,6 +25,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.AGENT_PAT }}
           AGENT_GIST_PAT: ${{ secrets.AGENT_GIST_PAT }}
         run: |
-          .agent-dispatch/scripts/cleanup.sh \
+          .sandbox-pal-dispatch/scripts/cleanup.sh \
             "${{ github.repository }}" \
             --no-dry-run --verbose

@@ -1,4 +1,4 @@
-"""Discord bot for claude-pal-action interactive notifications."""
+"""Discord bot for sandbox-pal-action interactive notifications."""
 
 import logging
 import os
@@ -68,7 +68,7 @@ def build_embed(
         description=description[:4000],
         color=color,
     )
-    embed.set_footer(text=f"Automated by claude-pal-action | {repo} #{issue_number}")
+    embed.set_footer(text=f"Automated by sandbox-pal-action | {repo} #{issue_number}")
     return embed
 
 

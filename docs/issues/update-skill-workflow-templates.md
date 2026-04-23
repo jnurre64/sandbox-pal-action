@@ -8,14 +8,14 @@ The `/update` skill should detect new standalone workflow templates from upstrea
 
 ## Problem
 
-When a new feature adds a new GitHub Actions workflow (e.g., `dispatch-direct-implement.yml` added a corresponding `agent-direct-implement.yml` standalone template), the update skill successfully syncs all scripts, prompts, and labels — but the user has to manually create the calling workflow in `.github/workflows/`.
+When a new feature adds a new GitHub Actions workflow and a corresponding standalone template (e.g., `sandbox-pal-direct-implement.yml`), the update skill successfully syncs all scripts, prompts, and labels — but the user has to manually create the calling workflow in `.github/workflows/`.
 
 **What happened during the `agent:implement` rollout to Webber:**
 
 1. Ran `/update` on Webber's standalone installation
 2. Update correctly synced 11 files, added 2 new files (`prompts/validate.md`, `prompts/CLAUDE.md`)
-3. Update did **not** detect that a new standalone template (`standalone/agent-direct-implement.yml`) existed in upstream
-4. Had to manually create `.github/workflows/agent-direct-implement.yml` by copying the pattern from the existing `agent-implement.yml` and adjusting the label trigger, event type, and job name
+3. Update did **not** detect that a new standalone template (`standalone/sandbox-pal-direct-implement.yml`) existed in upstream
+4. Had to manually create `.github/workflows/sandbox-pal-direct-implement.yml` by copying the pattern from the existing `sandbox-pal-implement.yml` and adjusting the label trigger, event type, and job name
 
 This is error-prone — the user has to know which templates are new, understand the bot username substitution, and match project-specific env vars (e.g., Discord webhook secrets) that differ between repos.
 
@@ -23,12 +23,12 @@ This is error-prone — the user has to know which templates are new, understand
 
 - Standalone workflow templates live in `.claude/skills/setup/templates/standalone/` in the upstream repo
 - During **initial setup** (`/setup` or `setup.sh`), these templates are processed (bot username substituted) and placed in the consuming repo's `.github/workflows/`
-- During **updates** (`/update`), only files under `.agent-dispatch/` (scripts, prompts, labels.txt) are tracked and synced — workflow files in `.github/workflows/` are not part of the update scope
-- The `.upstream` tracking file only has checksums for `.agent-dispatch/` contents
+- During **updates** (`/update`), only files under `.sandbox-pal-dispatch/` (scripts, prompts, labels.txt) are tracked and synced — workflow files in `.github/workflows/` are not part of the update scope
+- The `.upstream` tracking file only has checksums for `.sandbox-pal-dispatch/` contents
 
 ## Proposed Enhancement
 
-During the update flow, after categorizing `.agent-dispatch/` files:
+During the update flow, after categorizing `.sandbox-pal-dispatch/` files:
 
 1. **Scan upstream templates**: List all files in `.claude/skills/setup/templates/standalone/`
 2. **Compare against installed workflows**: Check which templates have corresponding workflow files in the consuming repo's `.github/workflows/`
@@ -43,8 +43,8 @@ During the update flow, after categorizing `.agent-dispatch/` files:
 ### Matching Logic
 
 Template names follow a predictable pattern:
-- Template: `standalone/agent-<name>.yml`
-- Installed: `.github/workflows/agent-<name>.yml`
+- Template: `standalone/sandbox-pal-<name>.yml`
+- Installed: `.github/workflows/sandbox-pal-<name>.yml`
 
 So the match is straightforward — strip the `standalone/` prefix and check if the file exists.
 
@@ -56,7 +56,7 @@ So the match is straightforward — strip the `standalone/` prefix and check if 
 
 ## Alternatives Considered
 
-- **Track workflows in `.upstream`**: Would allow full checksum-based update logic for workflows, but breaks the current clean separation where `.agent-dispatch/` is the only managed directory
+- **Track workflows in `.upstream`**: Would allow full checksum-based update logic for workflows, but breaks the current clean separation where `.sandbox-pal-dispatch/` is the only managed directory
 - **Require re-running `/setup`**: Works but heavy-handed — setup asks many questions that are already answered
 - **Documentation only**: Just document "check for new templates after update" — unreliable, easy to forget
 

@@ -120,7 +120,7 @@ When prompted, enter the path to your config (e.g., `/home/youruser/agent-infra/
 Then start:
 
 ```bash
-systemctl --user start agent-dispatch-slack
+systemctl --user start sandbox-pal-dispatch-slack
 ```
 
 ### 11. Verify
@@ -128,7 +128,7 @@ systemctl --user start agent-dispatch-slack
 Check the service status:
 
 ```bash
-systemctl --user status agent-dispatch-slack
+systemctl --user status sandbox-pal-dispatch-slack
 ```
 
 Send a test notification:
@@ -145,19 +145,19 @@ You should see a notification with buttons in your Slack channel.
 
 ```bash
 # Start
-systemctl --user start agent-dispatch-slack
+systemctl --user start sandbox-pal-dispatch-slack
 
 # Stop
-systemctl --user stop agent-dispatch-slack
+systemctl --user stop sandbox-pal-dispatch-slack
 
 # Restart (after config changes)
-systemctl --user restart agent-dispatch-slack
+systemctl --user restart sandbox-pal-dispatch-slack
 
 # View logs
-journalctl --user -u agent-dispatch-slack -f
+journalctl --user -u sandbox-pal-dispatch-slack -f
 
 # Disable auto-start
-systemctl --user disable agent-dispatch-slack
+systemctl --user disable sandbox-pal-dispatch-slack
 ```
 
 ## Buttons
@@ -201,7 +201,7 @@ AGENT_SLACK_BOT_PORT="8677"
 ### Buttons don't respond
 
 - Verify your Slack User ID is in `AGENT_SLACK_ALLOWED_USERS`
-- Check the bot logs: `journalctl --user -u agent-dispatch-slack -f`
+- Check the bot logs: `journalctl --user -u sandbox-pal-dispatch-slack -f`
 - Ensure **Interactivity** is enabled in the Slack app settings
 
 ### Slash commands not found

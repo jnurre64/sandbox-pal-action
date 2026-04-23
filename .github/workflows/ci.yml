@@ -21,7 +21,7 @@ jobs:
 
       - name: Run ShellCheck on scripts
         run: |
-          shellcheck scripts/agent-dispatch.sh
+          shellcheck scripts/sandbox-pal-dispatch.sh
           shellcheck scripts/cleanup.sh
           shellcheck scripts/lib/*.sh
           shellcheck scripts/check-prereqs.sh

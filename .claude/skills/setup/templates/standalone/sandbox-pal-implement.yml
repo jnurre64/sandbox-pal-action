@@ -5,7 +5,7 @@ on:
     types: [labeled]
 
 concurrency:
-  group: claude-agent-implement-${{ github.event.issue.number }}
+  group: sandbox-pal-implement-${{ github.event.issue.number }}
   cancel-in-progress: false
 
 jobs:
@@ -27,9 +27,9 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.AGENT_PAT }}
           GITHUB_TOKEN: ${{ secrets.AGENT_PAT }}
-          AGENT_CONFIG: ${{ github.workspace }}/.agent-dispatch/config.env  # override file (gitignored, optional)
+          AGENT_CONFIG: ${{ github.workspace }}/.sandbox-pal-dispatch/config.env  # override file (gitignored, optional)
         run: |
-          .agent-dispatch/scripts/agent-dispatch.sh \
+          .sandbox-pal-dispatch/scripts/sandbox-pal-dispatch.sh \
             implement \
             "${{ github.repository }}" \
             "${{ github.event.issue.number }}"

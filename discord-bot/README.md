@@ -108,7 +108,7 @@ AGENT_DISPATCH_REPO="owner/repo"              # GitHub repo for slash commands
 AGENT_NOTIFY_BACKEND="bot"
 ```
 
-Then add the webhook and backend setting to your **project's** `config.env` (e.g., `.agent-dispatch/config.env`):
+Then add the webhook and backend setting to your **project's** `config.env` (e.g., `.sandbox-pal-dispatch/config.env`):
 
 ```bash
 AGENT_NOTIFY_DISCORD_WEBHOOK="your-webhook-url"
@@ -129,7 +129,7 @@ When prompted for the config path, enter the path to your bot config (e.g., `/ho
 Then start the bot:
 
 ```bash
-systemctl --user start agent-dispatch-bot
+systemctl --user start sandbox-pal-dispatch-bot
 ```
 
 ### 11. Verify
@@ -137,7 +137,7 @@ systemctl --user start agent-dispatch-bot
 Check the service status:
 
 ```bash
-systemctl --user status agent-dispatch-bot
+systemctl --user status sandbox-pal-dispatch-bot
 ```
 
 You should see `active (running)`. The bot should show as **online** (green dot) in Discord.
@@ -187,25 +187,25 @@ This warning in the logs is expected and harmless. The bot uses buttons and slas
 ### Buttons don't respond
 
 - Verify your Discord User ID is in `AGENT_DISCORD_ALLOWED_USERS`
-- Check the bot logs: `journalctl --user -u agent-dispatch-bot -f`
+- Check the bot logs: `journalctl --user -u sandbox-pal-dispatch-bot -f`
 
 ## Managing the Bot
 
 ```bash
 # Start
-systemctl --user start agent-dispatch-bot
+systemctl --user start sandbox-pal-dispatch-bot
 
 # Stop
-systemctl --user stop agent-dispatch-bot
+systemctl --user stop sandbox-pal-dispatch-bot
 
 # Restart (after config changes)
-systemctl --user restart agent-dispatch-bot
+systemctl --user restart sandbox-pal-dispatch-bot
 
 # View logs
-journalctl --user -u agent-dispatch-bot -f
+journalctl --user -u sandbox-pal-dispatch-bot -f
 
 # Disable auto-start on login
-systemctl --user disable agent-dispatch-bot
+systemctl --user disable sandbox-pal-dispatch-bot
 ```
 
 ## Buttons

@@ -4,7 +4,7 @@
 
 Claude Agent Dispatch is a label-driven system for running Claude Code agents on GitHub issues via GitHub Actions. When a human adds the `agent` label to an issue, the system triages the issue, writes a plan, waits for human approval, implements the plan, creates a PR, and addresses review feedback -- all automatically.
 
-The system runs on self-hosted GitHub Actions runners where Claude Code CLI is installed. A dispatch shell script (`agent-dispatch.sh`) handles event routing, label management, worktree isolation, data pre-fetching, and safety mechanisms. Claude Code runs in headless mode (`claude -p`) with tool restrictions tailored to each phase.
+The system runs on self-hosted GitHub Actions runners where Claude Code CLI is installed. A dispatch shell script (`sandbox-pal-dispatch.sh`) handles event routing, label management, worktree isolation, data pre-fetching, and safety mechanisms. Claude Code runs in headless mode (`claude -p`) with tool restrictions tailored to each phase.
 
 ### Accounts
 
@@ -89,15 +89,15 @@ All agent labels:
 
 ## Event Triggers
 
-The system uses four reusable GitHub Actions workflows (`dispatch-*.yml`) that your repository calls via `workflow_call`. Each responds to a different GitHub event.
+The system uses four reusable GitHub Actions workflows (`sandbox-pal-*.yml`) that your repository calls via `workflow_call`. Each responds to a different GitHub event.
 
 | Event | Trigger | Reusable Workflow | Filter (in your caller workflow) |
 |-------|---------|-------------------|----------------------------------|
-| `issues.labeled` | `agent` label added | `dispatch-triage.yml` | Label is `agent`, actor != `your-bot` |
-| `issues.labeled` | `agent:plan-approved` label added | `dispatch-implement.yml` | Label is `agent:plan-approved`, actor != `your-bot` |
-| `issue_comment.created` | Human replies on issue | `dispatch-reply.yml` | Issue has `agent:needs-info` label, commenter != `your-bot` |
-| `issues.labeled` | `agent:implement` label added | `dispatch-direct-implement.yml` | Label is `agent:implement`, actor != `your-bot` |
-| `pull_request_review.submitted` | Review with changes requested | `dispatch-review.yml` | State is `changes_requested`, reviewer != `your-bot` |
+| `issues.labeled` | `agent` label added | `sandbox-pal-triage.yml` | Label is `agent`, actor != `your-bot` |
+| `issues.labeled` | `agent:plan-approved` label added | `sandbox-pal-implement.yml` | Label is `agent:plan-approved`, actor != `your-bot` |
+| `issue_comment.created` | Human replies on issue | `sandbox-pal-reply.yml` | Issue has `agent:needs-info` label, commenter != `your-bot` |
+| `issues.labeled` | `agent:implement` label added | `sandbox-pal-direct-implement.yml` | Label is `agent:implement`, actor != `your-bot` |
+| `pull_request_review.submitted` | Review with changes requested | `sandbox-pal-review.yml` | State is `changes_requested`, reviewer != `your-bot` |
 
 The actor/commenter/reviewer filters are critical -- without them, the bot's own actions would re-trigger workflows in an infinite loop.
 
@@ -224,7 +224,7 @@ schedule (cron) or manual dispatch
 
 ## Key Components
 
-### Dispatch Script (`scripts/agent-dispatch.sh`)
+### Dispatch Script (`scripts/sandbox-pal-dispatch.sh`)
 
 The main entry point. Takes three arguments: `<event_type> <repo> <number>`. Sources configuration from `config.env`, loads library modules, and dispatches to the appropriate handler function.
 

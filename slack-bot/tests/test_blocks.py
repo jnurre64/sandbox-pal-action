@@ -33,7 +33,7 @@ class TestBuildBlocks:
     def test_footer_includes_automation_disclosure(self):
         blocks = build_blocks("plan_posted", "T", "https://x.com", "d", 1, "org/repo")
         context = [b for b in blocks if b["type"] == "context"][0]
-        assert "Automated by claude-pal-action" in context["elements"][0]["text"]
+        assert "Automated by sandbox-pal-action" in context["elements"][0]["text"]
 
     def test_footer_includes_repo_and_issue(self):
         blocks = build_blocks("plan_posted", "T", "https://x.com", "d", 42, "org/repo")

@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for your interest in contributing to claude-pal-action!
+Thanks for your interest in contributing to sandbox-pal-action!
 
 ## How to Contribute
 

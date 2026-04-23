@@ -57,7 +57,7 @@ gh run list --repo OWNER/REPO --limit 20 --json databaseId,status,conclusion,eve
 
 ```bash
 # Dispatch log entries for this issue
-grep "#<NUMBER>" ~/.claude/agent-logs/agent-dispatch.log | tail -80
+grep "#<NUMBER>" ~/.claude/agent-logs/sandbox-pal-dispatch.log | tail -80
 
 # Claude stderr log (most recent for this issue)
 ls -t ~/.claude/agent-logs/claude-stderr-*<NUMBER>* 2>/dev/null | head -3
@@ -162,8 +162,8 @@ Check that config files exist and required variables are set:
 ```bash
 # Check for config files in common locations
 # Standalone mode:
-ls .agent-dispatch/config.env 2>/dev/null
-ls .agent-dispatch/config.defaults.env 2>/dev/null
+ls .sandbox-pal-dispatch/config.env 2>/dev/null
+ls .sandbox-pal-dispatch/config.defaults.env 2>/dev/null
 # Infrastructure mode:
 ls config.env 2>/dev/null
 ls config.defaults.env 2>/dev/null
@@ -217,7 +217,7 @@ systemctl --user is-active pennyworth-discord.service 2>/dev/null
 
 ```bash
 # Check for agent:failed entries in the last 48 hours
-grep "agent:failed\|agent_failed\|\[failed\]" ~/.claude/agent-logs/agent-dispatch.log 2>/dev/null | tail -20
+grep "agent:failed\|agent_failed\|\[failed\]" ~/.claude/agent-logs/sandbox-pal-dispatch.log 2>/dev/null | tail -20
 ```
 
 Review recent dispatch log entries for failure patterns. Count failures in the last 48 hours.
@@ -232,7 +232,7 @@ If failures exist, briefly note the issue numbers and failure categories (timeou
 
 ```bash
 # config.env should not be world-readable (contains no secrets in gitignored file, but good practice)
-stat -c '%a' config.env 2>/dev/null || stat -c '%a' .agent-dispatch/config.env 2>/dev/null
+stat -c '%a' config.env 2>/dev/null || stat -c '%a' .sandbox-pal-dispatch/config.env 2>/dev/null
 
 # Log directory writable
 test -w ~/.claude/agent-logs/ && echo "writable" || echo "not writable"

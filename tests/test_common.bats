@@ -193,7 +193,7 @@ _source_common() {
     # `if ! handle_post_implementation ...; then ...; fi` (or equivalent
     # set-e suppression) so controlled return 1 values don't fire the
     # ERR trap.
-    grep -q 'if ! handle_post_implementation' "${SCRIPTS_DIR}/agent-dispatch.sh"
+    grep -q 'if ! handle_post_implementation' "${SCRIPTS_DIR}/sandbox-pal-dispatch.sh"
 }
 
 @test "REGRESSION: cleanup_worktree runs after guarded handle_post_implementation" {
@@ -202,8 +202,8 @@ _source_common() {
     # if/fi block that falls through to cleanup_worktree, not a bare
     # `|| return` that would skip cleanup.
     local guard_line cleanup_line
-    guard_line=$(grep -n 'if ! handle_post_implementation' "${SCRIPTS_DIR}/agent-dispatch.sh" | head -1 | cut -d: -f1)
-    cleanup_line=$(awk "NR > ${guard_line} && /cleanup_worktree/ {print NR; exit}" "${SCRIPTS_DIR}/agent-dispatch.sh")
+    guard_line=$(grep -n 'if ! handle_post_implementation' "${SCRIPTS_DIR}/sandbox-pal-dispatch.sh" | head -1 | cut -d: -f1)
+    cleanup_line=$(awk "NR > ${guard_line} && /cleanup_worktree/ {print NR; exit}" "${SCRIPTS_DIR}/sandbox-pal-dispatch.sh")
     [ -n "$cleanup_line" ]
     [ "$cleanup_line" -gt "$guard_line" ]
 }
@@ -216,15 +216,15 @@ _source_common() {
     _source_common
     log "Test message"
 
-    assert [ -f "$AGENT_LOG_DIR/agent-dispatch.log" ]
-    grep -q "Test message" "$AGENT_LOG_DIR/agent-dispatch.log"
+    assert [ -f "$AGENT_LOG_DIR/sandbox-pal-dispatch.log" ]
+    grep -q "Test message" "$AGENT_LOG_DIR/sandbox-pal-dispatch.log"
 }
 
 @test "log: includes event type and issue number" {
     _source_common
     log "Test message"
 
-    grep -q "\[test\] #99" "$AGENT_LOG_DIR/agent-dispatch.log"
+    grep -q "\[test\] #99" "$AGENT_LOG_DIR/sandbox-pal-dispatch.log"
 }
 
 # ═══════════════════════════════════════════════════════════════

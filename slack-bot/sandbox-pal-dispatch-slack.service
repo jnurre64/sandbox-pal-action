@@ -1,5 +1,5 @@
 [Unit]
-Description=Agent Dispatch Slack Bot
+Description=Sandbox Pal Dispatch Slack Bot
 StartLimitIntervalSec=300
 StartLimitBurst=5
 

@@ -1,10 +1,10 @@
 # ERR trap double-reports on controlled handler failures
 
-> **Status:** Draft — fixed by `fix/err-trap-guards-clean-failures`. File as issue on `jnurre64/claude-pal-action` and link the PR if you want to track the finding.
+> **Status:** Draft — fixed by `fix/err-trap-guards-clean-failures`. File as issue on `jnurre64/sandbox-pal-action` and link the PR if you want to track the finding.
 
 ## Summary
 
-`agent-dispatch.sh`'s `_on_unexpected_error` trap is intended to catch genuine infrastructure crashes (missing commands, config failures, syntax errors) and post an "Agent Infrastructure Error" comment. It fires on `ERR` and `EXIT` via `set -e`.
+`sandbox-pal-dispatch.sh`'s `_on_unexpected_error` trap is intended to catch genuine infrastructure crashes (missing commands, config failures, syntax errors) and post an "Agent Infrastructure Error" comment. It fires on `ERR` and `EXIT` via `set -e`.
 
 The trap does not distinguish a controlled `return 1` from a handler function that already reported its own failure cleanly. Under `set -e`, the unguarded call to `handle_post_implementation` at line 439 of `handle_implement()` propagates any non-zero return up to the script top level, which triggers the ERR trap, which posts the infrastructure-error comment — even though the test-gate / Gate-B / no-commits handler already posted a specific failure comment seconds before.
 
@@ -20,7 +20,7 @@ Webber issue #59, run `24280942202`. Sequence:
    - Called `set_label "agent:failed"`
    - Emitted `tests_failed` notification
    - Returned `1`
-4. `handle_implement` caller at `agent-dispatch.sh:439`:
+4. `handle_implement` caller at `sandbox-pal-dispatch.sh:439`:
    ```bash
    handle_post_implementation "$start_sha" "$issue_title" "$claude_output"
    cleanup_worktree
@@ -43,7 +43,7 @@ Actually the "no commits" branch at `common.sh:311` doesn't explicitly `return 1
 
 ## Fix
 
-`agent-dispatch.sh:439`:
+`sandbox-pal-dispatch.sh:439`:
 
 ```bash
 # Before

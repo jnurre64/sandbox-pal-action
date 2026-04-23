@@ -1,4 +1,4 @@
-name: "Agent Dispatch: Implement"
+name: "Agent Dispatch: Triage"
 
 on:
   workflow_call:
@@ -13,10 +13,10 @@ on:
         type: string
         default: ''
       dispatch_script:
-        description: 'Path to agent-dispatch.sh on the runner'
+        description: 'Path to sandbox-pal-dispatch.sh on the runner'
         required: false
         type: string
-        default: '~/agent-infra/scripts/agent-dispatch.sh'
+        default: '~/agent-infra/scripts/sandbox-pal-dispatch.sh'
       config_path:
         description: 'Path to config.env on the runner'
         required: false
@@ -38,11 +38,11 @@ on:
         required: true
 
 concurrency:
-  group: claude-agent-implement-${{ inputs.issue_number || github.event.issue.number }}
+  group: sandbox-pal-triage-${{ inputs.issue_number || github.event.issue.number }}
   cancel-in-progress: false
 
 jobs:
-  implement-plan:
+  triage-issue:
     runs-on: ${{ fromJSON(inputs.runner_labels) }}
     timeout-minutes: ${{ inputs.timeout_minutes }}
     permissions:
@@ -50,13 +50,13 @@ jobs:
       issues: write
       pull-requests: write
     steps:
-      - name: Run agent dispatch (implement)
+      - name: Run agent dispatch (triage)
         env:
           GH_TOKEN: ${{ secrets.agent_pat }}
           GITHUB_TOKEN: ${{ secrets.agent_pat }}
           AGENT_CONFIG: ${{ inputs.config_path }}
         run: |
           ${{ inputs.dispatch_script }} \
-            implement \
+            new_issue \
             "${{ github.repository }}" \
             "${{ inputs.issue_number || github.event.issue.number }}"

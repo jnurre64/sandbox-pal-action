@@ -470,8 +470,8 @@ cleanup_old_logs() {
         increment logs_cleaned
     done < <(find "$LOG_DIR" -name "claude-stderr-*.log" -type f -mtime +"$STDERR_LOG_RETENTION" 2>/dev/null)
 
-    # Rotate agent-dispatch.log if > 10MB
-    local dispatch_log="$LOG_DIR/agent-dispatch.log"
+    # Rotate sandbox-pal-dispatch.log if > 10MB
+    local dispatch_log="$LOG_DIR/sandbox-pal-dispatch.log"
     if [ -f "$dispatch_log" ]; then
         local size_bytes
         size_bytes=$(stat -c%s "$dispatch_log" 2>/dev/null || echo 0)
@@ -479,11 +479,11 @@ cleanup_old_logs() {
 
         if [ "$size_mb" -ge 10 ]; then
             if [ "$DRY_RUN" = true ]; then
-                log "INFO" "[DRY RUN] Would rotate agent-dispatch.log (${size_mb}MB)"
+                log "INFO" "[DRY RUN] Would rotate sandbox-pal-dispatch.log (${size_mb}MB)"
             else
                 cp "$dispatch_log" "${dispatch_log}.1"
                 truncate -s 0 "$dispatch_log"
-                log "INFO" "Rotated agent-dispatch.log (${size_mb}MB -> ${dispatch_log}.1)"
+                log "INFO" "Rotated sandbox-pal-dispatch.log (${size_mb}MB -> ${dispatch_log}.1)"
             fi
             increment logs_cleaned
         fi

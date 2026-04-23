@@ -73,7 +73,7 @@ Tests for `scripts/lib/common.sh` — the core shared functions.
 #### Logging (2 tests)
 | Test | What it verifies |
 |------|-----------------|
-| `log: writes timestamped message to log file` | Messages are written to `agent-dispatch.log` |
+| `log: writes timestamped message to log file` | Messages are written to `sandbox-pal-dispatch.log` |
 | `log: includes event type and issue number` | Log lines contain `[event_type] #number` for filtering |
 
 #### Label Management (1 test)

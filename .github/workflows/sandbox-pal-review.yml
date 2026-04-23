@@ -8,10 +8,10 @@ on:
         required: true
         type: string
       dispatch_script:
-        description: 'Path to agent-dispatch.sh on the runner'
+        description: 'Path to sandbox-pal-dispatch.sh on the runner'
         required: false
         type: string
-        default: '~/agent-infra/scripts/agent-dispatch.sh'
+        default: '~/agent-infra/scripts/sandbox-pal-dispatch.sh'
       config_path:
         description: 'Path to config.env on the runner'
         required: false
@@ -33,7 +33,7 @@ on:
         required: true
 
 concurrency:
-  group: claude-agent-review-${{ github.event.pull_request.number }}
+  group: sandbox-pal-review-${{ github.event.pull_request.number }}
   cancel-in-progress: false
 
 jobs:

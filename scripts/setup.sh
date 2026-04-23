@@ -2,7 +2,7 @@
 # shellcheck disable=SC1091  # Sourced files are resolved at runtime
 set -euo pipefail
 
-# ─── Interactive setup wizard for claude-pal-action ──────────
+# ─── Interactive setup wizard for sandbox-pal-action ──────────
 # Alternative to the /setup Claude Code skill for users without Claude Code.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -107,7 +107,7 @@ echo -e "${BOLD}Step 3: Generating configuration${NC}"
 if [ "$SETUP_MODE" = "1" ]; then
     CONFIG_FILE="$REPO_ROOT/config.env"
 else
-    CONFIG_DIR="$TARGET_REPO_PATH/.agent-dispatch"
+    CONFIG_DIR="$TARGET_REPO_PATH/.sandbox-pal-dispatch"
     mkdir -p "$CONFIG_DIR"
     CONFIG_FILE="$CONFIG_DIR/config.env"
 fi
@@ -131,11 +131,11 @@ echo -e "  ${GREEN}✓${NC} config.env written to $CONFIG_FILE"
 
 # ── Step 3b (standalone): Copy scripts, lib, and prompts ─────────
 if [ "$SETUP_MODE" = "2" ]; then
-    AGENT_DIR="$TARGET_REPO_PATH/.agent-dispatch"
+    AGENT_DIR="$TARGET_REPO_PATH/.sandbox-pal-dispatch"
 
     echo "  Copying scripts..."
     mkdir -p "$AGENT_DIR/scripts/lib"
-    cp "$REPO_ROOT/scripts/agent-dispatch.sh" "$AGENT_DIR/scripts/"
+    cp "$REPO_ROOT/scripts/sandbox-pal-dispatch.sh" "$AGENT_DIR/scripts/"
     cp "$REPO_ROOT/scripts/cleanup.sh" "$AGENT_DIR/scripts/"
     cp "$REPO_ROOT/scripts/check-prereqs.sh" "$AGENT_DIR/scripts/"
     cp "$REPO_ROOT/scripts/create-labels.sh" "$AGENT_DIR/scripts/"
@@ -156,9 +156,9 @@ if [ "$SETUP_MODE" = "2" ]; then
     echo "  Writing version tracking..."
     CURRENT_SHA=$(git -C "$REPO_ROOT" rev-parse HEAD 2>/dev/null || echo "unknown")
     {
-        echo "# Upstream tracking for standalone agent-dispatch installation"
+        echo "# Upstream tracking for standalone sandbox-pal-dispatch installation"
         echo "# Do not edit manually — managed by /update skill and setup.sh"
-        echo "repo: https://github.com/jnurre64/claude-pal-action.git"
+        echo "repo: https://github.com/jnurre64/sandbox-pal-action.git"
         echo "version: $CURRENT_SHA"
         echo "synced_at: \"$(date -u '+%Y-%m-%dT%H:%M:%SZ')\""
         echo "checksums:"
@@ -214,16 +214,17 @@ fi
 mkdir -p "$WORKFLOWS_DIR"
 
 # Check for existing workflow files that would be overwritten
+WORKFLOW_PREFIX="agent"
 CONFLICTS=()
 for template in "$TEMPLATES_DIR"/*.yml; do
     filename=$(basename "$template")
-    output_name="${filename/caller-/agent-}"
+    base_name="${filename#caller-}"
+    base_name="${base_name#sandbox-pal-}"
+    output_name="${WORKFLOW_PREFIX}-${base_name}"
     if [ -f "$WORKFLOWS_DIR/$output_name" ]; then
         CONFLICTS+=("$output_name")
     fi
 done
-
-WORKFLOW_PREFIX="agent"
 
 if [ ${#CONFLICTS[@]} -gt 0 ]; then
     echo -e "  ${YELLOW}!${NC} These workflow files already exist:"
@@ -233,7 +234,7 @@ if [ ${#CONFLICTS[@]} -gt 0 ]; then
     echo ""
     echo "  Options:"
     echo "    [1] Overwrite existing files"
-    echo "    [2] Use a different prefix (e.g., 'claude-agent' instead of 'agent')"
+    echo "    [2] Use a different prefix (e.g., 'sandbox-pal' instead of 'agent')"
     echo "    [3] Skip workflow generation"
     echo ""
     read -rp "  Choose [1/2/3]: " CONFLICT_CHOICE
@@ -242,7 +243,7 @@ if [ ${#CONFLICTS[@]} -gt 0 ]; then
     case "$CONFLICT_CHOICE" in
         1) ;; # proceed with default prefix
         2)
-            read -rp "  Enter prefix (e.g., 'claude-agent'): " WORKFLOW_PREFIX
+            read -rp "  Enter prefix (e.g., 'sandbox-pal'): " WORKFLOW_PREFIX
             if [ -z "$WORKFLOW_PREFIX" ]; then
                 WORKFLOW_PREFIX="agent"
                 echo -e "  ${YELLOW}!${NC} Empty prefix, using default: agent"
@@ -259,10 +260,10 @@ if [ -n "$WORKFLOWS_DIR" ]; then
     for template in "$TEMPLATES_DIR"/*.yml; do
         filename=$(basename "$template")
         # Replace the template prefix with the chosen prefix
-        # caller-triage.yml → <prefix>-triage.yml  (reference mode)
-        # agent-triage.yml → <prefix>-triage.yml   (standalone mode)
+        # caller-triage.yml → <prefix>-triage.yml       (reference mode)
+        # sandbox-pal-triage.yml → <prefix>-triage.yml  (standalone mode)
         base_name="${filename#caller-}"
-        base_name="${base_name#agent-}"
+        base_name="${base_name#sandbox-pal-}"
         output_name="${WORKFLOW_PREFIX}-${base_name}"
         sed "s/{{BOT_USER}}/$BOT_USER/g" "$template" > "$WORKFLOWS_DIR/$output_name"
         echo -e "  ${GREEN}✓${NC} $output_name"
@@ -304,9 +305,9 @@ else
     echo "Mode: Standalone (all files copied into your repo)"
     echo ""
     echo "Created in $TARGET_REPO_PATH:"
-    echo -e "  ${GREEN}✓${NC} .agent-dispatch/scripts/    — dispatch and utility scripts"
-    echo -e "  ${GREEN}✓${NC} .agent-dispatch/prompts/    — default agent prompts"
-    echo -e "  ${GREEN}✓${NC} .agent-dispatch/config.env  — project configuration"
+    echo -e "  ${GREEN}✓${NC} .sandbox-pal-dispatch/scripts/    — dispatch and utility scripts"
+    echo -e "  ${GREEN}✓${NC} .sandbox-pal-dispatch/prompts/    — default agent prompts"
+    echo -e "  ${GREEN}✓${NC} .sandbox-pal-dispatch/config.env  — project configuration"
     echo -e "  ${GREEN}✓${NC} .github/workflows/          — workflow files"
 fi
 
@@ -357,7 +358,7 @@ echo ""
 if [ "$SETUP_MODE" = "1" ]; then
     echo "  7. Clone the upstream repo on the runner and copy config:"
     echo ""
-    echo -e "     ${CYAN}git clone https://github.com/jnurre64/claude-pal-action.git ~/agent-infra${NC}"
+    echo -e "     ${CYAN}git clone https://github.com/jnurre64/sandbox-pal-action.git ~/agent-infra${NC}"
     echo -e "     ${CYAN}cp $CONFIG_FILE ~/agent-infra/config.env${NC}"
     echo ""
     echo "  8. Commit and push the workflow files to $TARGET_REPO"

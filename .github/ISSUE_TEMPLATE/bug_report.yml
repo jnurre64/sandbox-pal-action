@@ -33,7 +33,7 @@ body:
     id: logs
     attributes:
       label: Relevant Logs
-      description: Paste any relevant output from agent-dispatch.log or GitHub Actions
+      description: Paste any relevant output from sandbox-pal-dispatch.log or GitHub Actions
       render: shell
   - type: textarea
     id: environment

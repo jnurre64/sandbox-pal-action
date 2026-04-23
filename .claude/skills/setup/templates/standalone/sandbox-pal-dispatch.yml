@@ -5,7 +5,7 @@ on:
     types: [agent-triage, agent-implement, agent-reply]
 
 concurrency:
-  group: claude-pal-action-${{ github.event.client_payload.issue_number }}
+  group: sandbox-pal-${{ github.event.client_payload.issue_number }}
   cancel-in-progress: false
 
 jobs:
@@ -25,9 +25,9 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.AGENT_PAT }}
           GITHUB_TOKEN: ${{ secrets.AGENT_PAT }}
-          AGENT_CONFIG: ${{ github.workspace }}/.agent-dispatch/config.env  # override file (gitignored, optional)
+          AGENT_CONFIG: ${{ github.workspace }}/.sandbox-pal-dispatch/config.env  # override file (gitignored, optional)
         run: |
-          .agent-dispatch/scripts/agent-dispatch.sh \
+          .sandbox-pal-dispatch/scripts/sandbox-pal-dispatch.sh \
             new_issue \
             "${{ github.repository }}" \
             "${{ github.event.client_payload.issue_number }}"
@@ -48,9 +48,9 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.AGENT_PAT }}
           GITHUB_TOKEN: ${{ secrets.AGENT_PAT }}
-          AGENT_CONFIG: ${{ github.workspace }}/.agent-dispatch/config.env  # override file (gitignored, optional)
+          AGENT_CONFIG: ${{ github.workspace }}/.sandbox-pal-dispatch/config.env  # override file (gitignored, optional)
         run: |
-          .agent-dispatch/scripts/agent-dispatch.sh \
+          .sandbox-pal-dispatch/scripts/sandbox-pal-dispatch.sh \
             implement \
             "${{ github.repository }}" \
             "${{ github.event.client_payload.issue_number }}"
@@ -71,9 +71,9 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.AGENT_PAT }}
           GITHUB_TOKEN: ${{ secrets.AGENT_PAT }}
-          AGENT_CONFIG: ${{ github.workspace }}/.agent-dispatch/config.env  # override file (gitignored, optional)
+          AGENT_CONFIG: ${{ github.workspace }}/.sandbox-pal-dispatch/config.env  # override file (gitignored, optional)
         run: |
-          .agent-dispatch/scripts/agent-dispatch.sh \
+          .sandbox-pal-dispatch/scripts/sandbox-pal-dispatch.sh \
             issue_reply \
             "${{ github.repository }}" \
             "${{ github.event.client_payload.issue_number }}"

@@ -23,7 +23,7 @@ class TestBuildEmbed:
 
     def test_footer_includes_automation_disclosure(self):
         embed = build_embed("plan_posted", "Title", "https://example.com", "desc", 1, "org/repo")
-        assert "Automated by claude-pal-action" in embed.footer.text
+        assert "Automated by sandbox-pal-action" in embed.footer.text
 
     def test_footer_includes_repo_and_issue(self):
         embed = build_embed("plan_posted", "Title", "https://example.com", "desc", 42, "org/repo")

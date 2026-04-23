@@ -2,11 +2,11 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SERVICE_NAME="agent-dispatch-bot"
+SERVICE_NAME="sandbox-pal-dispatch-bot"
 
-echo "=== Agent Dispatch Bot Install ==="
+echo "=== Sandbox Pal Dispatch Bot Install ==="
 
-# Determine config.env path (same logic as agent-dispatch.sh)
+# Determine config.env path (same logic as sandbox-pal-dispatch.sh)
 DEFAULT_CONFIG="${AGENT_CONFIG:-${HOME}/agent-infra/config.env}"
 read -r -p "Path to config.env [${DEFAULT_CONFIG}]: " CONFIG_PATH
 CONFIG_PATH="${CONFIG_PATH:-$DEFAULT_CONFIG}"
@@ -35,7 +35,7 @@ mkdir -p "$(dirname "$SERVICE_FILE")"
 
 # Generate service file from template, replacing placeholders with actual paths
 sed "s|WORKING_DIR|${SCRIPT_DIR}|g; s|CONFIG_PATH|${CONFIG_PATH}|g" \
-    "${SCRIPT_DIR}/agent-dispatch-bot.service" > "$SERVICE_FILE"
+    "${SCRIPT_DIR}/sandbox-pal-dispatch-bot.service" > "$SERVICE_FILE"
 
 systemctl --user daemon-reload
 systemctl --user disable "$SERVICE_NAME" 2>/dev/null || true

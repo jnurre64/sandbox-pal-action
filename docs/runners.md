@@ -172,8 +172,8 @@ Recommended label scheme:
 | Label | Purpose | Used by |
 |-------|---------|---------|
 | `self-hosted` | Required by GitHub for all self-hosted runners | All workflows |
-| `agent` | Marks runners that handle agent dispatch (triage, implement, reply, review) | `dispatch-triage.yml`, `dispatch-implement.yml`, `dispatch-reply.yml`, `dispatch-review.yml` |
-| `cleanup` | Marks runners that handle periodic cleanup | `cleanup.yml` |
+| `agent` | Marks runners that handle agent dispatch (triage, implement, reply, review) | `sandbox-pal-triage.yml`, `sandbox-pal-implement.yml`, `sandbox-pal-reply.yml`, `sandbox-pal-review.yml` |
+| `cleanup` | Marks runners that handle periodic cleanup | `sandbox-pal-cleanup.yml` |
 | `ci` | Marks runners that handle CI test suites | Your CI workflow |
 
 A single runner can have multiple labels. For example, a flex runner with labels `agent`, `cleanup`, and `ci` can pick up any job type when other runners are busy.
@@ -183,7 +183,7 @@ Your caller workflows specify which labels to require:
 ```yaml
 jobs:
   triage:
-    uses: your-org/claude-pal-action/.github/workflows/dispatch-triage.yml@main
+    uses: your-org/sandbox-pal-action/.github/workflows/sandbox-pal-triage.yml@main
     with:
       bot_user: your-bot
       runner_labels: '["self-hosted", "agent"]'
@@ -299,7 +299,7 @@ journalctl -u actions.runner.your-org.AGENT-1.service -f
 Check agent dispatch logs:
 
 ```bash
-tail -f ~/.claude/agent-logs/agent-dispatch.log
+tail -f ~/.claude/agent-logs/sandbox-pal-dispatch.log
 ```
 
 List recent Claude stderr logs (non-empty files indicate errors):

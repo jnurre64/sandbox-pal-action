@@ -6,7 +6,7 @@
 
 # ─── Logging ─────────────────────────────────────────────────────
 log() {
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] [$EVENT_TYPE] #$NUMBER: $*" | tee -a "$AGENT_LOG_DIR/agent-dispatch.log"
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] [$EVENT_TYPE] #$NUMBER: $*" | tee -a "$AGENT_LOG_DIR/sandbox-pal-dispatch.log"
 }
 
 # ─── Label state machine ────────────────────────────────────────

@@ -1,6 +1,6 @@
 # Getting Started
 
-A complete walkthrough for setting up claude-pal-action from scratch. By the end of this guide you will have an autonomous Claude Code agent that triages GitHub issues, writes implementation plans, and creates pull requests -- all triggered by adding a label.
+A complete walkthrough for setting up sandbox-pal-action from scratch. By the end of this guide you will have an autonomous Claude Code agent that triages GitHub issues, writes implementation plans, and creates pull requests -- all triggered by adding a label.
 
 ---
 
@@ -128,11 +128,11 @@ Replace `my-project-bot` and `ghp_YOUR_BOT_PAT` with your actual bot username an
 
 ## Step 6: Choose a Setup Mode
 
-claude-pal-action supports two modes. Choose based on your needs:
+sandbox-pal-action supports two modes. Choose based on your needs:
 
 ### Standalone mode (recommended)
 
-All scripts, prompts, and workflow files are copied directly into your target repo under `.agent-dispatch/`. No external dependency.
+All scripts, prompts, and workflow files are copied directly into your target repo under `.sandbox-pal-dispatch/`. No external dependency.
 
 **Pros:**
 - Full control over every file -- customize freely
@@ -146,7 +146,7 @@ All scripts, prompts, and workflow files are copied directly into your target re
 
 ### Reference mode
 
-Thin caller workflow files live in your target repo and call back to the upstream `claude-pal-action` reusable workflows. Scripts run from a clone of this repo on the runner.
+Thin caller workflow files live in your target repo and call back to the upstream `sandbox-pal-action` reusable workflows. Scripts run from a clone of this repo on the runner.
 
 **Pros:**
 - Minimal files added to your repo (just 5 small workflow YAMLs)
@@ -167,7 +167,7 @@ You can run setup in two ways: interactively with the Claude Code `/setup` skill
 
 ### Option A: `/setup` skill (if you have Claude Code locally)
 
-Open Claude Code in the `claude-pal-action` directory and run:
+Open Claude Code in the `sandbox-pal-action` directory and run:
 
 ```
 /setup your-org/your-repo
@@ -178,7 +178,7 @@ This walks you through every step interactively with explanations and validation
 ### Option B: `setup.sh` script
 
 ```bash
-cd ~/agent-infra   # or wherever you cloned claude-pal-action
+cd ~/agent-infra   # or wherever you cloned sandbox-pal-action
 ./scripts/setup.sh
 ```
 
@@ -201,7 +201,7 @@ It then:
 If you chose reference mode, you also need to clone this repo on the runner:
 
 ```bash
-git clone https://github.com/jnurre64/claude-pal-action.git ~/agent-infra
+git clone https://github.com/jnurre64/sandbox-pal-action.git ~/agent-infra
 cp config.env ~/agent-infra/config.env
 ```
 
@@ -255,17 +255,17 @@ If setup generated workflow files locally, commit and push them to your target r
 
 ```bash
 cd /path/to/your-repo
-git add .github/workflows/agent-*.yml
-git commit -m "Add claude-pal-action workflow files"
+git add .github/workflows/sandbox-pal-*.yml
+git commit -m "Add sandbox-pal-action workflow files"
 git push
 ```
 
-For standalone mode, also commit the `.agent-dispatch/` directory:
+For standalone mode, also commit the `.sandbox-pal-dispatch/` directory:
 
 ```bash
-git add .agent-dispatch/
-git add .github/workflows/agent-*.yml
-git commit -m "Add claude-pal-action (standalone mode)"
+git add .sandbox-pal-dispatch/
+git add .github/workflows/sandbox-pal-*.yml
+git commit -m "Add sandbox-pal-action (standalone mode)"
 git push
 ```
 

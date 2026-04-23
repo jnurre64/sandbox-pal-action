@@ -21,7 +21,7 @@ are updating from (so you can roll back if needed).
 
 ```bash
 # Confirm the bot service is active
-systemctl --user status agent-dispatch-bot
+systemctl --user status sandbox-pal-dispatch-bot
 
 # Record the current commit hash
 git -C ~/agent-infra rev-parse --short HEAD
@@ -67,14 +67,14 @@ installed correctly. Re-run Step 2 and check for errors in pip's output.
 ### Step 4 — Restart the bot service
 
 ```bash
-systemctl --user restart agent-dispatch-bot
+systemctl --user restart sandbox-pal-dispatch-bot
 ```
 
 ### Step 5 — Verify the bot is running
 
 ```bash
-systemctl --user status agent-dispatch-bot
-journalctl --user -u agent-dispatch-bot --since "2 min ago" --no-pager
+systemctl --user status sandbox-pal-dispatch-bot
+journalctl --user -u sandbox-pal-dispatch-bot --since "2 min ago" --no-pager
 ```
 
 Check that:
@@ -111,18 +111,18 @@ git -C ~/agent-infra checkout <previous-sha>
 cd ~/agent-infra/discord-bot && .venv/bin/pip install -e ../shared
 
 # Restart the bot
-systemctl --user restart agent-dispatch-bot
+systemctl --user restart sandbox-pal-dispatch-bot
 
 # Confirm it recovered
-systemctl --user status agent-dispatch-bot
+systemctl --user status sandbox-pal-dispatch-bot
 ```
 
 Replace `<previous-sha>` with the short hash you recorded before pulling.
 
 ## 5. Verification Checklist
 
-- [ ] Bot service is **active (running)** (`systemctl --user status agent-dispatch-bot`)
-- [ ] No `ImportError` in journal logs (`journalctl --user -u agent-dispatch-bot --since "5 min ago" --no-pager`)
+- [ ] Bot service is **active (running)** (`systemctl --user status sandbox-pal-dispatch-bot`)
+- [ ] No `ImportError` in journal logs (`journalctl --user -u sandbox-pal-dispatch-bot --since "5 min ago" --no-pager`)
 - [ ] HTTP listener responds on port 8675 (curl test returns 2xx)
 - [ ] Shared imports resolve correctly (`from dispatch_bot import ...` prints OK)
 

@@ -14,7 +14,7 @@ export PATH="$HOME/.local/bin:${DOTNET_ROOT:-$HOME/.dotnet}:$PATH"
 unset CLAUDECODE 2>/dev/null || true
 
 # ─── Arguments ──────────────────────────────────────────────────
-EVENT_TYPE="${1:?Usage: agent-dispatch.sh <event_type> <repo> <number>}"
+EVENT_TYPE="${1:?Usage: sandbox-pal-dispatch.sh <event_type> <repo> <number>}"
 REPO="${2:?}"
 NUMBER="${3:?}"  # Issue or PR number
 
@@ -43,7 +43,7 @@ The agent encountered an unexpected error and could not complete.
 
 | Detail | Value |
 |--------|-------|
-| **Script** | \`agent-dispatch.sh\` line $line |
+| **Script** | \`sandbox-pal-dispatch.sh\` line $line |
 | **Event** | \`$EVENT_TYPE\` |
 | **Exit code** | $exit_code |
 | **Runner** | ${RUNNER_NAME:-unknown} |
@@ -78,7 +78,7 @@ trap '_on_unexpected_error exit' EXIT
 #
 # Environment variables always take highest precedence.
 
-# Source committed defaults first (standalone mode: .agent-dispatch/config.defaults.env)
+# Source committed defaults first (standalone mode: .sandbox-pal-dispatch/config.defaults.env)
 AGENT_DEFAULTS="${SCRIPT_DIR}/../config.defaults.env"
 if [ -f "$AGENT_DEFAULTS" ]; then
     # shellcheck source=/dev/null
@@ -678,7 +678,7 @@ handle_pr_review() {
     log "Commit check: $new_commits new commit(s) on $branch"
 
     if [ "$new_commits" -gt 0 ]; then
-        git -C "$WORKTREE_DIR" push origin "$branch" 2>&1 | tee -a "$AGENT_LOG_DIR/agent-dispatch.log" || true
+        git -C "$WORKTREE_DIR" push origin "$branch" 2>&1 | tee -a "$AGENT_LOG_DIR/sandbox-pal-dispatch.log" || true
         gh issue edit "$issue_num" --repo "$REPO" --remove-label "agent:revision" --add-label "agent:pr-open" 2>/dev/null || true
         notify "review_pushed" "$pr_title" "https://github.com/${REPO}/pull/${pr_number}" "Pushed $new_commits review fix commit(s)"
         log "Pushed $new_commits review fix commit(s)."

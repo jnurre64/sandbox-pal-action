@@ -7,7 +7,7 @@ on:
 jobs:
   triage:
     if: github.event.action == 'agent-triage'
-    uses: jnurre64/claude-pal-action/.github/workflows/dispatch-triage.yml@v1
+    uses: jnurre64/sandbox-pal-action/.github/workflows/sandbox-pal-triage.yml@v1
     with:
       bot_user: "{{BOT_USER}}"
       issue_number: "${{ github.event.client_payload.issue_number }}"
@@ -16,7 +16,7 @@ jobs:
 
   implement:
     if: github.event.action == 'agent-implement'
-    uses: jnurre64/claude-pal-action/.github/workflows/dispatch-implement.yml@v1
+    uses: jnurre64/sandbox-pal-action/.github/workflows/sandbox-pal-implement.yml@v1
     with:
       bot_user: "{{BOT_USER}}"
       issue_number: "${{ github.event.client_payload.issue_number }}"
@@ -25,7 +25,7 @@ jobs:
 
   reply:
     if: github.event.action == 'agent-reply'
-    uses: jnurre64/claude-pal-action/.github/workflows/dispatch-reply.yml@v1
+    uses: jnurre64/sandbox-pal-action/.github/workflows/sandbox-pal-reply.yml@v1
     with:
       bot_user: "{{BOT_USER}}"
       issue_number: "${{ github.event.client_payload.issue_number }}"

@@ -9,7 +9,7 @@ jobs:
     if: >-
       github.event.label.name == 'agent' &&
       github.actor != '{{BOT_USER}}'
-    uses: jnurre64/claude-pal-action/.github/workflows/dispatch-triage.yml@v1
+    uses: jnurre64/sandbox-pal-action/.github/workflows/sandbox-pal-triage.yml@v1
     with:
       bot_user: "{{BOT_USER}}"
     secrets:

@@ -1,14 +1,14 @@
 <p align="center">
-  <img src=".github/icon.png" width="600" alt="Claude Pal Action">
+  <img src=".github/icon.png" width="600" alt="Sandbox Pal Action">
 </p>
 
 <p align="center">
-  <a href="https://github.com/jnurre64/claude-pal-action/actions/workflows/ci.yml"><img src="https://github.com/jnurre64/claude-pal-action/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <a href="https://github.com/jnurre64/claude-pal-action/releases/latest"><img src="https://img.shields.io/github/v/release/jnurre64/claude-pal-action" alt="Latest Release"></a>
+  <a href="https://github.com/jnurre64/sandbox-pal-action/actions/workflows/ci.yml"><img src="https://github.com/jnurre64/sandbox-pal-action/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/jnurre64/sandbox-pal-action/releases/latest"><img src="https://img.shields.io/github/v/release/jnurre64/sandbox-pal-action" alt="Latest Release"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="License: MIT"></a>
 </p>
 
-A reusable dispatch system for running [Claude Code](https://claude.com/claude-code) agents on GitHub issues — triaging, planning, implementing, and addressing PR review feedback, all orchestrated through GitHub Actions and a label-driven state machine.
+A reusable dispatch system for running AI coding agents on GitHub issues — triaging, planning, implementing, and addressing PR review feedback, all orchestrated through GitHub Actions and a label-driven state machine.
 
 > **Independent, community-built project.** Not affiliated with, endorsed by, or sponsored by Anthropic, PBC. "Claude" and "Claude Code" are trademarks of Anthropic; this project uses Claude Code as its underlying agent and references these trademarks solely to describe that functionality.
 
@@ -70,7 +70,7 @@ Built-in protections at every layer: circuit breaker (8 bot comments/hour), phas
 **Option A: Claude-assisted (recommended)**
 
 ```bash
-git clone https://github.com/jnurre64/claude-pal-action.git ~/agent-infra
+git clone https://github.com/jnurre64/sandbox-pal-action.git ~/agent-infra
 cd ~/agent-infra
 claude  # then type: /setup
 ```
@@ -80,7 +80,7 @@ The `/setup` skill walks you through everything interactively.
 **Option B: Shell script**
 
 ```bash
-git clone https://github.com/jnurre64/claude-pal-action.git ~/agent-infra
+git clone https://github.com/jnurre64/sandbox-pal-action.git ~/agent-infra
 cd ~/agent-infra
 ./scripts/setup.sh
 ```
@@ -96,7 +96,7 @@ Both options will:
 
 | Mode | How it works | Best for |
 |------|-------------|----------|
-| **Standalone** (recommended) | All scripts, prompts, and workflows copied into your repo under `.agent-dispatch/` | Most users — full control, per-repo isolation |
+| **Standalone** (recommended) | All scripts, prompts, and workflows copied into your repo under `.sandbox-pal-dispatch/` | Most users — full control, per-repo isolation |
 | **Reference** | Thin workflow files in your repo call reusable workflows from this repo via `@v1` tags | Advanced users who want automatic updates |
 
 ### Test It
@@ -105,7 +105,7 @@ After setup, create a test issue on your repo and add the `agent` label. Watch t
 
 ## Configuration
 
-All settings live in `config.env` (or `.agent-dispatch/config.env` for standalone mode). Key options:
+All settings live in `config.env` (or `.sandbox-pal-dispatch/config.env` for standalone mode). Key options:
 
 | Setting | Default | Description |
 |---------|---------|-------------|
@@ -139,14 +139,14 @@ The system adapts to any project through your CLAUDE.md (coding conventions), cu
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for conventions, testing, and how to submit changes. Bug reports and feature requests are welcome via [GitHub Issues](https://github.com/jnurre64/claude-pal-action/issues).
+See [CONTRIBUTING.md](CONTRIBUTING.md) for conventions, testing, and how to submit changes. Bug reports and feature requests are welcome via [GitHub Issues](https://github.com/jnurre64/sandbox-pal-action/issues).
 
 ## Repository Structure
 
 ```
-claude-pal-action/
+sandbox-pal-action/
 ├── scripts/
-│   ├── agent-dispatch.sh        # Main dispatch entry point
+│   ├── sandbox-pal-dispatch.sh        # Main dispatch entry point
 │   ├── cleanup.sh               # Scheduled cleanup (branches, gists, logs)
 │   ├── setup.sh                 # Interactive setup wizard
 │   ├── check-prereqs.sh         # Prerequisite validation
@@ -163,12 +163,12 @@ claude-pal-action/
 │   ├── review.md                # Default PR review prompt
 │   └── validate.md              # Default plan validation prompt
 ├── .github/workflows/
-│   ├── dispatch-triage.yml      # Reusable workflow: issue triage
-│   ├── dispatch-direct-implement.yml  # Reusable workflow: direct implement (skip triage)
-│   ├── dispatch-implement.yml   # Reusable workflow: plan implementation
-│   ├── dispatch-reply.yml       # Reusable workflow: reply handling
-│   ├── dispatch-review.yml      # Reusable workflow: PR review
-│   ├── cleanup.yml              # Reusable workflow: scheduled cleanup
+│   ├── sandbox-pal-triage.yml      # Reusable workflow: issue triage
+│   ├── sandbox-pal-direct-implement.yml  # Reusable workflow: direct implement (skip triage)
+│   ├── sandbox-pal-implement.yml   # Reusable workflow: plan implementation
+│   ├── sandbox-pal-reply.yml       # Reusable workflow: reply handling
+│   ├── sandbox-pal-review.yml      # Reusable workflow: PR review
+│   ├── sandbox-pal-cleanup.yml     # Reusable workflow: scheduled cleanup
 │   └── ci.yml                   # ShellCheck CI for this repo
 ├── .claude/skills/setup/        # /setup skill for Claude-assisted onboarding
 ├── config.env.example           # Configuration template

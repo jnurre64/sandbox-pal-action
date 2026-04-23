@@ -1,17 +1,17 @@
-name: "Claude Agent: Triage"
+name: "Claude Agent: Direct Implement"
 
 on:
   issues:
     types: [labeled]
 
 concurrency:
-  group: claude-agent-triage-${{ github.event.issue.number }}
+  group: sandbox-pal-direct-implement-${{ github.event.issue.number }}
   cancel-in-progress: false
 
 jobs:
-  triage-issue:
+  direct-implement:
     if: >-
-      github.event.label.name == 'agent' &&
+      github.event.label.name == 'agent:implement' &&
       github.actor != '{{BOT_USER}}'
     runs-on: [self-hosted, agent]
     timeout-minutes: 125
@@ -27,9 +27,9 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.AGENT_PAT }}
           GITHUB_TOKEN: ${{ secrets.AGENT_PAT }}
-          AGENT_CONFIG: ${{ github.workspace }}/.agent-dispatch/config.env  # override file (gitignored, optional)
+          AGENT_CONFIG: ${{ github.workspace }}/.sandbox-pal-dispatch/config.env
         run: |
-          .agent-dispatch/scripts/agent-dispatch.sh \
-            new_issue \
+          .sandbox-pal-dispatch/scripts/sandbox-pal-dispatch.sh \
+            direct_implement \
             "${{ github.repository }}" \
             "${{ github.event.issue.number }}"

@@ -9,7 +9,7 @@ jobs:
     if: >-
       github.event.review.state == 'changes_requested' &&
       github.event.review.user.login != '{{BOT_USER}}'
-    uses: jnurre64/claude-pal-action/.github/workflows/dispatch-review.yml@v1
+    uses: jnurre64/sandbox-pal-action/.github/workflows/sandbox-pal-review.yml@v1
     with:
       bot_user: "{{BOT_USER}}"
     secrets:

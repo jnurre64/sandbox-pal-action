@@ -10,7 +10,7 @@ All logs are written to the directory specified by `AGENT_LOG_DIR` (default: `~/
 
 | File | Content |
 |------|---------|
-| `agent-dispatch.log` | Main dispatch log. Appended by every run. Contains timestamped entries with event type, issue number, and status messages. |
+| `sandbox-pal-dispatch.log` | Main dispatch log. Appended by every run. Contains timestamped entries with event type, issue number, and status messages. |
 | `claude-stderr-<repo>-<issue>-<timestamp>.log` | Stderr output from each `claude -p` invocation. Empty on success. Contains error details on failure. |
 
 ### Watching Logs in Real Time
@@ -18,7 +18,7 @@ All logs are written to the directory specified by `AGENT_LOG_DIR` (default: `~/
 To follow the dispatch log as the agent works:
 
 ```bash
-tail -f ~/.claude/agent-logs/agent-dispatch.log
+tail -f ~/.claude/agent-logs/sandbox-pal-dispatch.log
 ```
 
 To check the most recent stderr log for a failed run:
@@ -112,7 +112,7 @@ When an issue gets the `agent:failed` label:
 
 1. **Check the dispatch log** for what went wrong:
    ```bash
-   grep "#42" ~/.claude/agent-logs/agent-dispatch.log | tail -20
+   grep "#42" ~/.claude/agent-logs/sandbox-pal-dispatch.log | tail -20
    ```
 
 2. **Check stderr** for Claude-specific errors:
@@ -215,7 +215,7 @@ git -C ~/repos/default/my-repo worktree prune
 
 ### Reference Mode
 
-If your project calls the reusable workflows from this repository, you are already in reference mode. The dispatch scripts live in the `claude-pal-action` repository and your project references them via `workflow_call`.
+If your project calls the reusable workflows from this repository, you are already in reference mode. The dispatch scripts live in the `sandbox-pal-action` repository and your project references them via `workflow_call`.
 
 To update, pull the latest changes on the runner machine:
 
@@ -231,13 +231,13 @@ Or, if you cloned the repository to a different path, pull there. The `dispatch_
 You can pin to a specific tag or commit in your calling workflow to avoid unexpected changes:
 
 ```yaml
-uses: your-org/claude-pal-action/.github/workflows/dispatch-triage.yml@v1.0.0
+uses: your-org/sandbox-pal-action/.github/workflows/sandbox-pal-triage.yml@v1.0.0
 ```
 
 Or pin to a commit SHA:
 
 ```yaml
-uses: your-org/claude-pal-action/.github/workflows/dispatch-triage.yml@abc1234
+uses: your-org/sandbox-pal-action/.github/workflows/sandbox-pal-triage.yml@abc1234
 ```
 
 This ensures the dispatch scripts and prompts do not change until you explicitly update the reference.
@@ -248,8 +248,8 @@ If you copied the dispatch scripts into your own repository, you manage updates 
 
 ```bash
 # In your copy of the scripts
-diff -r scripts/ /path/to/claude-pal-action/scripts/
-diff -r prompts/ /path/to/claude-pal-action/prompts/
+diff -r scripts/ /path/to/sandbox-pal-action/scripts/
+diff -r prompts/ /path/to/sandbox-pal-action/prompts/
 ```
 
 ---
@@ -260,11 +260,11 @@ Each reusable workflow uses a concurrency group keyed by workflow type and issue
 
 ```yaml
 concurrency:
-  group: claude-agent-triage-${{ github.event.issue.number }}
+  group: sandbox-pal-triage-${{ github.event.issue.number }}
   cancel-in-progress: false
 ```
 
-Groups are workflow-specific (e.g., `claude-agent-triage-96`, `claude-agent-implement-96`) so that label changes during a run don't cause other workflows to compete in the same group. This means:
+Groups are workflow-specific (e.g., `sandbox-pal-triage-96`, `sandbox-pal-implement-96`) so that label changes during a run don't cause other workflows to compete in the same group. This means:
 - Only one job per workflow type runs per issue/PR at a time
 - Additional triggers for the same workflow and issue are **queued**, not cancelled
 - Different issues can run in parallel on different runners

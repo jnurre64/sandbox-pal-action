@@ -7,7 +7,7 @@ on:
 
 jobs:
   cleanup:
-    uses: jnurre64/claude-pal-action/.github/workflows/cleanup.yml@v1
+    uses: jnurre64/sandbox-pal-action/.github/workflows/sandbox-pal-cleanup.yml@v1
     secrets:
       agent_pat: ${{ secrets.AGENT_PAT }}
       gist_pat: ${{ secrets.AGENT_GIST_PAT }}

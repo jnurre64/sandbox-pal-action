@@ -24,13 +24,13 @@ If any required tools are missing, help the user install them before continuing.
 Use the `AskUserQuestion` tool to ask the user which mode they prefer:
 
 **Standalone mode** (recommended):
-- All scripts, prompts, config, and workflows are copied directly into the user's repo under `.agent-dispatch/`
+- All scripts, prompts, config, and workflows are copied directly into the user's repo under `.sandbox-pal-dispatch/`
 - No upstream dependency — the user owns every file and can modify freely
 - No automatic updates — the user manages their own copy
 - Best for: most users, full control, easy to customize, no external dependencies
 
 **Reference mode**:
-- Thin workflow files in the user's repo call back to this upstream repo via `uses: jnurre64/claude-pal-action/...@v1`
+- Thin workflow files in the user's repo call back to this upstream repo via `uses: jnurre64/sandbox-pal-action/...@v1`
 - Scripts run from a clone of this repo on the runner (`~/agent-infra/`)
 - Updates come automatically via version tags and `git pull`
 - Best for: users who want automatic updates and minimal files in their repo
@@ -52,13 +52,13 @@ Use the `AskUserQuestion` tool to collect the following. If the user provided an
 Read the template at `config.defaults.env.example` (in the repo root). Fill in the user's answers and write to `config.env` in the repo root (reference mode uses a single file since it's not committed to a repo). Show the user the generated config and ask if they want to adjust anything.
 
 ### Standalone mode
-Create the `.agent-dispatch/` directory in the user's target repo. Copy:
-- `scripts/agent-dispatch.sh` and `scripts/cleanup.sh` → `.agent-dispatch/scripts/`
-- `scripts/lib/*.sh` → `.agent-dispatch/scripts/lib/`
-- `scripts/check-prereqs.sh` and `scripts/create-labels.sh` → `.agent-dispatch/scripts/`
-- `prompts/*.md` → `.agent-dispatch/prompts/`
-- `labels.txt` → `.agent-dispatch/`
-- Generated `config.defaults.env` → `.agent-dispatch/config.defaults.env` (non-sensitive project config, committed)
+Create the `.sandbox-pal-dispatch/` directory in the user's target repo. Copy:
+- `scripts/sandbox-pal-dispatch.sh` and `scripts/cleanup.sh` → `.sandbox-pal-dispatch/scripts/`
+- `scripts/lib/*.sh` → `.sandbox-pal-dispatch/scripts/lib/`
+- `scripts/check-prereqs.sh` and `scripts/create-labels.sh` → `.sandbox-pal-dispatch/scripts/`
+- `prompts/*.md` → `.sandbox-pal-dispatch/prompts/`
+- `labels.txt` → `.sandbox-pal-dispatch/`
+- Generated `config.defaults.env` → `.sandbox-pal-dispatch/config.defaults.env` (non-sensitive project config, committed)
 
 **Important:** Configuration uses a layered approach:
 - `config.defaults.env` — **committed** to the repo. Contains non-sensitive project config (bot username, timeouts, tool permissions, test commands). This file MUST NOT contain secrets, tokens, or credentials.
@@ -85,14 +85,14 @@ this pattern) and substitute the user's answers into the default slot only.
 an older version of `/setup` may still have plain assignments. It's safe to
 rewrite each assignment into the `${VAR:-…}` form — there is no behavior change
 when no workflow override is set. Offer this rewrite only if the user is running
-`/setup` against a pre-existing `.agent-dispatch/config.defaults.env`; leave
+`/setup` against a pre-existing `.sandbox-pal-dispatch/config.defaults.env`; leave
 other customizations untouched.
 
 Make all scripts executable after copying.
 
 **Gitignore check:** Many `.gitignore` templates (e.g., VisualStudio, Node) include `*.env` which will block `config.defaults.env` from being committed. After copying files, check if the target repo's `.gitignore` excludes `*.env`. If so, add an exception:
 ```
-!.agent-dispatch/config.defaults.env
+!.sandbox-pal-dispatch/config.defaults.env
 ```
 Warn the user about this and make the change for them.
 
@@ -110,7 +110,7 @@ Ask the user:
 - Does their project have a CLAUDE.md? The prompts instruct the agent to read it. If not, recommend creating one with coding conventions and architecture overview.
 - Do they want to customize any prompts now, or start with defaults and customize later?
 
-For standalone mode: customizations are made directly in `.agent-dispatch/prompts/`.
+For standalone mode: customizations are made directly in `.sandbox-pal-dispatch/prompts/`.
 For reference mode: customizations go in separate files pointed to by `AGENT_PROMPT_*` in `config.env`.
 
 ## Step 5: Create Labels
@@ -131,7 +131,7 @@ Read each template in this skill's `templates/` directory (the `caller-*.yml` fi
 
 ### Standalone mode
 Read each template in `templates/standalone/`:
-- `agent-triage.yml`, `agent-implement.yml`, `agent-reply.yml`, `agent-review.yml`, `agent-cleanup.yml`
+- `sandbox-pal-triage.yml`, `sandbox-pal-implement.yml`, `sandbox-pal-reply.yml`, `sandbox-pal-review.yml`, `sandbox-pal-cleanup.yml`
 
 For each template:
 1. Replace `{{BOT_USER}}` with the bot username from Step 2
@@ -145,7 +145,7 @@ Ask the user where their target repo is cloned locally so you can write the file
 If the user has set up the Discord bot (see `docs/notifications.md`), also deploy the dispatch template:
 
 - **Reference mode:** `caller-dispatch.yml`
-- **Standalone mode:** `agent-dispatch.yml` (from `templates/standalone/`)
+- **Standalone mode:** `sandbox-pal-dispatch.yml` (from `templates/standalone/`)
 
 This template enables the Discord bot's Approve, Retry, Comment, and Request Changes actions to trigger agent workflows. It is only needed if the Discord bot is in use.
 
@@ -178,7 +178,7 @@ Summarize everything that was set up:
 - Labels created
 - Workflow files generated and where they were written
 - Secrets that need to be set (if not done in Step 7)
-- For standalone: list of files copied to `.agent-dispatch/`
+- For standalone: list of files copied to `.sandbox-pal-dispatch/`
 
 ## Step 9: Self-Hosted Runner Setup
 
@@ -280,7 +280,7 @@ It should show as **Idle** with the labels `self-hosted` and `agent`.
 For reference mode, the dispatch scripts run from a clone of this repo on the runner:
 
 ```bash
-git clone https://github.com/jnurre64/claude-pal-action.git ~/agent-infra
+git clone https://github.com/jnurre64/sandbox-pal-action.git ~/agent-infra
 cp <path-to-config.env> ~/agent-infra/config.env
 ```
 
@@ -289,7 +289,7 @@ cp <path-to-config.env> ~/agent-infra/config.env
 ### Commit and push
 
 - **Reference mode:** Commit and push the workflow files to the target repo
-- **Standalone mode:** Commit and push `.agent-dispatch/` and `.github/workflows/` to the target repo
+- **Standalone mode:** Commit and push `.sandbox-pal-dispatch/` and `.github/workflows/` to the target repo
 
 ### Dry run
 
@@ -304,6 +304,6 @@ Summarize everything that was set up:
 - Workflows generated
 - Secrets configured
 - Runner registered and running
-- For standalone: list of files in `.agent-dispatch/`
+- For standalone: list of files in `.sandbox-pal-dispatch/`
 
 If any step was skipped, list it with instructions for completing it later. Reference [docs/runners.md](docs/runners.md) for the full runner documentation.

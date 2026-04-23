@@ -1,6 +1,6 @@
 # Adversarial review prompts need stronger JSON-only reinforcement
 
-> **Status:** Draft — file as issue on `jnurre64/claude-pal-action`. Complementary to the parser fix in `fix/review-gates-json-preamble-parse`.
+> **Status:** Draft — file as issue on `jnurre64/sandbox-pal-action`. Complementary to the parser fix in `fix/review-gates-json-preamble-parse`.
 
 ## Summary
 

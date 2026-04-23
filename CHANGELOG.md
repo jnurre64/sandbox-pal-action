@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Changed
+- Repository renamed from `jnurre64/claude-pal-action` to `jnurre64/sandbox-pal-action` (2026-04-23). Old URL continues to redirect indefinitely. No version bump — rename is non-breaking. The rebrand also drops "Claude" from user-visible identifiers: workflow filenames (`dispatch-*.yml` → `sandbox-pal-*.yml`), concurrency group names (`claude-agent-*` → `sandbox-pal-*`), the internal dispatch script and directory (`scripts/agent-dispatch.sh` → `scripts/sandbox-pal-dispatch.sh`, `.agent-dispatch/` → `.sandbox-pal-dispatch/`), systemd service names, and notification footers. Motivated by upcoming multi-model support. See `docs/superpowers/plans/2026-04-23-rename-to-sandbox-pal-action.md`.
 - Repository renamed from `jnurre64/claude-agent-dispatch` to `jnurre64/claude-pal-action` (2026-04-18). Old URL continues to redirect indefinitely. No version bump — rename is non-breaking. See `docs/superpowers/specs/2026-04-18-rename-to-claude-pal-action-design.md`.
 
 ## [1.2.0] - 2026-04-03

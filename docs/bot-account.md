@@ -1,6 +1,6 @@
 # Bot Account Setup
 
-This guide covers creating and configuring a dedicated GitHub account for the claude-pal-action agent, including PAT creation, permissions, and rotation.
+This guide covers creating and configuring a dedicated GitHub account for the sandbox-pal-action agent, including PAT creation, permissions, and rotation.
 
 ---
 
@@ -54,7 +54,7 @@ Fine-grained PATs are recommended over classic PATs because they can be scoped t
 1. While logged in as the bot account, go to **Settings > Developer settings > Personal access tokens > Fine-grained tokens**
 2. Click **Generate new token**
 3. Fill in:
-   - **Token name**: Something descriptive (e.g., `agent-dispatch-pat`)
+   - **Token name**: Something descriptive (e.g., `sandbox-pal-dispatch-pat`)
    - **Expiration**: Up to 1 year (set a calendar reminder 2 weeks before expiry)
    - **Resource owner**: The organization or user that owns the target repo. If the target repo is in an org, the org admin may need to approve the token request.
 4. **Repository access**: Select **Only select repositories** and choose the target repo(s). Use "All repositories" only if the bot will work across many repos.

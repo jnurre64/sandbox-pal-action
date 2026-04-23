@@ -124,14 +124,14 @@ EOF
 
 @test "REGRESSION v1.0.4: handle_implement uses origin/main for start_sha" {
     # Verify the dispatch script compares against origin/main, not HEAD
-    grep -q 'rev-parse origin/main' "${SCRIPTS_DIR}/agent-dispatch.sh"
+    grep -q 'rev-parse origin/main' "${SCRIPTS_DIR}/sandbox-pal-dispatch.sh"
 }
 
 @test "REGRESSION v1.0.4: handle_implement does NOT use rev-parse HEAD for start_sha" {
     # The specific line in handle_implement should NOT use HEAD
     # (handle_pr_review still uses HEAD which is correct for that flow)
     local implement_section
-    implement_section=$(sed -n '/^handle_implement/,/^handle_pr_review/p' "${SCRIPTS_DIR}/agent-dispatch.sh")
+    implement_section=$(sed -n '/^handle_implement/,/^handle_pr_review/p' "${SCRIPTS_DIR}/sandbox-pal-dispatch.sh")
 
     # The start_sha line in handle_implement should reference origin/main
     echo "$implement_section" | grep 'start_sha=' | grep -q 'origin/main'
@@ -172,11 +172,11 @@ EOF
 
 @test "REGRESSION direct-implement: handle_implement checks AGENT_PLAN_CONTENT before extracting from comments" {
     # Verify the dispatch script checks for pre-loaded plan content
-    grep -q 'AGENT_PLAN_CONTENT' "${SCRIPTS_DIR}/agent-dispatch.sh"
+    grep -q 'AGENT_PLAN_CONTENT' "${SCRIPTS_DIR}/sandbox-pal-dispatch.sh"
 }
 
 @test "REGRESSION direct-implement: handle_implement logs when using pre-loaded plan" {
-    grep -q 'Using pre-loaded plan content' "${SCRIPTS_DIR}/agent-dispatch.sh"
+    grep -q 'Using pre-loaded plan content' "${SCRIPTS_DIR}/sandbox-pal-dispatch.sh"
 }
 
 # ═══════════════════════════════════════════════════════════════
@@ -184,44 +184,44 @@ EOF
 # ═══════════════════════════════════════════════════════════════
 
 @test "dispatch script: has handle_direct_implement function" {
-    grep -q 'handle_direct_implement()' "${SCRIPTS_DIR}/agent-dispatch.sh"
+    grep -q 'handle_direct_implement()' "${SCRIPTS_DIR}/sandbox-pal-dispatch.sh"
 }
 
 @test "dispatch script: direct_implement case in dispatch switch" {
-    grep -q 'direct_implement)' "${SCRIPTS_DIR}/agent-dispatch.sh"
+    grep -q 'direct_implement)' "${SCRIPTS_DIR}/sandbox-pal-dispatch.sh"
 }
 
 @test "dispatch script: handle_direct_implement checks AGENT_ALLOW_DIRECT_IMPLEMENT" {
     local handler_section
-    handler_section=$(sed -n '/^handle_direct_implement/,/^handle_/p' "${SCRIPTS_DIR}/agent-dispatch.sh" | head -60)
+    handler_section=$(sed -n '/^handle_direct_implement/,/^handle_/p' "${SCRIPTS_DIR}/sandbox-pal-dispatch.sh" | head -60)
 
     echo "$handler_section" | grep -q 'AGENT_ALLOW_DIRECT_IMPLEMENT'
 }
 
 @test "dispatch script: handle_direct_implement sets agent:validating label" {
     local handler_section
-    handler_section=$(sed -n '/^handle_direct_implement/,/^handle_/p' "${SCRIPTS_DIR}/agent-dispatch.sh" | head -60)
+    handler_section=$(sed -n '/^handle_direct_implement/,/^handle_/p' "${SCRIPTS_DIR}/sandbox-pal-dispatch.sh" | head -60)
 
     echo "$handler_section" | grep -q 'agent:validating'
 }
 
 @test "dispatch script: handle_direct_implement uses validate prompt" {
     local handler_section
-    handler_section=$(sed -n '/^handle_direct_implement/,/^handle_/p' "${SCRIPTS_DIR}/agent-dispatch.sh" | head -80)
+    handler_section=$(sed -n '/^handle_direct_implement/,/^handle_/p' "${SCRIPTS_DIR}/sandbox-pal-dispatch.sh" | head -80)
 
     echo "$handler_section" | grep -q 'AGENT_PROMPT_VALIDATE'
 }
 
 @test "dispatch script: handle_direct_implement posts comment with direct-implement marker on failure" {
     local handler_section
-    handler_section=$(sed -n '/^handle_direct_implement/,/^handle_/p' "${SCRIPTS_DIR}/agent-dispatch.sh" | head -80)
+    handler_section=$(sed -n '/^handle_direct_implement/,/^handle_/p' "${SCRIPTS_DIR}/sandbox-pal-dispatch.sh" | head -80)
 
     echo "$handler_section" | grep -q 'agent-direct-implement'
 }
 
 @test "dispatch script: handle_direct_implement calls handle_implement on success" {
     local handler_section
-    handler_section=$(sed -n '/^handle_direct_implement/,/^handle_/p' "${SCRIPTS_DIR}/agent-dispatch.sh" | head -80)
+    handler_section=$(sed -n '/^handle_direct_implement/,/^handle_/p' "${SCRIPTS_DIR}/sandbox-pal-dispatch.sh" | head -80)
 
     echo "$handler_section" | grep -q 'handle_implement'
 }
@@ -230,14 +230,14 @@ EOF
 
 @test "REGRESSION direct-implement: handle_issue_reply checks for direct-implement marker" {
     local reply_section
-    reply_section=$(sed -n '/^handle_issue_reply/,/^handle_implement/p' "${SCRIPTS_DIR}/agent-dispatch.sh")
+    reply_section=$(sed -n '/^handle_issue_reply/,/^handle_implement/p' "${SCRIPTS_DIR}/sandbox-pal-dispatch.sh")
 
     echo "$reply_section" | grep -q 'agent-direct-implement'
 }
 
 @test "REGRESSION direct-implement: handle_issue_reply calls handle_direct_implement when marker found" {
     local reply_section
-    reply_section=$(sed -n '/^handle_issue_reply/,/^handle_implement/p' "${SCRIPTS_DIR}/agent-dispatch.sh")
+    reply_section=$(sed -n '/^handle_issue_reply/,/^handle_implement/p' "${SCRIPTS_DIR}/sandbox-pal-dispatch.sh")
 
     echo "$reply_section" | grep -q 'handle_direct_implement'
 }
@@ -374,19 +374,19 @@ EOF
 # ═══════════════════════════════════════════════════════════════
 
 @test "dispatch script: sources review-gates.sh" {
-    grep -q 'review-gates.sh' "${SCRIPTS_DIR}/agent-dispatch.sh"
+    grep -q 'review-gates.sh' "${SCRIPTS_DIR}/sandbox-pal-dispatch.sh"
 }
 
 @test "dispatch script: handle_implement calls run_adversarial_plan_review" {
     local implement_section
-    implement_section=$(sed -n '/^handle_implement/,/^handle_direct_implement/p' "${SCRIPTS_DIR}/agent-dispatch.sh")
+    implement_section=$(sed -n '/^handle_implement/,/^handle_direct_implement/p' "${SCRIPTS_DIR}/sandbox-pal-dispatch.sh")
 
     echo "$implement_section" | grep -q 'run_adversarial_plan_review'
 }
 
 @test "dispatch script: run_adversarial_plan_review runs BEFORE implementation claude session" {
     local implement_section
-    implement_section=$(sed -n '/^handle_implement/,/^handle_direct_implement/p' "${SCRIPTS_DIR}/agent-dispatch.sh")
+    implement_section=$(sed -n '/^handle_implement/,/^handle_direct_implement/p' "${SCRIPTS_DIR}/sandbox-pal-dispatch.sh")
 
     local review_line impl_line
     review_line=$(echo "$implement_section" | grep -n 'run_adversarial_plan_review' | head -1 | cut -d: -f1)

@@ -1,1 +1,1 @@
-"""Shared logic for claude-pal-action notification bots."""
+"""Shared logic for sandbox-pal-action notification bots."""

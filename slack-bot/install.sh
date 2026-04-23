@@ -2,11 +2,11 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SERVICE_NAME="agent-dispatch-slack"
+SERVICE_NAME="sandbox-pal-dispatch-slack"
 
-echo "=== Agent Dispatch Slack Bot Install ==="
+echo "=== Sandbox Pal Dispatch Slack Bot Install ==="
 
-# Determine config.env path (same logic as agent-dispatch.sh)
+# Determine config.env path (same logic as sandbox-pal-dispatch.sh)
 # Accepts --config <path> for non-interactive use, falls back to interactive prompt
 DEFAULT_CONFIG="${AGENT_CONFIG:-${HOME}/agent-infra/config.env}"
 CONFIG_PATH=""
@@ -44,7 +44,7 @@ SERVICE_FILE="${HOME}/.config/systemd/user/${SERVICE_NAME}.service"
 mkdir -p "$(dirname "$SERVICE_FILE")"
 
 sed "s|WORKING_DIR|${SCRIPT_DIR}|g; s|CONFIG_PATH|${CONFIG_PATH}|g" \
-    "${SCRIPT_DIR}/agent-dispatch-slack.service" > "$SERVICE_FILE"
+    "${SCRIPT_DIR}/sandbox-pal-dispatch-slack.service" > "$SERVICE_FILE"
 
 systemctl --user daemon-reload
 systemctl --user disable "$SERVICE_NAME" 2>/dev/null || true

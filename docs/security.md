@@ -91,11 +91,11 @@ Each reusable workflow uses a concurrency group keyed by workflow type and issue
 
 ```yaml
 concurrency:
-  group: claude-agent-triage-${{ github.event.issue.number }}
+  group: sandbox-pal-triage-${{ github.event.issue.number }}
   cancel-in-progress: false
 ```
 
-Groups are workflow-specific (e.g., `claude-agent-triage-96`, `claude-agent-implement-96`) so that label changes during a run don't cause other workflows to compete in the same group. `cancel-in-progress: false` means concurrent jobs for the same workflow and issue are queued, not cancelled.
+Groups are workflow-specific (e.g., `sandbox-pal-triage-96`, `sandbox-pal-implement-96`) so that label changes during a run don't cause other workflows to compete in the same group. `cancel-in-progress: false` means concurrent jobs for the same workflow and issue are queued, not cancelled.
 
 ### Environment Variable Injection
 
@@ -228,7 +228,7 @@ Set an expiry date on the PAT and rotate it before expiry. Update the GitHub Act
 ### Monitor Agent Activity
 
 Regularly review:
-- Agent log files on the runner (`~/.claude/agent-logs/agent-dispatch.log`)
+- Agent log files on the runner (`~/.claude/agent-logs/sandbox-pal-dispatch.log`)
 - GitHub Actions workflow run history
 - Issues and PRs created by the bot account
 - Circuit breaker activations (search for `agent:failed` labels)

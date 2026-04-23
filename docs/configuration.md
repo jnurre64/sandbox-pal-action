@@ -1,6 +1,6 @@
 # Configuration Reference
 
-This document covers every configuration option in claude-pal-action, how values are loaded, and example configurations for different project types.
+This document covers every configuration option in sandbox-pal-action, how values are loaded, and example configurations for different project types.
 
 ## Config Loading Order
 
@@ -256,19 +256,19 @@ Directory where log files are written.
 | `AGENT_LOG_DIR` | `$HOME/.claude/agent-logs` |
 
 Two types of logs are written here:
-- `agent-dispatch.log` — main dispatch log (appended across all runs)
+- `sandbox-pal-dispatch.log` — main dispatch log (appended across all runs)
 - `claude-stderr-<repo>-<issue>-<timestamp>.log` — stderr from each `claude -p` invocation
 
 ---
 
 ## Reusable Workflow Inputs
 
-The reusable workflows (`dispatch-triage.yml`, `dispatch-implement.yml`, `dispatch-reply.yml`, `dispatch-review.yml`, `dispatch-direct-implement.yml`) accept these inputs when called from your project's workflow:
+The reusable workflows (`sandbox-pal-triage.yml`, `sandbox-pal-implement.yml`, `sandbox-pal-reply.yml`, `sandbox-pal-review.yml`, `sandbox-pal-direct-implement.yml`) accept these inputs when called from your project's workflow:
 
 | Input | Required | Default | Description |
 |-------|----------|---------|-------------|
 | `bot_user` | Yes | — | Bot account username (for self-trigger prevention in your calling workflow) |
-| `dispatch_script` | No | `~/agent-infra/scripts/agent-dispatch.sh` | Path to the dispatch script on the runner |
+| `dispatch_script` | No | `~/agent-infra/scripts/sandbox-pal-dispatch.sh` | Path to the dispatch script on the runner |
 | `config_path` | No | `~/agent-infra/config.env` | Path to `config.env` on the runner |
 | `timeout_minutes` | No | `125` | GitHub Actions job timeout in minutes |
 | `runner_labels` | No | `["self-hosted", "agent"]` | JSON array of runner labels for job placement |
@@ -285,7 +285,7 @@ on:
 jobs:
   triage:
     if: github.event.label.name == 'agent' && github.actor != 'my-bot'
-    uses: your-org/claude-pal-action/.github/workflows/dispatch-triage.yml@main
+    uses: your-org/sandbox-pal-action/.github/workflows/sandbox-pal-triage.yml@main
     with:
       bot_user: "my-bot"
       runner_labels: '["self-hosted", "agent"]'

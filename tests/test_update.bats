@@ -38,7 +38,7 @@ _create_mock_install() {
 
     mkdir -p "$install_dir/scripts/lib" "$install_dir/prompts"
 
-    echo "#!/bin/bash" > "$install_dir/scripts/agent-dispatch.sh"
+    echo "#!/bin/bash" > "$install_dir/scripts/sandbox-pal-dispatch.sh"
     echo "# common functions" > "$install_dir/scripts/lib/common.sh"
     echo "# worktree management" > "$install_dir/scripts/lib/worktree.sh"
     echo "# default triage prompt" > "$install_dir/prompts/triage.md"
@@ -46,11 +46,11 @@ _create_mock_install() {
 
     # Write .upstream tracking file
     {
-        echo "repo: https://github.com/jnurre64/claude-pal-action.git"
+        echo "repo: https://github.com/jnurre64/sandbox-pal-action.git"
         echo "version: $version"
         echo "synced_at: \"2026-03-21T00:00:00Z\""
         echo "checksums:"
-        for f in scripts/agent-dispatch.sh scripts/lib/common.sh scripts/lib/worktree.sh prompts/triage.md labels.txt; do
+        for f in scripts/sandbox-pal-dispatch.sh scripts/lib/common.sh scripts/lib/worktree.sh prompts/triage.md labels.txt; do
             if [ -f "$install_dir/$f" ]; then
                 local cs
                 cs=$(sha256sum "$install_dir/$f" | cut -d' ' -f1)
@@ -81,9 +81,9 @@ _create_mock_install() {
 
     # Verify checksums match (file unchanged = checksum matches stored)
     local stored_cs
-    stored_cs=$(grep "scripts/agent-dispatch.sh" "$install_dir/.upstream" | sed 's/.*"sha256://' | sed 's/".*//')
+    stored_cs=$(grep "scripts/sandbox-pal-dispatch.sh" "$install_dir/.upstream" | sed 's/.*"sha256://' | sed 's/".*//')
     local current_cs
-    current_cs=$(sha256sum "$install_dir/scripts/agent-dispatch.sh" | cut -d' ' -f1)
+    current_cs=$(sha256sum "$install_dir/scripts/sandbox-pal-dispatch.sh" | cut -d' ' -f1)
 
     assert_equal "$stored_cs" "$current_cs"
 }
@@ -93,13 +93,13 @@ _create_mock_install() {
     _create_mock_install "$install_dir"
 
     # Modify a file locally
-    echo "# local change" >> "$install_dir/scripts/agent-dispatch.sh"
+    echo "# local change" >> "$install_dir/scripts/sandbox-pal-dispatch.sh"
 
     # Checksum should no longer match
     local stored_cs
-    stored_cs=$(grep "scripts/agent-dispatch.sh" "$install_dir/.upstream" | sed 's/.*"sha256://' | sed 's/".*//')
+    stored_cs=$(grep "scripts/sandbox-pal-dispatch.sh" "$install_dir/.upstream" | sed 's/.*"sha256://' | sed 's/".*//')
     local current_cs
-    current_cs=$(sha256sum "$install_dir/scripts/agent-dispatch.sh" | cut -d' ' -f1)
+    current_cs=$(sha256sum "$install_dir/scripts/sandbox-pal-dispatch.sh" | cut -d' ' -f1)
 
     [ "$stored_cs" != "$current_cs" ]
 }
@@ -172,7 +172,7 @@ _create_mock_upstream() {
     local upstream_dir="$1"
     mkdir -p "$upstream_dir/scripts/lib" "$upstream_dir/prompts"
 
-    echo "#!/bin/bash" > "$upstream_dir/scripts/agent-dispatch.sh"
+    echo "#!/bin/bash" > "$upstream_dir/scripts/sandbox-pal-dispatch.sh"
     echo "# common functions" > "$upstream_dir/scripts/lib/common.sh"
 
     # Copy the real config-vars.sh so it can be sourced
