@@ -3,8 +3,8 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/jnurre64/claude-pal-action/actions/workflows/ci.yml"><img src="https://github.com/jnurre64/claude-pal-action/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <a href="https://github.com/jnurre64/claude-pal-action/releases/latest"><img src="https://img.shields.io/github/v/release/jnurre64/claude-pal-action" alt="Latest Release"></a>
+  <a href="https://github.com/jnurre64/sandbox-pal-action/actions/workflows/ci.yml"><img src="https://github.com/jnurre64/sandbox-pal-action/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/jnurre64/sandbox-pal-action/releases/latest"><img src="https://img.shields.io/github/v/release/jnurre64/sandbox-pal-action" alt="Latest Release"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="License: MIT"></a>
 </p>
 
@@ -70,7 +70,7 @@ Built-in protections at every layer: circuit breaker (8 bot comments/hour), phas
 **Option A: Claude-assisted (recommended)**
 
 ```bash
-git clone https://github.com/jnurre64/claude-pal-action.git ~/agent-infra
+git clone https://github.com/jnurre64/sandbox-pal-action.git ~/agent-infra
 cd ~/agent-infra
 claude  # then type: /setup
 ```
@@ -80,7 +80,7 @@ The `/setup` skill walks you through everything interactively.
 **Option B: Shell script**
 
 ```bash
-git clone https://github.com/jnurre64/claude-pal-action.git ~/agent-infra
+git clone https://github.com/jnurre64/sandbox-pal-action.git ~/agent-infra
 cd ~/agent-infra
 ./scripts/setup.sh
 ```
@@ -139,12 +139,12 @@ The system adapts to any project through your CLAUDE.md (coding conventions), cu
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for conventions, testing, and how to submit changes. Bug reports and feature requests are welcome via [GitHub Issues](https://github.com/jnurre64/claude-pal-action/issues).
+See [CONTRIBUTING.md](CONTRIBUTING.md) for conventions, testing, and how to submit changes. Bug reports and feature requests are welcome via [GitHub Issues](https://github.com/jnurre64/sandbox-pal-action/issues).
 
 ## Repository Structure
 
 ```
-claude-pal-action/
+sandbox-pal-action/
 ├── scripts/
 │   ├── sandbox-pal-dispatch.sh        # Main dispatch entry point
 │   ├── cleanup.sh               # Scheduled cleanup (branches, gists, logs)
