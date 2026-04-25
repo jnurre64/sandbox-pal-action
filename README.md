@@ -1,5 +1,5 @@
 <p align="center">
-  <img src=".github/icon.png" width="600" alt="Sandbox Pal Action">
+  <img src=".github/icon.png" width="360" alt="Sandbox Pal Action">
 </p>
 
 <h1 align="center">Sandbox Pal Action</h1>
