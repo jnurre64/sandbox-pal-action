@@ -21,6 +21,10 @@ discord-bot/.venv/
 discord-bot/__pycache__/
 discord-bot/tests/__pycache__/
 discord-bot/.pytest_cache/
+slack-bot/.venv/
+slack-bot/__pycache__/
+slack-bot/tests/__pycache__/
+slack-bot/.pytest_cache/
 
 # Python packaging artifacts
 **/__pycache__/

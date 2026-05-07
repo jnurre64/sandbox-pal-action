@@ -273,6 +273,19 @@ class DispatchBot(commands.Bot):
         await super().close()
 
 
+def _setup_logging() -> None:
+    """Configure the root logger so app loggers (notify handler, action handlers)
+    actually emit. discord.py's `bot.run(..., log_handler=...)` only configures
+    discord.py's own loggers, leaving `dispatch-bot` without a handler — which
+    silently drops every routing-decision INFO line we depend on for triage.
+    """
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(name)s %(levelname)s %(message)s",
+        force=True,
+    )
+
+
 def main() -> None:
     """Bot entrypoint."""
     if not BOT_TOKEN:
@@ -285,8 +298,12 @@ def main() -> None:
         print("Error: AGENT_DISCORD_GUILD_ID is not set")
         raise SystemExit(1)
 
+    _setup_logging()
     bot = DispatchBot()
-    bot.run(BOT_TOKEN, log_handler=logging.StreamHandler(), log_level=logging.INFO)
+    # log_handler=None opts out of discord.py's auto-config so it inherits the
+    # root config from _setup_logging (otherwise discord.py adds its own handler
+    # and we get duplicate output for discord.* loggers).
+    bot.run(BOT_TOKEN, log_handler=None)
 
 
 if __name__ == "__main__":

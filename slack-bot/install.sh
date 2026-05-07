@@ -4,6 +4,10 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SERVICE_NAME="sandbox-pal-dispatch-slack"
 
+# Ensure relative requirements like '-e ../shared' resolve against this script's
+# directory rather than the caller's cwd.
+cd "$SCRIPT_DIR"
+
 echo "=== Sandbox Pal Dispatch Slack Bot Install ==="
 
 # Determine config.env path (same logic as sandbox-pal-dispatch.sh)

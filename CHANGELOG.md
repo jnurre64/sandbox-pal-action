@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+- `discord-bot/install.sh` and `slack-bot/install.sh` now `cd` into their own directory before running `pip install`, so the editable `-e ../shared` requirement resolves correctly when the script is invoked from any cwd. Without this, `bash slack-bot/install.sh` from the repo root failed with `../shared is not a valid editable requirement`.
+- `discord-bot/bot.py` now configures the root logger via `logging.basicConfig(force=True)` in `_setup_logging()` before `bot.run`. Previously `bot.run(..., log_handler=StreamHandler(), log_level=INFO)` only configured discord.py's own loggers, leaving the `dispatch-bot` logger without a handler — every routing-decision INFO line and action handler log line was silently dropped, making it impossible to triage notification issues from `journalctl`.
+
 ### Changed
 - Repository renamed from `jnurre64/claude-pal-action` to `jnurre64/sandbox-pal-action` (2026-04-23). Old URL continues to redirect indefinitely. No version bump — rename is non-breaking. The rebrand also drops "Claude" from user-visible identifiers: workflow filenames (`dispatch-*.yml` → `sandbox-pal-*.yml`), concurrency group names (`claude-agent-*` → `sandbox-pal-*`), the internal dispatch script and directory (`scripts/agent-dispatch.sh` → `scripts/sandbox-pal-dispatch.sh`, `.agent-dispatch/` → `.sandbox-pal-dispatch/`), systemd service names, and notification footers. Motivated by upcoming multi-model support. See `docs/superpowers/plans/2026-04-23-rename-to-sandbox-pal-action.md`.
 - Repository renamed from `jnurre64/claude-agent-dispatch` to `jnurre64/claude-pal-action` (2026-04-18). Old URL continues to redirect indefinitely. No version bump — rename is non-breaking. See `docs/superpowers/specs/2026-04-18-rename-to-claude-pal-action-design.md`.
