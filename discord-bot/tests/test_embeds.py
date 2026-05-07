@@ -88,3 +88,18 @@ class TestBuildButtons:
         view = build_buttons("pr_created", 42, "https://example.com/pull/5", "org/repo")
         link_buttons = [c for c in view.children if c.url]
         assert any(b.url == "https://example.com/pull/5" for b in link_buttons)
+
+    def test_empty_url_omits_view_button(self):
+        # Discord's API rejects link buttons with empty url (400 / 50035), so
+        # build_buttons must skip the View button entirely in that case.
+        view = build_buttons("tests_passed", 42, "", "org/repo")
+        link_buttons = [c for c in view.children if getattr(c, "url", None)]
+        assert link_buttons == []
+
+    def test_empty_url_still_emits_action_buttons_for_plan(self):
+        view = build_buttons("plan_posted", 42, "", "org/repo")
+        labels = [child.label for child in view.children]
+        assert "View" not in labels
+        assert "Approve" in labels
+        assert "Request Changes" in labels
+        assert "Comment" in labels

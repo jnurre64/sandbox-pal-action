@@ -89,7 +89,7 @@ Check that:
 curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:8675/notify \
   -X POST \
   -H "Content-Type: application/json" \
-  -d '{"event_type":"test","title":"Runner update test","url":"","description":"Testing after Phase 1 update"}'
+  -d '{"event_type":"test","title":"Runner update test","url":"https://example.com","description":"Testing after Phase 1 update"}'
 ```
 
 Expected: HTTP status `200` (or `204`). If the bot is working, it will log the

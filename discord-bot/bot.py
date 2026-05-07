@@ -75,7 +75,10 @@ def build_embed(
 def build_buttons(event_type: str, issue_number: int, url: str, repo: str) -> discord.ui.View:
     """Build interactive buttons for a notification message."""
     view = discord.ui.View(timeout=None)
-    view.add_item(discord.ui.Button(label="View", url=url, style=discord.ButtonStyle.link))
+    # Discord rejects link buttons with empty url (400 / 50035), so omit the
+    # View button when the caller didn't supply one.
+    if url:
+        view.add_item(discord.ui.Button(label="View", url=url, style=discord.ButtonStyle.link))
 
     if event_type in PLAN_EVENTS:
         view.add_item(discord.ui.Button(

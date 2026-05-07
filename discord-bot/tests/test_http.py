@@ -103,6 +103,19 @@ class TestNotifyHandler:
         response = await handler(request)
         assert response.status == 200
 
+    @pytest.mark.asyncio
+    async def test_empty_url_returns_200_and_sends(self, handler, mock_channel, make_request):
+        # A payload with url="" used to trigger Discord's 50035 rejection on the
+        # link button and bubble up as a 500. The handler should now succeed and
+        # the message should be sent without a View link.
+        request = make_request({**VALID_PAYLOAD, "url": ""})
+        response = await handler(request)
+        assert response.status == 200
+        mock_channel.send.assert_called_once()
+        view = mock_channel.send.call_args.kwargs["view"]
+        link_buttons = [c for c in view.children if getattr(c, "url", None)]
+        assert link_buttons == []
+
 
 class TestPerRepoChannelRouting:
     @pytest.mark.asyncio
