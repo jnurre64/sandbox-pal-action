@@ -11,9 +11,19 @@ cd "$SCRIPT_DIR"
 echo "=== Sandbox Pal Dispatch Bot Install ==="
 
 # Determine config.env path (same logic as sandbox-pal-dispatch.sh)
+# Accepts --config <path> for non-interactive use, falls back to interactive prompt
 DEFAULT_CONFIG="${AGENT_CONFIG:-${HOME}/agent-infra/config.env}"
-read -r -p "Path to config.env [${DEFAULT_CONFIG}]: " CONFIG_PATH
-CONFIG_PATH="${CONFIG_PATH:-$DEFAULT_CONFIG}"
+CONFIG_PATH=""
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --config) CONFIG_PATH="$2"; shift 2 ;;
+        *) echo "Unknown option: $1"; exit 1 ;;
+    esac
+done
+if [ -z "$CONFIG_PATH" ]; then
+    read -r -p "Path to config.env [${DEFAULT_CONFIG}]: " CONFIG_PATH
+    CONFIG_PATH="${CONFIG_PATH:-$DEFAULT_CONFIG}"
+fi
 
 if [ ! -f "$CONFIG_PATH" ]; then
     echo "Warning: ${CONFIG_PATH} not found. Create it before starting the bot."

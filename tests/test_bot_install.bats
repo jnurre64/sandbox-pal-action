@@ -34,3 +34,25 @@ load 'helpers/test_helper'
         fail "slack-bot/install.sh: missing 'cd \"\$SCRIPT_DIR\"' before pip install at line ${pip_line}"
     fi
 }
+
+# Both bot install scripts must accept `--config <path>` for non-interactive use.
+# Without it, scripted re-installs (after the rename, after CI, after this very
+# test) have to fall back to feeding `read` via stdin, which is fragile and
+# diverges between the two bots. Asserts the option-parsing block exists.
+# shellcheck disable=SC2154
+@test "discord-bot/install.sh accepts --config <path> non-interactively" {
+    local script="${TEST_ROOT}/../discord-bot/install.sh"
+    [ -f "$script" ] || fail "discord-bot/install.sh not found"
+
+    grep -qE '^[[:space:]]*--config\)' "$script" || \
+        fail "discord-bot/install.sh: missing '--config' case in option parser"
+}
+
+# shellcheck disable=SC2154
+@test "slack-bot/install.sh accepts --config <path> non-interactively" {
+    local script="${TEST_ROOT}/../slack-bot/install.sh"
+    [ -f "$script" ] || fail "slack-bot/install.sh not found"
+
+    grep -qE '^[[:space:]]*--config\)' "$script" || \
+        fail "slack-bot/install.sh: missing '--config' case in option parser"
+}

@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+- `discord-bot/install.sh` now accepts `--config <path>` for non-interactive use, matching `slack-bot/install.sh`. Previously the Discord installer always prompted via `read`, making scripted reinstalls fragile (callers had to feed an empty line via stdin to use the default). Both installers now share the same option-parsing block and reject unknown flags with exit 1.
+
 ### Fixed
 - `discord-bot/install.sh` and `slack-bot/install.sh` now `cd` into their own directory before running `pip install`, so the editable `-e ../shared` requirement resolves correctly when the script is invoked from any cwd. Without this, `bash slack-bot/install.sh` from the repo root failed with `../shared is not a valid editable requirement`.
 - `discord-bot/bot.py` now configures the root logger via `logging.basicConfig(force=True)` in `_setup_logging()` before `bot.run`. Previously `bot.run(..., log_handler=StreamHandler(), log_level=INFO)` only configured discord.py's own loggers, leaving the `dispatch-bot` logger without a handler — every routing-decision INFO line and action handler log line was silently dropped, making it impossible to triage notification issues from `journalctl`.
