@@ -126,12 +126,16 @@ The human reviews the plan and either provides feedback (sets `agent:needs-info`
 ### Phase 2: Implement
 
 Triggered by the `agent:plan-approved` label. The agent:
-1. Reads the approved plan from the issue comments (finds the `<!-- agent-plan -->` marker)
+1. Reads the approved plan from the issue comments (finds the `<!-- agent-plan -->` marker, or an interactive `<!-- agent-branch: ... -->` marker naming a pre-pushed branch — see "Interactive Plan Branch Marker" below)
 2. Implements the plan with read-write tools (edit, write, git add, git commit)
 3. The dispatch script checks for new commits, optionally runs a pre-PR test gate, pushes the branch, and creates a PR with `Closes #N` linking
 4. Sets `agent:pr-open`
 
 This two-phase design ensures a human reviews the plan before any code is written. For urgent issues, the human can approve the plan immediately after it is posted.
+
+#### Interactive Plan Branch Marker
+
+The standard (autonomous) flow reuses the plan-phase worktree for implementation, so uncommitted state from that worktree carries forward. An interactive plan branch (`<!-- agent-branch: ... -->`) is different: `handle_implement` always creates a **fresh** worktree on the branch head for it (see `extract_plan_branch` handling in `scripts/sandbox-pal-dispatch.sh`), rather than reusing any prior worktree for that branch. This means uncommitted or unpushed work left behind by a failed prior interactive-branch run is **not** retained — a retry starts clean from whatever was last pushed to the branch.
 
 ## Post-Implementation Review Loop
 

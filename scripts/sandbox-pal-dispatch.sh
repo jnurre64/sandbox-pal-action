@@ -717,6 +717,12 @@ You may need to provide more specific guidance or handle this manually." 2>/dev/
 # ═══════════════════════════════════════════════════════════════
 # EVENT: Agent PR merged → post-merge cleanup phase
 # ═══════════════════════════════════════════════════════════════
+# NOTE: tests/test_dispatch_post_merge.bats extracts this function body
+# with `sed -n '/^handle_post_merge()/,/^}/p'` (there is no bash function
+# parser in the test harness). That means the body must contain NO
+# column-0 `}` before the function's real closing brace — an inner
+# heredoc/case/etc. that lands a `}` at column 0 would truncate the
+# sed extraction and silently break those tests.
 handle_post_merge() {
     if [ "${AGENT_CLEANUP_ENABLED}" != "true" ]; then
         log "Post-merge cleanup: disabled (AGENT_CLEANUP_ENABLED=${AGENT_CLEANUP_ENABLED})"

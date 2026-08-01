@@ -17,7 +17,7 @@ Findings from previous review cycles (empty on the first pass):
 - Run: echo "$AGENT_REVIEW_LEDGER"
 
 The ledger is your working state. For each finding already in it:
-- If its status is "fixed" claimed by a retry session, VERIFY the fix in the diff. List genuinely fixed ids in `verified_fixed`.
+- If its status is "fixed" claimed by a retry session, VERIFY the fix in the diff. List genuinely fixed ids in `verified_fixed`. If the claimed fix is NOT genuine (the finding still applies), list its id in `reopened` — do NOT re-describe it as a new finding.
 - If its status is "rejected", accept the justification unless it is demonstrably wrong (contradicted by the code or the issue). Only then list the id in `reopened` — rejections are otherwise left for the human to arbitrate.
 - Do NOT re-report a finding that is already in the ledger; report only NEW findings.
 

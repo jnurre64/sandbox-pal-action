@@ -392,8 +392,14 @@ The reusable workflows (`sandbox-pal-triage.yml`, `sandbox-pal-implement.yml`, `
 | `bot_user` | Yes | — | Bot account username (for self-trigger prevention in your calling workflow) |
 | `dispatch_script` | No | `~/agent-infra/scripts/sandbox-pal-dispatch.sh` | Path to the dispatch script on the runner |
 | `config_path` | No | `~/agent-infra/config.env` | Path to `config.env` on the runner |
-| `timeout_minutes` | No | `125` | GitHub Actions job timeout in minutes |
+| `timeout_minutes` | No | `125`¹ | GitHub Actions job timeout in minutes |
 | `runner_labels` | No | `["self-hosted", "agent"]` | JSON array of runner labels for job placement |
+
+¹ `sandbox-pal-post-merge.yml` is the exception: its `timeout_minutes` default is `30`, not `125` — cleanup is bookkeeping (doc commits, follow-up issue filing), not implementation work, so it doesn't need the longer default. `sandbox-pal-post-merge.yml` also accepts one extra input not needed by the other workflows:
+
+| Input | Required | Default | Description |
+|-------|----------|---------|-------------|
+| `pr_number` | No | `''` (falls back to `github.event.pull_request.number`) | PR number override, for triggering the workflow via `repository_dispatch` instead of the standard `pull_request.closed` event |
 
 All workflows also require the `agent_pat` secret — a fine-grained PAT for the bot account with repository read/write, issues, and pull requests permissions.
 
