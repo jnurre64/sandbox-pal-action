@@ -521,3 +521,66 @@ MOCK
     assert_success
     assert_output --partial "review concerns"
 }
+
+# ═══════════════════════════════════════════════════════════════
+# handle_post_implementation × review loop
+# ═══════════════════════════════════════════════════════════════
+
+_setup_post_impl() {
+    export WORKTREE_DIR="${TEST_TEMP_DIR}/wt"
+    export REPO_DIR="${TEST_TEMP_DIR}/repo"
+    export BRANCH_NAME="agent/issue-99"
+    mkdir -p "$WORKTREE_DIR"
+    git -C "$WORKTREE_DIR" init -q
+    git -C "$WORKTREE_DIR" config user.email "t@t" && git -C "$WORKTREE_DIR" config user.name "t"
+    # Establish a resolvable origin/main (a real worktree always has one) so
+    # the empty-start_sha commit_count fallback in handle_post_implementation
+    # (git rev-list --count origin/main..HEAD) counts the commit below instead
+    # of erroring out to 0 and mis-taking the "no commits" branch.
+    (cd "$WORKTREE_DIR" && echo base > base.txt && git add base.txt && git commit -qm "base")
+    git -C "$WORKTREE_DIR" update-ref refs/remotes/origin/main HEAD
+    (cd "$WORKTREE_DIR" && echo x > f.txt && git add f.txt && git commit -qm "impl commit")
+    source "${LIB_DIR}/common.sh"
+    source "${LIB_DIR}/review-gates.sh"
+    source "${LIB_DIR}/notify.sh"
+    export AGENT_TEST_COMMAND=""
+    # git push / gh must not hit the network
+    create_mock "gh" "https://github.com/test-org/test-repo/pull/123"
+    git() { if [ "$1" = "-C" ] && [ "$3" = "push" ]; then return 0; fi; command git "$@"; }
+}
+
+@test "post-impl: clean loop creates PR with ledger summary in body" {
+    _setup_post_impl
+    run_post_impl_review_loop() { _ledger_init; _ledger_merge_review '{"findings":[]}'; return 0; }
+    run handle_post_implementation "" "Test issue" "did the thing"
+    assert_success
+    # gh mock records args; PR body must include the ledger summary header
+    run cat "${TEST_TEMP_DIR}/mock_calls_gh"
+    assert_output --partial "Review cycles:"
+}
+
+@test "post-impl: cap-hit still creates PR and applies agent:review-unresolved" {
+    _setup_post_impl
+    run_post_impl_review_loop() {
+        _ledger_init
+        _ledger_merge_review '{"findings":[{"severity":"blocking","description":"unresolved gap"}]}'
+        return 2
+    }
+    run handle_post_implementation "" "Test issue" "did the thing"
+    assert_success
+    run cat "${TEST_TEMP_DIR}/mock_calls_gh"
+    assert_output --partial "agent:review-unresolved"
+    assert_output --partial "unresolved gap"
+}
+
+@test "post-impl: loop hard failure halts PR creation" {
+    _setup_post_impl
+    run_post_impl_review_loop() { return 1; }
+    run handle_post_implementation "" "Test issue" "did the thing"
+    assert_failure
+}
+
+@test "labels: agent:review-unresolved is a known agent label" {
+    source "${LIB_DIR}/common.sh"
+    [[ " ${ALL_AGENT_LABELS[*]} " == *" agent:review-unresolved "* ]]
+}

@@ -23,6 +23,7 @@ ALL_AGENT_LABELS=(
     agent:plan-approved
     agent:implement
     agent:validating
+    agent:review-unresolved
 )
 
 remove_all_agent_labels() {
@@ -241,18 +242,17 @@ $(echo "$test_output" | tail -100)
 
         notify "tests_passed" "$issue_title" "https://github.com/${REPO}/issues/${NUMBER}" "Pre-PR tests passed ($commit_count commits)"
 
-        # ── Post-implementation review (Gate B) ──────────────────
-        if ! run_post_impl_review; then
-            local impl_tools
-            impl_tools=$(get_implementation_tools)
-            if ! handle_post_impl_review_retry "$impl_tools"; then
-                log "Post-implementation review halted PR creation."
-                return 1
-            fi
-            # Update commit count after retry may have added commits
-            if [ -n "$start_sha" ]; then
-                commit_count=$(git -C "$WORKTREE_DIR" rev-list --count "${start_sha}..HEAD" 2>/dev/null || echo "0")
-            fi
+        # ── Post-implementation review loop (Gate B) ─────────────
+        local impl_tools review_rc=0
+        impl_tools=$(get_implementation_tools)
+        run_post_impl_review_loop "$impl_tools" || review_rc=$?
+        if [ "$review_rc" -eq 1 ]; then
+            log "Post-implementation review loop halted PR creation."
+            return 1
+        fi
+        # Retry sessions and ledger commits may have added commits
+        if [ -n "$start_sha" ]; then
+            commit_count=$(git -C "$WORKTREE_DIR" rev-list --count "${start_sha}..HEAD" 2>/dev/null || echo "0")
         fi
 
         log "Pushing $commit_count commit(s)..."
@@ -262,28 +262,33 @@ $(echo "$test_output" | tail -100)
         local commit_log
         commit_log=$(git -C "$WORKTREE_DIR" log --format="- %s" origin/main..HEAD 2>/dev/null | head -20)
 
-        # Build review annotation if Gate B triggered a retry
-        local review_annotation=""
-        if [ -n "${REVIEW_RETRY_CONCERNS:-}" ]; then
-            review_annotation="
-### Post-Implementation Review
+        # Ledger summary for the PR body
+        local ledger_summary="" unresolved_header=""
+        if [ -f "${WORKTREE_DIR}/.agent-data/review-ledger.json" ]; then
+            LEDGER_FILE="${WORKTREE_DIR}/.agent-data/review-ledger.json"
+            ledger_summary="
+### Adversarial Review Ledger
 
-The adversarial post-implementation review identified concerns that were addressed before this PR was created:
-
-**Concerns raised:**
-${REVIEW_RETRY_CONCERNS}
-
-**Commits addressing concerns:** ${REVIEW_RETRY_COMMITS}
-
+$(_ledger_pr_summary)
 "
+            if [ "$review_rc" -eq 2 ]; then
+                unresolved_header="## ⚠ Review Unresolved
+
+The adversarial review loop hit its retry cap with blocking findings still open. Do not merge before arbitrating these:
+
+$(_ledger_outstanding_summary)
+
+---
+"
+            fi
         fi
 
-        local pr_body="## Automated PR for #${NUMBER}
+        local pr_body="${unresolved_header}## Automated PR for #${NUMBER}
 
 This PR was created by the Claude Code agent.
 
 ${claude_output:0:2000}
-${review_annotation}
+${ledger_summary}
 ### Commits
 ${commit_log}
 
@@ -303,6 +308,11 @@ Closes #${NUMBER}"
             log "PR created: $pr_url"
             notify "pr_created" "$issue_title" "$pr_url" "PR created with $commit_count commit(s)"
             set_label "agent:pr-open"
+            if [ "$review_rc" -eq 2 ]; then
+                gh issue edit "$NUMBER" --repo "$REPO" --add-label "agent:review-unresolved" 2>/dev/null || true
+                gh pr edit "$pr_url" --repo "$REPO" --add-label "agent:review-unresolved" 2>/dev/null || true
+                notify "review_unresolved" "$issue_title" "$pr_url" "Review loop hit its cap — blocking findings need human arbitration"
+            fi
         else
             log "Failed to create PR."
             set_label "agent:failed"

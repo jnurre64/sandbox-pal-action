@@ -10,3 +10,4 @@ agent:revision|FBCA04|Agent is addressing PR review feedback
 agent:failed|B60205|Agent encountered an error and stopped
 agent:implement|FBCA04|Skip triage — validate and implement a pre-written plan
 agent:validating|FBCA04|Agent is validating a pre-written plan against the codebase
+agent:review-unresolved|B60205|Review loop hit its cap; blocking findings need human arbitration before merge

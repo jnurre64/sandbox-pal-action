@@ -409,7 +409,7 @@ EOF
     [ "$review_line" -lt "$push_line" ]
 }
 
-@test "common.sh: PR body includes review annotation when REVIEW_RETRY_CONCERNS is set" {
-    grep -q 'REVIEW_RETRY_CONCERNS' "${LIB_DIR}/common.sh"
-    grep -q 'Post-Implementation Review' "${LIB_DIR}/common.sh"
+@test "common.sh: PR body includes the review ledger summary" {
+    grep -q '_ledger_pr_summary' "${LIB_DIR}/common.sh"
+    grep -q 'Adversarial Review Ledger' "${LIB_DIR}/common.sh"
 }
