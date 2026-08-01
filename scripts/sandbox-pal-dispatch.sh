@@ -352,23 +352,8 @@ handle_implement() {
     check_circuit_breaker
     ensure_repo
 
-    # Reuse existing worktree from plan phase, or create fresh one
-    if [ -d "$WORKTREE_DIR" ]; then
-        log "Reusing existing worktree at $WORKTREE_DIR"
-        git -C "$WORKTREE_DIR" fetch origin main 2>/dev/null || true
-        git -C "$WORKTREE_DIR" merge origin/main --no-edit 2>/dev/null || true
-        run_worktree_setup
-    else
-        log "No existing worktree found. Creating fresh one."
-        setup_worktree
-    fi
-
-    # Compare against origin/main (not HEAD) to detect ALL implementation commits,
-    # including ones from previous failed runs that were retried on the same worktree.
-    local start_sha
-    start_sha=$(git -C "$WORKTREE_DIR" rev-parse origin/main 2>/dev/null || echo "")
-
-    # Fetch issue details
+    # Fetch issue details FIRST — an interactive plan comment can override
+    # the branch before any worktree exists.
     local issue_json
     issue_json=$(gh issue view "$NUMBER" --repo "$REPO" --json title,body,comments)
     local issue_title issue_body
@@ -391,9 +376,42 @@ handle_implement() {
             set_label "agent:failed"
             gh issue comment "$NUMBER" --repo "$REPO" \
                 --body "Agent could not find the approved plan comment. Expected a comment with \`<!-- agent-plan -->\` marker. Please re-run the plan phase by labeling with \`agent\`." 2>/dev/null || true
-            cleanup_worktree
             return
         fi
+    fi
+
+    # Interactive plan branch marker (work-issue v2 on-ramp)
+    local plan_branch interactive_plan=""
+    plan_branch=$(extract_plan_branch "$plan_content")
+    if [ -n "$plan_branch" ]; then
+        log "Interactive plan branch detected: $plan_branch"
+        # shellcheck disable=SC2034
+        BRANCH_NAME="$plan_branch"
+        interactive_plan=1
+    fi
+
+    # Worktree: reuse the plan-phase worktree only for the autonomous flow;
+    # an interactive branch always gets a fresh worktree on that branch.
+    if [ -z "$interactive_plan" ] && [ -d "$WORKTREE_DIR" ]; then
+        log "Reusing existing worktree at $WORKTREE_DIR"
+        git -C "$WORKTREE_DIR" fetch origin main 2>/dev/null || true
+        git -C "$WORKTREE_DIR" merge origin/main --no-edit 2>/dev/null || true
+        run_worktree_setup
+    else
+        if [ -d "$WORKTREE_DIR" ]; then
+            git -C "$REPO_DIR" worktree remove "$WORKTREE_DIR" --force 2>/dev/null || true
+        fi
+        log "Creating worktree for branch $BRANCH_NAME"
+        setup_worktree
+    fi
+
+    # Baseline for the commit count: for interactive branches the plan/spec
+    # commits already exist on the branch, so measure from the branch head.
+    local start_sha
+    if [ -n "$interactive_plan" ]; then
+        start_sha=$(git -C "$WORKTREE_DIR" rev-parse HEAD 2>/dev/null || echo "")
+    else
+        start_sha=$(git -C "$WORKTREE_DIR" rev-parse origin/main 2>/dev/null || echo "")
     fi
 
     local comments
@@ -697,6 +715,127 @@ You may need to provide more specific guidance or handle this manually." 2>/dev/
 }
 
 # ═══════════════════════════════════════════════════════════════
+# EVENT: Agent PR merged → post-merge cleanup phase
+# ═══════════════════════════════════════════════════════════════
+# NOTE: tests/test_dispatch_post_merge.bats extracts this function body
+# with `sed -n '/^handle_post_merge()/,/^}/p'` (there is no bash function
+# parser in the test harness). That means the body must contain NO
+# column-0 `}` before the function's real closing brace — an inner
+# heredoc/case/etc. that lands a `}` at column 0 would truncate the
+# sed extraction and silently break those tests.
+handle_post_merge() {
+    if [ "${AGENT_CLEANUP_ENABLED}" != "true" ]; then
+        log "Post-merge cleanup: disabled (AGENT_CLEANUP_ENABLED=${AGENT_CLEANUP_ENABLED})"
+        return 0
+    fi
+
+    local pr_number="$NUMBER"
+    local pr_json
+    pr_json=$(gh pr view "$pr_number" --repo "$REPO" --json title,body,headRefName,mergedAt,author,closingIssuesReferences)
+
+    local merged_at pr_author branch pr_title
+    merged_at=$(echo "$pr_json" | jq -r '.mergedAt // empty')
+    if [ -z "$merged_at" ]; then
+        log "PR #${pr_number} is not merged. Skipping cleanup."
+        return 0
+    fi
+    pr_author=$(echo "$pr_json" | jq -r '.author.login // empty')
+    if [ "$pr_author" != "$AGENT_BOT_USER" ]; then
+        log "PR #${pr_number} was not authored by ${AGENT_BOT_USER}. Skipping cleanup."
+        return 0
+    fi
+    branch=$(echo "$pr_json" | jq -r '.headRefName')
+    pr_title=$(echo "$pr_json" | jq -r '.title')
+
+    log "Post-merge cleanup for PR #${pr_number} (branch ${branch})..."
+    check_circuit_breaker
+    ensure_repo
+
+    # Linked issue: closingIssuesReferences, else branch-name conventions
+    local issue_num
+    issue_num=$(echo "$pr_json" | jq -r '.closingIssuesReferences[0].number // empty')
+    if [ -z "$issue_num" ]; then
+        issue_num=$(echo "$branch" | sed -nE 's/.*issue-([0-9]+).*/\1/p')
+    fi
+    if [ -z "$issue_num" ]; then
+        issue_num=$(echo "$branch" | sed -nE 's|^feature/([0-9]+)-.*|\1|p')
+    fi
+
+    # Delete the merged remote branch (best-effort)
+    git -C "$REPO_DIR" push origin --delete "$branch" 2>/dev/null \
+        || log "WARN: could not delete remote branch $branch (may be already gone)"
+
+    # Fresh worktree on a chore branch off latest main
+    # shellcheck disable=SC2034
+    BRANCH_NAME="chore/agent-cleanup-pr-${pr_number}"
+    WORKTREE_DIR="$WORKTREE_BASE/${REPO_NAME}-postmerge-${pr_number}"
+    setup_worktree
+
+    local start_sha
+    start_sha=$(git -C "$WORKTREE_DIR" rev-parse HEAD 2>/dev/null || echo "")
+
+    export AGENT_PR_TITLE="$pr_title"
+    export AGENT_PR_BODY
+    AGENT_PR_BODY=$(echo "$pr_json" | jq -r '.body // ""')
+    export AGENT_MERGED_BRANCH="$branch"
+    export AGENT_ISSUE_NUMBER="${issue_num:-}"
+    export AGENT_REVIEW_LEDGER=""
+    if [ -f "${WORKTREE_DIR}/.agent-data/review-ledger.json" ]; then
+        AGENT_REVIEW_LEDGER=$(cat "${WORKTREE_DIR}/.agent-data/review-ledger.json")
+    fi
+
+    local prompt
+    prompt=$(load_prompt "cleanup" "$AGENT_PROMPT_CLEANUP")
+
+    local result
+    result=$(run_claude "$prompt" "$AGENT_ALLOWED_TOOLS_CLEANUP" "$AGENT_MODEL_CLEANUP")
+    local claude_output
+    claude_output=$(parse_claude_output "$result")
+    log "Cleanup output: ${claude_output:0:500}"
+
+    # Follow-up issues from the session's structured output
+    local json_block fu_count i=0
+    json_block=$(_extract_review_json "$claude_output")
+    set +e
+    fu_count=$(printf '%s' "$json_block" | jq -r '(.follow_up_issues // []) | length' 2>/dev/null)
+    set -e
+    [ -z "$fu_count" ] && fu_count=0
+    while [ "$i" -lt "$fu_count" ]; do
+        local fu_title fu_body
+        fu_title=$(printf '%s' "$json_block" | jq -r ".follow_up_issues[$i].title")
+        fu_body=$(printf '%s' "$json_block" | jq -r ".follow_up_issues[$i].body")
+        gh issue create --repo "$REPO" --title "$fu_title" --body "${fu_body}
+
+---
+_Filed automatically by the post-merge cleanup of PR #${pr_number}._" 2>/dev/null \
+            || log "WARN: follow-up issue creation failed: $fu_title"
+        i=$((i + 1))
+    done
+
+    # Push doc commits directly to main; fall back to a chore PR on failure
+    local commit_count
+    commit_count=$(git -C "$WORKTREE_DIR" rev-list --count "${start_sha}..HEAD" 2>/dev/null || echo "0")
+    if [ "$commit_count" -gt 0 ]; then
+        if ! git -C "$WORKTREE_DIR" push origin "HEAD:main" 2>/dev/null; then
+            log "Direct push to main failed; opening a chore PR instead"
+            git -C "$WORKTREE_DIR" push -u origin "$BRANCH_NAME" 2>/dev/null || true
+            gh pr create --repo "$REPO" --head "$BRANCH_NAME" \
+                --title "chore: post-merge cleanup for PR #${pr_number}" \
+                --body "Tracking-doc updates from the automated post-merge cleanup of PR #${pr_number}." 2>/dev/null || true
+        fi
+    fi
+
+    # Strip agent labels from the closed issue
+    if [ -n "$issue_num" ]; then
+        (NUMBER="$issue_num"; remove_all_agent_labels) || true
+    fi
+
+    notify "cleanup_done" "$pr_title" "https://github.com/${REPO}/pull/${pr_number}" \
+        "Post-merge cleanup complete (${commit_count} doc commit(s), ${fu_count} follow-up issue(s))"
+    cleanup_worktree
+}
+
+# ═══════════════════════════════════════════════════════════════
 # Dispatch based on event type
 # ═══════════════════════════════════════════════════════════════
 case "$EVENT_TYPE" in
@@ -714,6 +853,9 @@ case "$EVENT_TYPE" in
         ;;
     direct_implement)
         handle_direct_implement
+        ;;
+    post_merge)
+        handle_post_merge
         ;;
     *)
         log "Unknown event type: $EVENT_TYPE"

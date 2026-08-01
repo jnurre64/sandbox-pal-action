@@ -2,7 +2,8 @@
 # ─── Common functions: logging, labels, circuit breaker, memory, claude runner ──
 # Provides: log, set_label, remove_all_agent_labels, check_circuit_breaker,
 #           load_shared_memory, detect_label_tools, get_implementation_tools,
-#           load_prompt, run_claude, parse_claude_output, handle_post_implementation
+#           load_prompt, extract_plan_branch, run_claude, parse_claude_output,
+#           handle_post_implementation
 
 # ─── Logging ─────────────────────────────────────────────────────
 log() {
@@ -23,6 +24,7 @@ ALL_AGENT_LABELS=(
     agent:plan-approved
     agent:implement
     agent:validating
+    agent:review-unresolved
 )
 
 remove_all_agent_labels() {
@@ -142,6 +144,40 @@ load_prompt() {
     fi
 }
 
+# ─── Interactive plan branch marker ─────────────────────────────
+# An interactively-authored plan comment may carry
+#   <!-- agent-branch: feature/123-some-slug -->
+# naming the pre-pushed feature branch the implementation must build on.
+# Prints the branch name, or nothing when absent/unsafe.
+#
+# Plan comments are not author-filtered (anyone who can comment on the
+# issue can shape this marker), so validation is deliberately strict:
+# charset-safe, namespaced (so it can't redirect to `main`/`master` or
+# any other un-namespaced branch), and no segment may start with `-`
+# (which could be interpreted as an option by a downstream git/gh
+# invocation).
+extract_plan_branch() {
+    local plan="$1"
+    local branch
+    branch=$(printf '%s' "$plan" \
+        | grep -oE '<!-- agent-branch: [^ >]+ -->' | head -1 \
+        | sed -E 's/<!-- agent-branch: ([^ >]+) -->/\1/')
+
+    [ -z "$branch" ] && return 0
+    [[ "$branch" =~ ^[A-Za-z0-9._/-]+$ ]] || return 0
+    [ "$branch" = "main" ] && return 0
+    [ "$branch" = "master" ] && return 0
+    [[ "$branch" == */* ]] || return 0
+
+    local seg
+    IFS='/' read -ra _extract_plan_branch_segs <<< "$branch"
+    for seg in "${_extract_plan_branch_segs[@]}"; do
+        [[ "$seg" == -* ]] && return 0
+    done
+
+    printf '%s' "$branch"
+}
+
 # ─── Run Claude and capture structured output ────────────────────
 run_claude() {
     local prompt="$1"
@@ -241,18 +277,17 @@ $(echo "$test_output" | tail -100)
 
         notify "tests_passed" "$issue_title" "https://github.com/${REPO}/issues/${NUMBER}" "Pre-PR tests passed ($commit_count commits)"
 
-        # ── Post-implementation review (Gate B) ──────────────────
-        if ! run_post_impl_review; then
-            local impl_tools
-            impl_tools=$(get_implementation_tools)
-            if ! handle_post_impl_review_retry "$impl_tools"; then
-                log "Post-implementation review halted PR creation."
-                return 1
-            fi
-            # Update commit count after retry may have added commits
-            if [ -n "$start_sha" ]; then
-                commit_count=$(git -C "$WORKTREE_DIR" rev-list --count "${start_sha}..HEAD" 2>/dev/null || echo "0")
-            fi
+        # ── Post-implementation review loop (Gate B) ─────────────
+        local impl_tools review_rc=0
+        impl_tools=$(get_implementation_tools)
+        run_post_impl_review_loop "$impl_tools" || review_rc=$?
+        if [ "$review_rc" -eq 1 ]; then
+            log "Post-implementation review loop halted PR creation."
+            return 1
+        fi
+        # Retry sessions and ledger commits may have added commits
+        if [ -n "$start_sha" ]; then
+            commit_count=$(git -C "$WORKTREE_DIR" rev-list --count "${start_sha}..HEAD" 2>/dev/null || echo "0")
         fi
 
         log "Pushing $commit_count commit(s)..."
@@ -262,28 +297,34 @@ $(echo "$test_output" | tail -100)
         local commit_log
         commit_log=$(git -C "$WORKTREE_DIR" log --format="- %s" origin/main..HEAD 2>/dev/null | head -20)
 
-        # Build review annotation if Gate B triggered a retry
-        local review_annotation=""
-        if [ -n "${REVIEW_RETRY_CONCERNS:-}" ]; then
-            review_annotation="
-### Post-Implementation Review
+        # Ledger summary for the PR body
+        local ledger_summary="" unresolved_header=""
+        if [ -f "${WORKTREE_DIR}/.agent-data/review-ledger.json" ]; then
+            # shellcheck disable=SC2034  # read by review-gates.sh's _ledger_pr_summary/_ledger_outstanding_summary
+            LEDGER_FILE="${WORKTREE_DIR}/.agent-data/review-ledger.json"
+            ledger_summary="
+### Adversarial Review Ledger
 
-The adversarial post-implementation review identified concerns that were addressed before this PR was created:
-
-**Concerns raised:**
-${REVIEW_RETRY_CONCERNS}
-
-**Commits addressing concerns:** ${REVIEW_RETRY_COMMITS}
-
+$(_ledger_pr_summary)
 "
+            if [ "$review_rc" -eq 2 ]; then
+                unresolved_header="## ⚠ Review Unresolved
+
+The adversarial review loop hit its retry cap with blocking findings still open. Do not merge before arbitrating these:
+
+$(_ledger_outstanding_summary)
+
+---
+"
+            fi
         fi
 
-        local pr_body="## Automated PR for #${NUMBER}
+        local pr_body="${unresolved_header}## Automated PR for #${NUMBER}
 
 This PR was created by the Claude Code agent.
 
 ${claude_output:0:2000}
-${review_annotation}
+${ledger_summary}
 ### Commits
 ${commit_log}
 
@@ -303,6 +344,11 @@ Closes #${NUMBER}"
             log "PR created: $pr_url"
             notify "pr_created" "$issue_title" "$pr_url" "PR created with $commit_count commit(s)"
             set_label "agent:pr-open"
+            if [ "$review_rc" -eq 2 ]; then
+                gh issue edit "$NUMBER" --repo "$REPO" --add-label "agent:review-unresolved" 2>/dev/null || true
+                gh pr edit "$pr_url" --repo "$REPO" --add-label "agent:review-unresolved" 2>/dev/null || true
+                notify "review_unresolved" "$issue_title" "$pr_url" "Review loop hit its cap — blocking findings need human arbitration"
+            fi
         else
             log "Failed to create PR."
             set_label "agent:failed"

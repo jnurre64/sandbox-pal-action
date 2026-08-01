@@ -17,7 +17,7 @@ _notify_should_send() {
             ;;
         actionable)
             case "$event_type" in
-                plan_posted|questions_asked|pr_created|review_feedback|review_pushed|agent_failed)
+                plan_posted|questions_asked|pr_created|review_feedback|review_pushed|agent_failed|review_unresolved)
                     return 0 ;;
                 *)
                     return 1 ;;
@@ -44,6 +44,8 @@ _notify_event_color() {
         tests_failed|agent_failed)   echo "15548997" ;;  # red
         plan_posted|questions_asked) echo "3447003"  ;;  # blue
         review_feedback)             echo "16776960" ;;  # yellow
+        review_unresolved)           echo "16776960" ;;  # yellow
+        cleanup_done)                echo "5763719"  ;;  # green
         *)                           echo "9807270"  ;;  # grey
     esac
 }
@@ -58,6 +60,8 @@ _notify_event_label() {
         pr_created)         echo "PR Created"             ;;
         review_pushed)      echo "Review Fixes Pushed"     ;;
         review_feedback)    echo "Review Feedback"        ;;
+        review_unresolved)  echo "Review Unresolved"      ;;
+        cleanup_done)       echo "Cleanup Complete"       ;;
         agent_failed)       echo "Agent Failed"           ;;
         *)                  echo "Agent Update"           ;;
     esac
@@ -69,6 +73,8 @@ _notify_event_indicator() {
         tests_failed|agent_failed)   echo "[FAIL]"   ;;
         plan_posted|questions_asked) echo "[INFO]"   ;;
         review_feedback)             echo "[ACTION]" ;;
+        review_unresolved)           echo "[ACTION]" ;;
+        cleanup_done)                echo "[OK]"     ;;
         implement_started)           echo "[INFO]"   ;;
         *)                           echo "[INFO]"   ;;
     esac

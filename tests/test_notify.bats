@@ -1036,3 +1036,17 @@ MOCK
     calls=$(get_mock_calls "curl")
     echo "$calls" | grep -q "hooks.slack.com/services/default"
 }
+
+@test "notify level actionable includes review_unresolved" {
+    export AGENT_NOTIFY_LEVEL="actionable"
+    source "${LIB_DIR}/notify.sh"
+    run _notify_should_send "review_unresolved"
+    assert_success
+}
+
+@test "notify level actionable excludes cleanup_done" {
+    export AGENT_NOTIFY_LEVEL="actionable"
+    source "${LIB_DIR}/notify.sh"
+    run _notify_should_send "cleanup_done"
+    assert_failure
+}

@@ -22,6 +22,7 @@ A reusable dispatch system for running AI coding agents on GitHub issues — tri
 - **Async by default** — label an issue before bed, wake up to a plan awaiting approval. Brainstorm a new issue while the agent works on an existing one.
 - **Fresh context every session** — no long-running conversations that drift. Each agent run loads just what it needs from the issue, codebase, and project context.
 - **Deeply configurable** — override prompts per phase, tune tool allowlists, set test gates, add project-specific tools. Designed as a starting point you shape to your workflow.
+- **Interactive fallback runners** — `skills/` ships `sp-implement`, `sp-review`, `sp-revise`, and `sp-cleanup`: user-invocable Claude Code skills that run a single pipeline phase in your current session, using the same prompts and label transitions as headless dispatch. Use them to recover a phase manually when headless dispatch is unavailable or a run failed.
 
 This system supplements interactive Claude Code sessions — it doesn't replace them. Use interactive mode to brainstorm, investigate, and draft issues. Hand off well-defined work to an agent by labeling the issue, then continue your next interactive session while the agent works in the background. When the agent opens a PR, reference its changes in your interactive sessions to build on its work.
 
@@ -32,23 +33,31 @@ When you label a GitHub issue with `agent`, the system:
 1. **Triages** the issue — reads your project's CLAUDE.md, explores the codebase, asks clarifying questions if needed
 2. **Plans** — writes a detailed implementation plan and posts it as an issue comment for human review
 3. **Implements** (after plan approval) — follows TDD to make changes, commits per cycle
-4. **Creates a PR** — runs tests, pushes the branch, opens a PR with a summary
-5. **Addresses review feedback** — when a reviewer requests changes, the agent reads the feedback and pushes fixes
-6. **Cleans up** — stale branches, orphaned gists, old workflow runs (on a schedule)
+4. **Reviews internally** — an independent adversarial review loop (fresh session per pass, capped) gates PR creation; unresolved findings surface as `agent:review-unresolved`
+5. **Creates a PR** — runs tests, pushes the branch, opens a PR with a summary
+6. **Addresses review feedback** — when a human reviewer requests changes, the agent reads the feedback and pushes fixes
+7. **Cleans up after merge** — once the PR merges, a cleanup phase updates tracking docs, files follow-up issues from the review ledger, and deletes the merged branch
+8. **Sweeps periodically** — stale branches, orphaned gists, old workflow runs (on a schedule)
+
+### Interactive on-ramp
+
+The agent pipeline doesn't require starting from a bare issue. A plan authored interactively — in a Claude Code session, brainstorming with a human — can be posted as an issue comment with `<!-- agent-plan -->` and `<!-- agent-branch: ... -->` markers. That comment enters the machine directly at `agent:plan-approved`, skipping triage entirely, and the implement phase builds on the pre-pushed branch named in the marker instead of creating a fresh one.
 
 ### Label State Machine
 
 ```
-agent ──> agent:triage ──> agent:plan-review ──> agent:plan-approved ──> agent:in-progress ──> agent:pr-open
-               │                  │                                              │
-               v                  v                                              v
-         agent:needs-info   agent:needs-info                              agent:failed
-          (asks questions)   (feedback on plan)
+agent ──> agent:triage ──> agent:plan-review ──> agent:plan-approved ──> agent:in-progress ──> agent:pr-open ──merge──> post-merge cleanup
+               │                  │                                              │                    │
+               v                  v                                              v                    v
+         agent:needs-info   agent:needs-info                              agent:failed      agent:review-unresolved
+          (asks questions)   (feedback on plan)                                          (annotation: review loop hit its cap)
 ```
 
 On PR review with changes requested: `agent:pr-open` → `agent:revision` → `agent:pr-open`
 
 With `agent:implement` (skip triage): `agent:implement` → `agent:validating` → `agent:in-progress` → `agent:pr-open`
+
+A plan-comment on-ramp (see "Interactive on-ramp" above) enters directly at `agent:plan-approved`.
 
 ### Safety
 

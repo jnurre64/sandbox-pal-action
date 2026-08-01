@@ -164,6 +164,130 @@ When disabled, any issue labeled with `agent:implement` will receive a comment e
 
 ---
 
+## Review Gates
+
+Two independent, fresh-session review gates check the agent's work before it reaches a human: a pre-implementation plan review, and a capped post-implementation review loop.
+
+### AGENT_ADVERSARIAL_PLAN_REVIEW
+
+Before implementation starts, a fresh session checks the approved plan against the issue for gaps or misunderstandings.
+
+| Key | Default | Type |
+|-----|---------|------|
+| `AGENT_ADVERSARIAL_PLAN_REVIEW` | `true` | boolean string (`true` or `false`) |
+
+```bash
+AGENT_ADVERSARIAL_PLAN_REVIEW="false"   # disable pre-implementation plan review
+```
+
+### AGENT_POST_IMPL_REVIEW
+
+After implementation, a fresh session checks the diff against the issue/plan. Set to `false` to skip straight to PR creation with no review loop at all.
+
+| Key | Default | Type |
+|-----|---------|------|
+| `AGENT_POST_IMPL_REVIEW` | `true` | boolean string (`true` or `false`) |
+
+```bash
+AGENT_POST_IMPL_REVIEW="false"   # disable post-implementation review entirely
+```
+
+If you override the review prompt via `AGENT_PROMPT_POST_IMPL_REVIEW` with a prompt that predates the ledger, a legacy `{"action":"concerns","concerns":["..."]}` response is still accepted: each string in `concerns` is mapped to a blocking finding when `.findings` is absent or empty.
+
+### AGENT_POST_IMPL_REVIEW_MAX_RETRIES
+
+Sets the cap on the ledger-driven review loop that gates PR creation: **review → fix → re-review**, repeated until the review comes back clean or the cap is hit. Each pass merges its findings into a ledger committed to the work branch at `.agent-data/review-ledger.json`, so the finding history and dispositions survive across retries and are visible in the branch's commit log.
+
+- `0` = a single review pass with no fix loop — any open finding goes straight to an `agent:review-unresolved` PR.
+- `N` (default `3`) = up to `N` fresh fix sessions, each followed by a fresh re-review pass, before giving up.
+
+If the loop reaches the cap with findings still open, it does **not** block the PR: the PR opens anyway, labeled `agent:review-unresolved` **in addition to** `agent:pr-open`, with the outstanding findings summarized at the top of the PR body so a human reviewer sees them first.
+
+| Key | Default | Type |
+|-----|---------|------|
+| `AGENT_POST_IMPL_REVIEW_MAX_RETRIES` | `3` | integer (`0` = single pass, no retries) |
+
+```bash
+AGENT_POST_IMPL_REVIEW_MAX_RETRIES=3   # default: up to 3 fix/re-review cycles
+AGENT_POST_IMPL_REVIEW_MAX_RETRIES=0   # single pass only, escalate any finding to a human
+```
+
+---
+
+## Post-Merge Cleanup
+
+When an agent-authored PR merges, an optional cleanup phase runs: tracking-doc updates and follow-up issues (sourced from the review ledger's structured output) are committed, and the merged branch is deleted.
+
+### AGENT_CLEANUP_ENABLED
+
+Enables the post-merge cleanup phase. When disabled, a `pull_request.closed` event for a merged agent PR is a no-op.
+
+| Key | Default | Type |
+|-----|---------|------|
+| `AGENT_CLEANUP_ENABLED` | `true` | boolean string (`true` or `false`) |
+
+```bash
+AGENT_CLEANUP_ENABLED="false"   # disable post-merge cleanup
+```
+
+### AGENT_PROMPT_CLEANUP
+
+Custom prompt file for the cleanup session. If unset, the dispatch script uses the built-in `prompts/cleanup.md`.
+
+| Key | Default | Type |
+|-----|---------|------|
+| `AGENT_PROMPT_CLEANUP` | *(empty, uses `prompts/cleanup.md`)* | file path |
+
+```bash
+AGENT_PROMPT_CLEANUP="/home/user/my-project/agent-prompts/cleanup.md"
+```
+
+### AGENT_MODEL_CLEANUP
+
+Per-workflow model override for the cleanup session. Empty falls back to `AGENT_MODEL`, then the CLI default. Cleanup is bookkeeping (doc edits, issue filing), not implementation work, so a cheap/fast model is usually a good fit.
+
+| Key | Default | Type |
+|-----|---------|------|
+| `AGENT_MODEL_CLEANUP` | *(empty)* | string (model name) |
+
+```bash
+AGENT_MODEL_CLEANUP="haiku"
+```
+
+### AGENT_ALLOWED_TOOLS_CLEANUP
+
+Tools available during the cleanup session. Read-write by default (for doc edits and branch/label bookkeeping), same shape as `AGENT_ALLOWED_TOOLS_IMPLEMENT` but without a network-adjacent test-runner allowance.
+
+| Key | Default |
+|-----|---------|
+| `AGENT_ALLOWED_TOOLS_CLEANUP` | `Read,Edit,Write,Grep,Glob,Bash(git add:*),Bash(git commit:*),Bash(git rm:*),Bash(git status),Bash(git diff:*),Bash(git log:*),Bash(ls:*),Bash(cat:*),Bash(grep:*),Bash(find:*)` |
+
+### Caller workflow
+
+`sandbox-pal-post-merge.yml` is triggered by `pull_request.closed`, guarded to only fire for merged PRs authored by your bot:
+
+```yaml
+name: "Claude Agent: Post-Merge Cleanup"
+
+on:
+  pull_request:
+    types: [closed]
+
+jobs:
+  post-merge-cleanup:
+    if: >-
+      github.event.pull_request.merged == true &&
+      github.event.pull_request.user.login == 'my-bot'
+    uses: your-org/sandbox-pal-action/.github/workflows/sandbox-pal-post-merge.yml@v1
+    with:
+      bot_user: "my-bot"
+      pr_number: ${{ github.event.pull_request.number }}
+    secrets:
+      agent_pat: ${{ secrets.AGENT_PAT }}
+```
+
+---
+
 ## Tool Permissions
 
 Tool permissions control which Claude Code tools the agent can use during each phase. They are passed to `claude -p` via `--allowedTools` and `--disallowedTools`.
@@ -263,15 +387,21 @@ Two types of logs are written here:
 
 ## Reusable Workflow Inputs
 
-The reusable workflows (`sandbox-pal-triage.yml`, `sandbox-pal-implement.yml`, `sandbox-pal-reply.yml`, `sandbox-pal-review.yml`, `sandbox-pal-direct-implement.yml`) accept these inputs when called from your project's workflow:
+The reusable workflows (`sandbox-pal-triage.yml`, `sandbox-pal-implement.yml`, `sandbox-pal-reply.yml`, `sandbox-pal-review.yml`, `sandbox-pal-direct-implement.yml`, `sandbox-pal-post-merge.yml`) accept these inputs when called from your project's workflow:
 
 | Input | Required | Default | Description |
 |-------|----------|---------|-------------|
 | `bot_user` | Yes | — | Bot account username (for self-trigger prevention in your calling workflow) |
 | `dispatch_script` | No | `~/agent-infra/scripts/sandbox-pal-dispatch.sh` | Path to the dispatch script on the runner |
 | `config_path` | No | `~/agent-infra/config.env` | Path to `config.env` on the runner |
-| `timeout_minutes` | No | `125` | GitHub Actions job timeout in minutes |
+| `timeout_minutes` | No | `125`¹ | GitHub Actions job timeout in minutes |
 | `runner_labels` | No | `["self-hosted", "agent"]` | JSON array of runner labels for job placement |
+
+¹ `sandbox-pal-post-merge.yml` is the exception: its `timeout_minutes` default is `30`, not `125` — cleanup is bookkeeping (doc commits, follow-up issue filing), not implementation work, so it doesn't need the longer default. `sandbox-pal-post-merge.yml` also accepts one extra input not needed by the other workflows:
+
+| Input | Required | Default | Description |
+|-------|----------|---------|-------------|
+| `pr_number` | No | `''` (falls back to `github.event.pull_request.number`) | PR number override, for triggering the workflow via `repository_dispatch` instead of the standard `pull_request.closed` event |
 
 All workflows also require the `agent_pat` secret — a fine-grained PAT for the bot account with repository read/write, issues, and pull requests permissions.
 

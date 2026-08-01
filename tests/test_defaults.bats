@@ -264,13 +264,13 @@ EOF
     assert_equal "$AGENT_POST_IMPL_REVIEW" "true"
 }
 
-@test "defaults.sh: AGENT_POST_IMPL_REVIEW_MAX_RETRIES defaults to 1" {
+@test "defaults.sh: AGENT_POST_IMPL_REVIEW_MAX_RETRIES defaults to 3" {
     export AGENT_BOT_USER="test-bot"
     unset AGENT_POST_IMPL_REVIEW_MAX_RETRIES
 
     source "${LIB_DIR}/defaults.sh"
 
-    assert_equal "$AGENT_POST_IMPL_REVIEW_MAX_RETRIES" "1"
+    assert_equal "$AGENT_POST_IMPL_REVIEW_MAX_RETRIES" "3"
 }
 
 @test "defaults.sh: AGENT_MODEL defaults to empty" {
@@ -409,7 +409,7 @@ EOF
     [ "$review_line" -lt "$push_line" ]
 }
 
-@test "common.sh: PR body includes review annotation when REVIEW_RETRY_CONCERNS is set" {
-    grep -q 'REVIEW_RETRY_CONCERNS' "${LIB_DIR}/common.sh"
-    grep -q 'Post-Implementation Review' "${LIB_DIR}/common.sh"
+@test "common.sh: PR body includes the review ledger summary" {
+    grep -q '_ledger_pr_summary' "${LIB_DIR}/common.sh"
+    grep -q 'Adversarial Review Ledger' "${LIB_DIR}/common.sh"
 }

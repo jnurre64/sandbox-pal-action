@@ -12,6 +12,17 @@ Read the issue details from environment variables:
 Read the plan that guided the implementation:
 - Run: echo "$AGENT_PLAN_CONTENT"
 
+## Review Ledger
+Findings from previous review cycles (empty on the first pass):
+- Run: echo "$AGENT_REVIEW_LEDGER"
+
+The ledger is your working state. For each finding already in it:
+- If its status is "fixed" claimed by a retry session, VERIFY the fix in the diff. List genuinely fixed ids in `verified_fixed`. If the claimed fix is NOT genuine (the finding still applies), list its id in `reopened` — do NOT re-describe it as a new finding.
+- If its status is "rejected", accept the justification unless it is demonstrably wrong (contradicted by the code or the issue). Only then list the id in `reopened` — rejections are otherwise left for the human to arbitrate.
+- Do NOT re-report a finding that is already in the ledger; report only NEW findings.
+
+Review priority: verify claimed fixes first, then review the newest commits (the delta), then look wider.
+
 ### Attached Data
 Debug data, logs, or other files may be attached to the issue for context:
 - Run: echo "$AGENT_DATA_COMMENT_FILE" -- path to the latest data comment
@@ -46,15 +57,22 @@ Evaluate the implementation using these criteria:
 
 ### Step 4: Decide
 
-**If the implementation looks correct** — changes address the issue, tests are robust, no scope creep:
-Output: {"action": "approved"}
+Classify every NEW finding by severity:
+- **blocking** — affects correctness or a stated requirement of the issue/plan (wrong behavior, missing requirement, test that cannot catch the bug, overfitted test).
+- **non-blocking** — style, naming, minor structure, nice-to-have. A reviewer asked to find gaps will usually find some; that is what non-blocking is for. Non-blocking findings NEVER trigger another fix cycle.
 
-**If you found concerns** — tests are weak, changes miss requirements, or you detected potential overfitting:
-Output: {"action": "concerns", "concerns": ["Specific concern 1 with file/line references", "Specific concern 2"]}
+**If there are no new blocking findings and no open blocking findings remain:**
+Output: {"action": "approved", "verified_fixed": ["F1"], "reopened": [], "findings": [{"severity": "non-blocking", "description": "..."}]}
+
+**If blocking findings exist (new or still open):**
+Output: {"action": "concerns", "verified_fixed": [], "reopened": [], "findings": [{"severity": "blocking", "description": "Specific concern with file/line references"}]}
+
+All four keys are always present; use empty arrays when not applicable.
 
 ## Rules
 - Output ONLY a JSON object. No markdown, no code fences, no extra text.
-- Be specific in concerns — reference exact files, line numbers, test names.
+- Be specific in findings — reference exact files, line numbers, test names.
 - Focus on things that would lead to a WRONG or INCOMPLETE fix. Minor style issues are not concerns.
 - Do NOT implement any code changes. You are read-only.
 - Err toward "approved" for implementations that are reasonable. Only flag genuine quality issues.
+- Only "blocking" findings drive another fix cycle. When in doubt between severities, choose non-blocking.
