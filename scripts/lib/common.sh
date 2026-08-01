@@ -300,6 +300,7 @@ $(echo "$test_output" | tail -100)
         # Ledger summary for the PR body
         local ledger_summary="" unresolved_header=""
         if [ -f "${WORKTREE_DIR}/.agent-data/review-ledger.json" ]; then
+            # shellcheck disable=SC2034  # read by review-gates.sh's _ledger_pr_summary/_ledger_outstanding_summary
             LEDGER_FILE="${WORKTREE_DIR}/.agent-data/review-ledger.json"
             ledger_summary="
 ### Adversarial Review Ledger
