@@ -371,3 +371,117 @@ _source_review_gates() {
     calls=$(get_mock_calls "gh")
     [[ "$calls" == *"agent:failed"* ]]
 }
+
+# ═══════════════════════════════════════════════════════════════
+# Review ledger helpers
+# ═══════════════════════════════════════════════════════════════
+
+_setup_ledger() {
+    export WORKTREE_DIR="$TEST_TEMP_DIR"
+    _source_review_gates
+    _ledger_init
+}
+
+@test "ledger: init creates empty ledger file" {
+    _setup_ledger
+    [ -f "${TEST_TEMP_DIR}/.agent-data/review-ledger.json" ]
+    run jq -r '.cycles' "$LEDGER_FILE"
+    assert_output "0"
+}
+
+@test "ledger: init preserves an existing ledger" {
+    export WORKTREE_DIR="$TEST_TEMP_DIR"
+    _source_review_gates
+    mkdir -p "${TEST_TEMP_DIR}/.agent-data"
+    echo '{"cycles":2,"findings":[{"id":"F1","severity":"blocking","description":"x","status":"open","justification":""}]}' \
+        > "${TEST_TEMP_DIR}/.agent-data/review-ledger.json"
+    _ledger_init
+    run jq -r '.cycles' "$LEDGER_FILE"
+    assert_output "2"
+}
+
+@test "ledger: merge_review appends findings with sequential ids and bumps cycles" {
+    _setup_ledger
+    _ledger_merge_review '{"action":"concerns","findings":[{"severity":"blocking","description":"missing test"},{"severity":"non-blocking","description":"style nit"}]}'
+    run jq -r '.cycles' "$LEDGER_FILE"
+    assert_output "1"
+    run jq -r '.findings[0].id' "$LEDGER_FILE"
+    assert_output "F1"
+    run jq -r '.findings[1].id' "$LEDGER_FILE"
+    assert_output "F2"
+    run jq -r '.findings[0].status' "$LEDGER_FILE"
+    assert_output "open"
+}
+
+@test "ledger: merge_review marks verified_fixed and continues id sequence" {
+    _setup_ledger
+    _ledger_merge_review '{"findings":[{"severity":"blocking","description":"a"}]}'
+    _ledger_merge_review '{"verified_fixed":["F1"],"findings":[{"severity":"blocking","description":"b"}]}'
+    run jq -r '.findings[0].status' "$LEDGER_FILE"
+    assert_output "fixed"
+    run jq -r '.findings[1].id' "$LEDGER_FILE"
+    assert_output "F2"
+}
+
+@test "ledger: merge_review reopens rejected findings listed in reopened" {
+    _setup_ledger
+    _ledger_merge_review '{"findings":[{"severity":"blocking","description":"a"}]}'
+    _ledger_apply_dispositions '[{"id":"F1","status":"rejected","note":"not a bug"}]'
+    _ledger_merge_review '{"reopened":["F1"],"findings":[]}'
+    run jq -r '.findings[0].status' "$LEDGER_FILE"
+    assert_output "open"
+}
+
+@test "ledger: apply_dispositions sets status and justification on open findings only" {
+    _setup_ledger
+    _ledger_merge_review '{"findings":[{"severity":"blocking","description":"a"},{"severity":"blocking","description":"b"}]}'
+    _ledger_apply_dispositions '[{"id":"F1","status":"fixed","note":"done"},{"id":"F2","status":"rejected","note":"by design"}]'
+    run jq -r '.findings[0].status' "$LEDGER_FILE"
+    assert_output "fixed"
+    run jq -r '.findings[1].justification' "$LEDGER_FILE"
+    assert_output "by design"
+    # A second disposition on an already-fixed finding is ignored
+    _ledger_apply_dispositions '[{"id":"F1","status":"rejected","note":"flip"}]'
+    run jq -r '.findings[0].status' "$LEDGER_FILE"
+    assert_output "fixed"
+}
+
+@test "ledger: blocking_open_count counts only open blocking findings" {
+    _setup_ledger
+    _ledger_merge_review '{"findings":[{"severity":"blocking","description":"a"},{"severity":"non-blocking","description":"b"},{"severity":"blocking","description":"c"}]}'
+    _ledger_apply_dispositions '[{"id":"F1","status":"fixed","note":""}]'
+    run _ledger_blocking_open_count
+    assert_output "1"
+}
+
+@test "ledger: pr_summary renders cycles and findings" {
+    _setup_ledger
+    _ledger_merge_review '{"findings":[{"severity":"blocking","description":"missing test"}]}'
+    run _ledger_pr_summary
+    assert_output --partial "Review cycles:"
+    assert_output --partial "F1"
+    assert_output --partial "missing test"
+}
+
+@test "ledger: outstanding_summary lists only open blocking findings" {
+    _setup_ledger
+    _ledger_merge_review '{"findings":[{"severity":"blocking","description":"real gap"},{"severity":"non-blocking","description":"nit"}]}'
+    run _ledger_outstanding_summary
+    assert_output --partial "real gap"
+    refute_output --partial "nit"
+}
+
+@test "ledger: commit adds only the ledger file to git" {
+    export WORKTREE_DIR="${TEST_TEMP_DIR}/wt"
+    mkdir -p "$WORKTREE_DIR"
+    git -C "$WORKTREE_DIR" init -q
+    git -C "$WORKTREE_DIR" config user.email "t@t" && git -C "$WORKTREE_DIR" config user.name "t"
+    _source_review_gates
+    _ledger_init
+    echo "unrelated" > "${WORKTREE_DIR}/other.txt"
+    _ledger_commit "review pass 1"
+    run git -C "$WORKTREE_DIR" log --format='%s' -1
+    assert_output --partial "review pass 1"
+    run git -C "$WORKTREE_DIR" status --porcelain
+    assert_output --partial "other.txt"
+}

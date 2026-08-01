@@ -52,6 +52,91 @@ _extract_review_json() {
     '
 }
 
+# ─── Review ledger ──────────────────────────────────────────────
+# A structured findings file that rides the work branch across review
+# cycles. Path: ${WORKTREE_DIR}/.agent-data/review-ledger.json
+# Schema: {"cycles": N, "findings": [{"id","severity","description","status","justification"}]}
+#   severity: "blocking" | "non-blocking"
+#   status:   "open" | "fixed" | "rejected"
+LEDGER_FILE=""
+
+_ledger_init() {
+    LEDGER_FILE="${WORKTREE_DIR}/.agent-data/review-ledger.json"
+    mkdir -p "$(dirname "$LEDGER_FILE")"
+    if [ ! -f "$LEDGER_FILE" ] || ! jq -e '.findings' "$LEDGER_FILE" >/dev/null 2>&1; then
+        echo '{"cycles": 0, "findings": []}' > "$LEDGER_FILE"
+    fi
+}
+
+# Merge one review pass's parsed JSON output into the ledger.
+# $1 = {"action":..., "verified_fixed":["F1"], "reopened":["F2"], "findings":[{"severity","description"}]}
+_ledger_merge_review() {
+    local review_json="$1"
+    local tmp="${LEDGER_FILE}.tmp"
+    jq --argjson r "$review_json" '
+        .cycles += 1
+        | .findings |= map(
+            .id as $id
+            | if ((($r.verified_fixed // []) | index($id)) != null) and .status == "open"
+              then .status = "fixed"
+              elif ((($r.reopened // []) | index($id)) != null)
+              then .status = "open"
+              else . end)
+        | (.findings | length) as $base
+        | .findings += ((($r.findings // []) | to_entries) | map(
+            {id: ("F" + (($base + .key + 1) | tostring)),
+             severity: (if .value.severity == "blocking" then "blocking" else "non-blocking" end),
+             description: (.value.description // ""),
+             status: "open",
+             justification: ""}))
+    ' "$LEDGER_FILE" > "$tmp" && mv "$tmp" "$LEDGER_FILE"
+}
+
+# Apply a retry session's dispositions to open findings.
+# $1 = [{"id":"F1","status":"fixed"|"rejected","note":"..."}]
+_ledger_apply_dispositions() {
+    local dispositions_json="$1"
+    local tmp="${LEDGER_FILE}.tmp"
+    jq --argjson d "$dispositions_json" '
+        .findings |= map(
+            .id as $id
+            | ((($d // []) | map(select(.id == $id))) | first) as $m
+            | if $m != null and .status == "open"
+                   and ($m.status == "fixed" or $m.status == "rejected")
+              then . + {status: $m.status, justification: ($m.note // "")}
+              else . end)
+    ' "$LEDGER_FILE" > "$tmp" && mv "$tmp" "$LEDGER_FILE"
+}
+
+_ledger_blocking_open_count() {
+    jq -r '[.findings[] | select(.severity == "blocking" and .status == "open")] | length' "$LEDGER_FILE"
+}
+
+_ledger_pr_summary() {
+    jq -r '
+        "**Review cycles:** \(.cycles)\n\n" +
+        (if (.findings | length) == 0
+         then "_No findings recorded._"
+         else ([.findings[] |
+            "- **\(.id)** [\(.severity) / \(.status)]: \(.description)"
+            + (if (.justification // "") != "" then "\n  - justification: \(.justification)" else "" end)]
+            | join("\n"))
+         end)
+    ' "$LEDGER_FILE"
+}
+
+_ledger_outstanding_summary() {
+    jq -r '[.findings[] | select(.severity == "blocking" and .status == "open")
+            | "- **\(.id)**: \(.description)"] | join("\n")' "$LEDGER_FILE"
+}
+
+# Commit ONLY the ledger file (it may sit under a gitignored .agent-data/).
+_ledger_commit() {
+    local msg="$1"
+    git -C "$WORKTREE_DIR" add -f "$LEDGER_FILE" 2>/dev/null || true
+    git -C "$WORKTREE_DIR" commit -m "chore(agent): review ledger — ${msg}" -- "$LEDGER_FILE" 2>/dev/null || true
+}
+
 # ─── Gate A: Adversarial Plan Review ────────────────────────────
 # Runs a fresh Claude session to check the plan against the issue.
 # Returns 0 to proceed, 1 to halt implementation.
