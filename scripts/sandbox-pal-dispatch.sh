@@ -352,23 +352,8 @@ handle_implement() {
     check_circuit_breaker
     ensure_repo
 
-    # Reuse existing worktree from plan phase, or create fresh one
-    if [ -d "$WORKTREE_DIR" ]; then
-        log "Reusing existing worktree at $WORKTREE_DIR"
-        git -C "$WORKTREE_DIR" fetch origin main 2>/dev/null || true
-        git -C "$WORKTREE_DIR" merge origin/main --no-edit 2>/dev/null || true
-        run_worktree_setup
-    else
-        log "No existing worktree found. Creating fresh one."
-        setup_worktree
-    fi
-
-    # Compare against origin/main (not HEAD) to detect ALL implementation commits,
-    # including ones from previous failed runs that were retried on the same worktree.
-    local start_sha
-    start_sha=$(git -C "$WORKTREE_DIR" rev-parse origin/main 2>/dev/null || echo "")
-
-    # Fetch issue details
+    # Fetch issue details FIRST — an interactive plan comment can override
+    # the branch before any worktree exists.
     local issue_json
     issue_json=$(gh issue view "$NUMBER" --repo "$REPO" --json title,body,comments)
     local issue_title issue_body
@@ -391,9 +376,42 @@ handle_implement() {
             set_label "agent:failed"
             gh issue comment "$NUMBER" --repo "$REPO" \
                 --body "Agent could not find the approved plan comment. Expected a comment with \`<!-- agent-plan -->\` marker. Please re-run the plan phase by labeling with \`agent\`." 2>/dev/null || true
-            cleanup_worktree
             return
         fi
+    fi
+
+    # Interactive plan branch marker (work-issue v2 on-ramp)
+    local plan_branch interactive_plan=""
+    plan_branch=$(extract_plan_branch "$plan_content")
+    if [ -n "$plan_branch" ]; then
+        log "Interactive plan branch detected: $plan_branch"
+        # shellcheck disable=SC2034
+        BRANCH_NAME="$plan_branch"
+        interactive_plan=1
+    fi
+
+    # Worktree: reuse the plan-phase worktree only for the autonomous flow;
+    # an interactive branch always gets a fresh worktree on that branch.
+    if [ -z "$interactive_plan" ] && [ -d "$WORKTREE_DIR" ]; then
+        log "Reusing existing worktree at $WORKTREE_DIR"
+        git -C "$WORKTREE_DIR" fetch origin main 2>/dev/null || true
+        git -C "$WORKTREE_DIR" merge origin/main --no-edit 2>/dev/null || true
+        run_worktree_setup
+    else
+        if [ -d "$WORKTREE_DIR" ]; then
+            git -C "$REPO_DIR" worktree remove "$WORKTREE_DIR" --force 2>/dev/null || true
+        fi
+        log "Creating worktree for branch $BRANCH_NAME"
+        setup_worktree
+    fi
+
+    # Baseline for the commit count: for interactive branches the plan/spec
+    # commits already exist on the branch, so measure from the branch head.
+    local start_sha
+    if [ -n "$interactive_plan" ]; then
+        start_sha=$(git -C "$WORKTREE_DIR" rev-parse HEAD 2>/dev/null || echo "")
+    else
+        start_sha=$(git -C "$WORKTREE_DIR" rev-parse origin/main 2>/dev/null || echo "")
     fi
 
     local comments

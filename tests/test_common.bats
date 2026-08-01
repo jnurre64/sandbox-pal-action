@@ -584,3 +584,35 @@ _setup_post_impl() {
     source "${LIB_DIR}/common.sh"
     [[ " ${ALL_AGENT_LABELS[*]} " == *" agent:review-unresolved "* ]]
 }
+
+# ═══════════════════════════════════════════════════════════════
+# extract_plan_branch
+# ═══════════════════════════════════════════════════════════════
+
+@test "extract_plan_branch: finds marker branch" {
+    source "${LIB_DIR}/common.sh"
+    run extract_plan_branch "<!-- agent-plan -->
+<!-- agent-branch: feature/400-async-rest-settle -->
+# Plan body"
+    assert_output "feature/400-async-rest-settle"
+}
+
+@test "extract_plan_branch: empty when no marker" {
+    source "${LIB_DIR}/common.sh"
+    run extract_plan_branch "<!-- agent-plan -->
+# Plan body"
+    assert_output ""
+}
+
+@test "extract_plan_branch: rejects unsafe characters" {
+    source "${LIB_DIR}/common.sh"
+    run extract_plan_branch "<!-- agent-branch: feature/400;rm -rf / -->"
+    assert_output ""
+}
+
+@test "extract_plan_branch: uses first marker only" {
+    source "${LIB_DIR}/common.sh"
+    run extract_plan_branch "<!-- agent-branch: feature/1-a -->
+<!-- agent-branch: feature/2-b -->"
+    assert_output "feature/1-a"
+}

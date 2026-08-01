@@ -2,7 +2,8 @@
 # ─── Common functions: logging, labels, circuit breaker, memory, claude runner ──
 # Provides: log, set_label, remove_all_agent_labels, check_circuit_breaker,
 #           load_shared_memory, detect_label_tools, get_implementation_tools,
-#           load_prompt, run_claude, parse_claude_output, handle_post_implementation
+#           load_prompt, extract_plan_branch, run_claude, parse_claude_output,
+#           handle_post_implementation
 
 # ─── Logging ─────────────────────────────────────────────────────
 log() {
@@ -140,6 +141,22 @@ load_prompt() {
     else
         log "ERROR: No prompt found for '${prompt_name}' (checked '${resolved_path:-<not set>}' and ${SCRIPT_DIR}/../prompts/${prompt_name}.md)"
         exit 1
+    fi
+}
+
+# ─── Interactive plan branch marker ─────────────────────────────
+# An interactively-authored plan comment may carry
+#   <!-- agent-branch: feature/123-some-slug -->
+# naming the pre-pushed feature branch the implementation must build on.
+# Prints the branch name, or nothing when absent/unsafe.
+extract_plan_branch() {
+    local plan="$1"
+    local branch
+    branch=$(printf '%s' "$plan" \
+        | grep -oE '<!-- agent-branch: [^ >]+ -->' | head -1 \
+        | sed -E 's/<!-- agent-branch: ([^ >]+) -->/\1/')
+    if [[ "$branch" =~ ^[A-Za-z0-9._/-]+$ ]]; then
+        printf '%s' "$branch"
     fi
 }
 
