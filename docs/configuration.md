@@ -192,6 +192,8 @@ After implementation, a fresh session checks the diff against the issue/plan. Se
 AGENT_POST_IMPL_REVIEW="false"   # disable post-implementation review entirely
 ```
 
+If you override the review prompt via `AGENT_PROMPT_POST_IMPL_REVIEW` with a prompt that predates the ledger, a legacy `{"action":"concerns","concerns":["..."]}` response is still accepted: each string in `concerns` is mapped to a blocking finding when `.findings` is absent or empty.
+
 ### AGENT_POST_IMPL_REVIEW_MAX_RETRIES
 
 Sets the cap on the ledger-driven review loop that gates PR creation: **review → fix → re-review**, repeated until the review comes back clean or the cap is hit. Each pass merges its findings into a ledger committed to the work branch at `.agent-data/review-ledger.json`, so the finding history and dispositions survive across retries and are visible in the branch's commit log.

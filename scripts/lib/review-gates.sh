@@ -130,10 +130,14 @@ _ledger_outstanding_summary() {
 }
 
 # Commit ONLY the ledger file (it may sit under a gitignored .agent-data/).
+# Best-effort by design (a ledger commit failure must never abort the
+# review loop) — but a silent `|| true` made every failure invisible.
 _ledger_commit() {
     local msg="$1"
-    git -C "$WORKTREE_DIR" add -f "$LEDGER_FILE" 2>/dev/null || true
-    git -C "$WORKTREE_DIR" commit -m "chore(agent): review ledger — ${msg}" -- "$LEDGER_FILE" 2>/dev/null || true
+    git -C "$WORKTREE_DIR" add -f "$LEDGER_FILE" 2>/dev/null \
+        || log "WARN: ledger add failed for ${LEDGER_FILE}"
+    git -C "$WORKTREE_DIR" commit -m "chore(agent): review ledger — ${msg}" -- "$LEDGER_FILE" 2>/dev/null \
+        || log "WARN: ledger commit failed (${msg})"
 }
 
 # ─── Gate A: Adversarial Plan Review ────────────────────────────
@@ -256,6 +260,21 @@ run_post_impl_review() {
 
     case "$action" in
         approved|concerns)
+            # Legacy compatibility: a pre-ledger custom
+            # AGENT_PROMPT_POST_IMPL_REVIEW override may still emit the
+            # old {"action":"concerns","concerns":["..."]} schema instead
+            # of the ledger-era .findings array. _ledger_merge_review only
+            # reads .findings, so without this translation a legacy
+            # "concerns" response would merge as zero findings and the
+            # loop would declare the review clean. Map each legacy concern
+            # string to a blocking finding when .findings is absent/empty.
+            json_block=$(printf '%s' "$json_block" | jq -c '
+                if .action == "concerns"
+                   and ((.findings // []) | length) == 0
+                   and ((.concerns // []) | length) > 0
+                then .findings = [(.concerns // [])[] | {severity: "blocking", description: .}]
+                else . end
+            ' 2>/dev/null)
             POST_IMPL_REVIEW_JSON=$(printf '%s' "$json_block" | jq -c '.' 2>/dev/null)
             log "Post-implementation review: $action"
             return 0
@@ -351,6 +370,17 @@ run_post_impl_review_loop() {
         return 0
     fi
 
+    # A non-integer AGENT_POST_IMPL_REVIEW_MAX_RETRIES would make
+    # `[ "$retries" -ge "$max_retries" ]` below error out (exit non-zero,
+    # i.e. never true) on every iteration, so the cap would never trip and
+    # the loop would run forever. Validate up front and fall back to the
+    # documented default of 3.
+    local max_retries="$AGENT_POST_IMPL_REVIEW_MAX_RETRIES"
+    if ! [[ "$max_retries" =~ ^[0-9]+$ ]]; then
+        log "WARN: AGENT_POST_IMPL_REVIEW_MAX_RETRIES='${max_retries}' is not a non-negative integer; using 3"
+        max_retries=3
+    fi
+
     _ledger_init
     local retries=0
     while true; do
@@ -367,8 +397,8 @@ run_post_impl_review_loop() {
             return 0
         fi
 
-        if [ "$retries" -ge "$AGENT_POST_IMPL_REVIEW_MAX_RETRIES" ]; then
-            log "Review loop: cap reached (${AGENT_POST_IMPL_REVIEW_MAX_RETRIES} retries) with ${open} open blocking finding(s)"
+        if [ "$retries" -ge "$max_retries" ]; then
+            log "Review loop: cap reached (${max_retries} retries) with ${open} open blocking finding(s)"
             return 2
         fi
 

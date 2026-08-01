@@ -159,6 +159,24 @@ _source_review_gates() {
     [ "$(printf '%s' "$POST_IMPL_REVIEW_JSON" | jq -r '.echo_ledger')" = "1" ]
 }
 
+@test "Gate B review: legacy 'concerns' array is mapped to blocking findings" {
+    # Finding 3: a pre-ledger custom AGENT_PROMPT_POST_IMPL_REVIEW override
+    # may still emit the legacy {"action":"concerns","concerns":[...]}
+    # schema. Without translation, _ledger_merge_review reads only
+    # .findings (absent here), sees zero findings, and the loop declares
+    # the review clean even though the legacy session flagged concerns.
+    export AGENT_POST_IMPL_REVIEW="true"
+    export WORKTREE_DIR="$TEST_TEMP_DIR"
+    _source_review_gates
+    _ledger_init
+    run_claude() { echo '{"result":"{\"action\": \"concerns\", \"concerns\": [\"legacy concern one\", \"legacy concern two\"]}"}'; }
+    run_post_impl_review
+    [ "$(printf '%s' "$POST_IMPL_REVIEW_JSON" | jq -r '.findings | length')" = "2" ]
+    [ "$(printf '%s' "$POST_IMPL_REVIEW_JSON" | jq -r '.findings[0].severity')" = "blocking" ]
+    [ "$(printf '%s' "$POST_IMPL_REVIEW_JSON" | jq -r '.findings[0].description')" = "legacy concern one" ]
+    [ "$(printf '%s' "$POST_IMPL_REVIEW_JSON" | jq -r '.findings[1].description')" = "legacy concern two" ]
+}
+
 @test "Gate B review: unparseable output sets agent:failed and returns 1" {
     export AGENT_POST_IMPL_REVIEW="true"
     export WORKTREE_DIR="$TEST_TEMP_DIR"
@@ -239,6 +257,25 @@ _setup_loop_worktree() {
             *) echo '{"result":"{\"action\": \"concerns\", \"verified_fixed\": [], \"reopened\": [], \"findings\": [{\"severity\": \"blocking\", \"description\": \"still broken '"$RANDOM"'\"}]}"}' ;;
         esac
     }
+    run run_post_impl_review_loop "Read,Edit"
+    [ "$status" -eq 2 ]
+}
+
+@test "review loop: non-integer MAX_RETRIES falls back to 3 and still trips the cap" {
+    # Finding 4: `[ "$retries" -ge "abc" ]` errors under `set -e`-less
+    # comparison and silently evaluates false, so a garbage
+    # AGENT_POST_IMPL_REVIEW_MAX_RETRIES value never trips the cap and the
+    # loop runs forever (one paid session per iteration). Every pass here
+    # returns fresh concerns (a unique $RANDOM finding, so the ledger
+    # never converges on its own) — the loop must still terminate with rc 2
+    # once retries reach the invalid-value fallback of 3.
+    _setup_loop_worktree
+    export AGENT_POST_IMPL_REVIEW_MAX_RETRIES="abc"
+    run_claude() {
+        if [[ "$*" == *"post-impl-retry"* ]]; then :; fi
+        echo '{"result":"{\"action\": \"concerns\", \"verified_fixed\": [], \"reopened\": [], \"findings\": [{\"severity\": \"blocking\", \"description\": \"still broken '"$RANDOM"'\"}]}"}'
+    }
+    run_post_impl_retry_session() { RETRY_DISPOSITIONS_JSON="[]"; return 0; }
     run run_post_impl_review_loop "Read,Edit"
     [ "$status" -eq 2 ]
 }
