@@ -488,3 +488,48 @@ _setup_ledger() {
     run git -C "$WORKTREE_DIR" status --porcelain
     assert_output --partial "other.txt"
 }
+
+# ═══════════════════════════════════════════════════════════════
+# run_post_impl_retry_session
+# ═══════════════════════════════════════════════════════════════
+
+@test "retry session: parses dispositions and returns 0" {
+    export WORKTREE_DIR="$TEST_TEMP_DIR"
+    _source_review_gates
+    _ledger_init
+    _ledger_merge_review '{"findings":[{"severity":"blocking","description":"a"}]}'
+    run_claude() { echo '{"result":"{\"action\": \"addressed\", \"dispositions\": [{\"id\": \"F1\", \"status\": \"fixed\", \"note\": \"added test\"}]}"}'; }
+    run_post_impl_retry_session "Read,Edit"
+    [ "$(printf '%s' "$RETRY_DISPOSITIONS_JSON" | jq -r '.[0].id')" = "F1" ]
+}
+
+@test "retry session: unparseable output yields empty dispositions but returns 0" {
+    export WORKTREE_DIR="$TEST_TEMP_DIR"
+    _source_review_gates
+    _ledger_init
+    run_claude() { echo '{"result":"I did some fixes"}'; }
+    run_post_impl_retry_session "Read,Edit"
+    assert_equal "$RETRY_DISPOSITIONS_JSON" "[]"
+}
+
+@test "retry session: failing test gate returns 1" {
+    export WORKTREE_DIR="$TEST_TEMP_DIR"
+    export AGENT_TEST_COMMAND="false"
+    create_mock "gh" ""
+    _source_review_gates
+    _ledger_init
+    run_claude() { echo '{"result":"{\"action\": \"addressed\", \"dispositions\": []}"}'; }
+    run run_post_impl_retry_session "Read,Edit"
+    assert_failure
+}
+
+@test "retry session: exports open blocking findings as AGENT_REVIEW_CONCERNS" {
+    export WORKTREE_DIR="$TEST_TEMP_DIR"
+    _source_review_gates
+    _ledger_init
+    _ledger_merge_review '{"findings":[{"severity":"blocking","description":"needs coverage"},{"severity":"non-blocking","description":"nit"}]}'
+    run_claude() { echo "{\"result\":\"{\\\"action\\\": \\\"addressed\\\", \\\"dispositions\\\": []}\"}"; }
+    run_post_impl_retry_session "Read,Edit"
+    [[ "$AGENT_REVIEW_CONCERNS" == *"needs coverage"* ]]
+    [[ "$AGENT_REVIEW_CONCERNS" != *"nit"* ]]
+}

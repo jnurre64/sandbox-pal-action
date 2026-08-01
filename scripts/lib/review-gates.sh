@@ -272,6 +272,73 @@ run_post_impl_review() {
     esac
 }
 
+# ─── Gate B retry session (one fix pass) ────────────────────────
+RETRY_DISPOSITIONS_JSON="[]"
+
+run_post_impl_retry_session() {
+    local impl_tools="$1"
+    log "Review loop: retry session addressing open blocking findings..."
+
+    export AGENT_REVIEW_LEDGER
+    AGENT_REVIEW_LEDGER=$(cat "$LEDGER_FILE")
+    # Legacy env for custom prompt overrides that predate the ledger
+    export AGENT_REVIEW_CONCERNS
+    AGENT_REVIEW_CONCERNS=$(jq -r '[.findings[] | select(.severity == "blocking" and .status == "open")
+        | "- \(.id): \(.description)"] | join("\n")' "$LEDGER_FILE")
+
+    local prompt
+    prompt=$(load_prompt "post-impl-retry" "${AGENT_PROMPT_POST_IMPL_RETRY}")
+
+    local result
+    result=$(run_claude "$prompt" "$impl_tools" "$AGENT_MODEL_POST_IMPL_RETRY")
+
+    local claude_output
+    claude_output=$(parse_claude_output "$result")
+    log "Retry output: ${claude_output:0:500}"
+
+    # Re-run tests if configured (a retry must never ship a red suite)
+    if [ -n "$AGENT_TEST_COMMAND" ]; then
+        if [ -n "${AGENT_TEST_SETUP_COMMAND:-}" ]; then
+            (cd "$WORKTREE_DIR" && eval "$AGENT_TEST_SETUP_COMMAND") 2>&1 || log "WARN: Test setup command exited with non-zero (continuing)"
+        fi
+        log "Review loop retry: re-running tests..."
+        local test_output test_exit
+        set +e
+        test_output=$(cd "$WORKTREE_DIR" && eval "$AGENT_TEST_COMMAND" 2>&1)
+        test_exit=$?
+        set -e
+        if [ "$test_exit" -ne 0 ]; then
+            log "Review loop retry: tests failed after retry"
+            set_label "agent:failed"
+            gh issue comment "$NUMBER" --repo "$REPO" \
+                --body "## Post-Implementation Review: Retry Failed
+
+Tests failed after addressing review findings.
+
+<details><summary>Test output (last 100 lines)</summary>
+
+\`\`\`
+$(echo "$test_output" | tail -100)
+\`\`\`
+</details>" 2>/dev/null || true
+            return 1
+        fi
+    fi
+
+    local json_block action
+    json_block=$(_extract_review_json "$claude_output")
+    set +e
+    action=$(printf '%s' "$json_block" | jq -r '.action // empty' 2>/dev/null || echo "")
+    set -e
+    if [ "$action" = "addressed" ]; then
+        RETRY_DISPOSITIONS_JSON=$(printf '%s' "$json_block" | jq -c '.dispositions // []' 2>/dev/null || echo "[]")
+    else
+        RETRY_DISPOSITIONS_JSON="[]"
+        log "Retry session output had no parseable dispositions; findings stay open for the next review pass"
+    fi
+    return 0
+}
+
 # ─── Gate B Retry: Address Concerns and Re-Review ───────────────
 # Called when run_post_impl_review returns 1 (concerns found).
 # Runs a new implementation session to fix concerns, then re-reviews.

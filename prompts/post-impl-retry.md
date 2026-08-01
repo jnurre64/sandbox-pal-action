@@ -12,11 +12,14 @@ Read the issue details from environment variables:
 Read the plan that guided the implementation:
 - Run: echo "$AGENT_PLAN_CONTENT"
 
-## Review Concerns
-The following concerns were raised by the post-implementation reviewer:
+## Review Ledger
+The full findings ledger from the review loop:
+- Run: echo "$AGENT_REVIEW_LEDGER"
+
+Open blocking findings (the ones you must address):
 - Run: echo "$AGENT_REVIEW_CONCERNS"
 
-Each concern identifies a specific problem with the current implementation. Address ALL of them.
+For each open blocking finding, either FIX it (make the code/test change and commit) or REJECT it with a specific technical justification (only when the finding is factually wrong for this codebase — a rejection is arbitrated by a human before merge, so never reject to save effort). Non-blocking findings are optional; fix them only if trivial.
 
 ### Attached Data
 Debug data, logs, or other files may be attached to the issue for context:
@@ -59,4 +62,11 @@ Do NOT commit files in .agent-data/ or files containing secrets.
 - Address ONLY the concerns raised. Do not make unrelated changes.
 - Every commit MUST use the `fix(review):` prefix.
 - Do NOT modify .github/workflows/ files.
-- After finishing, output a brief summary of what you fixed as plain text (not JSON).
+
+## Final Output
+
+After committing your fixes, output ONLY this JSON object (no markdown, no fences):
+
+{"action": "addressed", "dispositions": [{"id": "F1", "status": "fixed", "note": "what was changed"}, {"id": "F2", "status": "rejected", "note": "specific technical justification"}]}
+
+Every open blocking finding id from the ledger MUST appear in `dispositions`.
