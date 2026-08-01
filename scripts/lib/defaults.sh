@@ -68,6 +68,13 @@ AGENT_PROMPT_ADVERSARIAL_PLAN="${AGENT_PROMPT_ADVERSARIAL_PLAN:-}"
 AGENT_PROMPT_POST_IMPL_REVIEW="${AGENT_PROMPT_POST_IMPL_REVIEW:-}"
 AGENT_PROMPT_POST_IMPL_RETRY="${AGENT_PROMPT_POST_IMPL_RETRY:-}"
 
+# ─── Post-merge cleanup phase ────────────────────────────────
+# Runs a short headless session after an agent PR merges: tracking-doc
+# updates, follow-up issues from the review ledger, branch deletion.
+AGENT_CLEANUP_ENABLED="${AGENT_CLEANUP_ENABLED:-true}"
+AGENT_PROMPT_CLEANUP="${AGENT_PROMPT_CLEANUP:-}"
+AGENT_ALLOWED_TOOLS_CLEANUP="${AGENT_ALLOWED_TOOLS_CLEANUP:-Read,Edit,Write,Grep,Glob,Bash(git add:*),Bash(git commit:*),Bash(git rm:*),Bash(git status),Bash(git diff:*),Bash(git log:*),Bash(ls:*),Bash(cat:*),Bash(grep:*),Bash(find:*)}"
+
 # ─── Model configuration ────────────────────────────────────
 # Claude model to use (empty = use CLI default, currently Opus 4.6)
 AGENT_MODEL="${AGENT_MODEL:-}"
@@ -81,6 +88,7 @@ AGENT_MODEL_REVIEW="${AGENT_MODEL_REVIEW:-}"
 AGENT_MODEL_ADVERSARIAL_PLAN="${AGENT_MODEL_ADVERSARIAL_PLAN:-}"
 AGENT_MODEL_POST_IMPL_REVIEW="${AGENT_MODEL_POST_IMPL_REVIEW:-}"
 AGENT_MODEL_POST_IMPL_RETRY="${AGENT_MODEL_POST_IMPL_RETRY:-}"
+AGENT_MODEL_CLEANUP="${AGENT_MODEL_CLEANUP:-}"  # post-merge cleanup phase
 
 # ─── Label-to-tool mapping ────────────────────────────────────────
 # Map issue labels to extra tools that get added when the label is present.

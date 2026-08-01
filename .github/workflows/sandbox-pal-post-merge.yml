@@ -1,0 +1,62 @@
+name: "Agent Dispatch: Post-Merge Cleanup"
+
+on:
+  workflow_call:
+    inputs:
+      bot_user:
+        description: 'Bot account username (for self-trigger prevention)'
+        required: true
+        type: string
+      pr_number:
+        description: 'PR number override (for repository_dispatch triggers)'
+        required: false
+        type: string
+        default: ''
+      dispatch_script:
+        description: 'Path to sandbox-pal-dispatch.sh on the runner'
+        required: false
+        type: string
+        default: '~/agent-infra/scripts/sandbox-pal-dispatch.sh'
+      config_path:
+        description: 'Path to config.env on the runner'
+        required: false
+        type: string
+        default: '~/agent-infra/config.env'
+      timeout_minutes:
+        description: 'Job timeout in minutes'
+        required: false
+        type: number
+        default: 30
+      runner_labels:
+        description: 'JSON array of runner labels'
+        required: false
+        type: string
+        default: '["self-hosted", "agent"]'
+    secrets:
+      agent_pat:
+        description: 'Fine-grained PAT for the bot account'
+        required: true
+
+concurrency:
+  group: sandbox-pal-post-merge-${{ inputs.pr_number || github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  post-merge-cleanup:
+    runs-on: ${{ fromJSON(inputs.runner_labels) }}
+    timeout-minutes: ${{ inputs.timeout_minutes }}
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+    steps:
+      - name: Run agent dispatch (post-merge)
+        env:
+          GH_TOKEN: ${{ secrets.agent_pat }}
+          GITHUB_TOKEN: ${{ secrets.agent_pat }}
+          AGENT_CONFIG: ${{ inputs.config_path }}
+        run: |
+          ${{ inputs.dispatch_script }} \
+            post_merge \
+            "${{ github.repository }}" \
+            "${{ inputs.pr_number || github.event.pull_request.number }}"
