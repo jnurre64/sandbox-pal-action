@@ -222,19 +222,23 @@ Please respond to these questions. Implementation will resume after clarificatio
     esac
 }
 
-# ─── Gate B: Post-Implementation Review ─────────────────────────
-# Runs a fresh Claude session to check the diff against the issue/plan.
-# Returns 0 to proceed, 1 if concerns found.
-# Side effects: sets POST_IMPL_REVIEW_CONCERNS on failure.
-POST_IMPL_REVIEW_CONCERNS=""
+# ─── Gate B: Post-Implementation Review (one pass) ──────────────
+# Runs a fresh Claude session reviewing the diff against issue/plan/ledger.
+# Sets POST_IMPL_REVIEW_JSON (action=approved|concerns) and returns 0 on
+# any parseable output; returns 1 only on parse failure (labels + comments).
+POST_IMPL_REVIEW_JSON=""
 
 run_post_impl_review() {
     if [ "${AGENT_POST_IMPL_REVIEW}" != "true" ]; then
         log "Post-implementation review: skipped (disabled)"
+        POST_IMPL_REVIEW_JSON='{"action":"approved","findings":[]}'
         return 0
     fi
 
     log "Running post-implementation review..."
+    export AGENT_REVIEW_LEDGER
+    AGENT_REVIEW_LEDGER=$(cat "$LEDGER_FILE" 2>/dev/null || echo '{"cycles":0,"findings":[]}')
+
     local prompt
     prompt=$(load_prompt "post-impl-review" "${AGENT_PROMPT_POST_IMPL_REVIEW}")
 
@@ -252,14 +256,10 @@ run_post_impl_review() {
     set -e
 
     case "$action" in
-        approved)
-            log "Post-implementation review: approved"
+        approved|concerns)
+            POST_IMPL_REVIEW_JSON=$(printf '%s' "$json_block" | jq -c '.' 2>/dev/null)
+            log "Post-implementation review: $action"
             return 0
-            ;;
-        concerns)
-            log "Post-implementation review: concerns found"
-            POST_IMPL_REVIEW_CONCERNS=$(printf '%s' "$json_block" | jq -r '.concerns[]' 2>/dev/null | sed 's/^/- /')
-            return 1
             ;;
         *)
             log "Post-implementation review: could not parse response"

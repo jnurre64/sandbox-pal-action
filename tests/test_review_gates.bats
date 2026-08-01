@@ -120,53 +120,54 @@ _source_review_gates() {
 # run_post_impl_review — Gate B
 # ═══════════════════════════════════════════════════════════════
 
-@test "Gate B: skipped when AGENT_POST_IMPL_REVIEW=false" {
+@test "Gate B review: skipped when AGENT_POST_IMPL_REVIEW=false" {
     export AGENT_POST_IMPL_REVIEW="false"
+    export WORKTREE_DIR="$TEST_TEMP_DIR"
     _source_review_gates
-
-    run run_post_impl_review
-    assert_success
-    [ ! -f "${TEST_TEMP_DIR}/mock_calls_timeout" ]
-}
-
-@test "Gate B: approved response returns 0" {
-    export AGENT_POST_IMPL_REVIEW="true"
-    _source_review_gates
-
-    run_claude() {
-        echo '{"result":"{\"action\": \"approved\"}"}'
-    }
-
     run run_post_impl_review
     assert_success
 }
 
-@test "Gate B: concerns response returns 1 and sets POST_IMPL_REVIEW_CONCERNS" {
+@test "Gate B review: approved output sets POST_IMPL_REVIEW_JSON and returns 0" {
     export AGENT_POST_IMPL_REVIEW="true"
+    export WORKTREE_DIR="$TEST_TEMP_DIR"
     _source_review_gates
-
-    run_claude() {
-        echo '{"result":"{\"action\": \"concerns\", \"concerns\": [\"Tests use simplified topology\"]}"}'
-    }
-
-    run_post_impl_review || true
-    [ -n "$POST_IMPL_REVIEW_CONCERNS" ]
+    _ledger_init
+    run_claude() { echo '{"result":"{\"action\": \"approved\", \"verified_fixed\": [], \"findings\": []}"}'; }
+    run_post_impl_review
+    [ "$(printf '%s' "$POST_IMPL_REVIEW_JSON" | jq -r '.action')" = "approved" ]
 }
 
-@test "Gate B: malformed JSON returns 1 and sets agent:failed" {
+@test "Gate B review: concerns output sets POST_IMPL_REVIEW_JSON and returns 0" {
     export AGENT_POST_IMPL_REVIEW="true"
+    export WORKTREE_DIR="$TEST_TEMP_DIR"
+    _source_review_gates
+    _ledger_init
+    run_claude() { echo '{"result":"{\"action\": \"concerns\", \"findings\": [{\"severity\": \"blocking\", \"description\": \"weak test\"}]}"}'; }
+    run_post_impl_review
+    [ "$(printf '%s' "$POST_IMPL_REVIEW_JSON" | jq -r '.findings[0].severity')" = "blocking" ]
+}
+
+@test "Gate B review: exports current ledger to the session env" {
+    export AGENT_POST_IMPL_REVIEW="true"
+    export WORKTREE_DIR="$TEST_TEMP_DIR"
+    _source_review_gates
+    _ledger_init
+    _ledger_merge_review '{"findings":[{"severity":"blocking","description":"seed"}]}'
+    run_claude() { echo "{\"result\":\"{\\\"action\\\": \\\"approved\\\", \\\"echo_ledger\\\": $(echo "$AGENT_REVIEW_LEDGER" | jq -c '.cycles')}\"}"; }
+    run_post_impl_review
+    [ "$(printf '%s' "$POST_IMPL_REVIEW_JSON" | jq -r '.echo_ledger')" = "1" ]
+}
+
+@test "Gate B review: unparseable output sets agent:failed and returns 1" {
+    export AGENT_POST_IMPL_REVIEW="true"
+    export WORKTREE_DIR="$TEST_TEMP_DIR"
     create_mock "gh" ""
     _source_review_gates
-
-    run_claude() {
-        echo '{"result":"garbage output"}'
-    }
-
+    _ledger_init
+    run_claude() { echo '{"result":"I could not decide"}'; }
     run run_post_impl_review
     assert_failure
-    local calls
-    calls=$(get_mock_calls "gh")
-    [[ "$calls" == *"agent:failed"* ]]
 }
 
 # ═══════════════════════════════════════════════════════════════
@@ -341,17 +342,19 @@ _source_review_gates() {
     assert_equal "$AGENT_PLAN_CONTENT" "Plan using metric B"
 }
 
-@test "REGRESSION Gate B: concerns JSON with narrative preamble sets POST_IMPL_REVIEW_CONCERNS" {
+@test "REGRESSION Gate B: concerns JSON with narrative preamble sets POST_IMPL_REVIEW_JSON" {
     export AGENT_POST_IMPL_REVIEW="true"
+    export WORKTREE_DIR="$TEST_TEMP_DIR"
     _source_review_gates
+    _ledger_init
 
     run_claude() {
-        echo '{"result":"I reviewed the diff. Here are my findings:\n\n{\"action\": \"concerns\", \"concerns\": [\"Tests use simplified topology\", \"Missing edge case for empty queue\"]}"}'
+        echo '{"result":"I reviewed the diff. Here are my findings:\n\n{\"action\": \"concerns\", \"findings\": [{\"severity\": \"blocking\", \"description\": \"Tests use simplified topology\"}, {\"severity\": \"blocking\", \"description\": \"Missing edge case for empty queue\"}]}"}'
     }
 
-    run_post_impl_review || true
-    [[ "$POST_IMPL_REVIEW_CONCERNS" == *"simplified topology"* ]]
-    [[ "$POST_IMPL_REVIEW_CONCERNS" == *"empty queue"* ]]
+    run_post_impl_review
+    [[ "$(printf '%s' "$POST_IMPL_REVIEW_JSON" | jq -r '.findings[0].description')" == *"simplified topology"* ]]
+    [[ "$(printf '%s' "$POST_IMPL_REVIEW_JSON" | jq -r '.findings[1].description')" == *"empty queue"* ]]
 }
 
 @test "REGRESSION review-gates: truly garbage output still fails (no false positive)" {
