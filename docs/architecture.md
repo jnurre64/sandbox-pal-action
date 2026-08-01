@@ -43,10 +43,15 @@ agent:triage  ................ agent is analyzing the issue
                 |
                 +--> (CHANGES_REQUESTED) --> agent:revision --> agent:pr-open
                 |
-                +--> (APPROVED) --> merged, labels removed
+                +--> (APPROVED) --> merged --> post_merge cleanup, labels removed
 
 At any point on failure: --> agent:failed
 ```
+
+PR creation itself is gated by a capped adversarial review loop (review -> fix
+-> re-review) rather than a single pass -- see "Post-Implementation Review
+Loop" below. A PR that opens with findings still outstanding when the retry
+cap is hit carries `agent:review-unresolved` in addition to `agent:pr-open`.
 
 ### Direct Implement Path
 
@@ -82,6 +87,7 @@ All agent labels:
 | `agent:plan-approved` | Human approved the plan (triggers implementation) |
 | `agent:in-progress` | Agent is implementing code |
 | `agent:pr-open` | PR created, awaiting review |
+| `agent:review-unresolved` | Annotation label (applied alongside `agent:pr-open`): the review loop hit its retry cap with findings still outstanding |
 | `agent:revision` | Agent is addressing review feedback |
 | `agent:implement` | Human trigger: skip triage, validate and implement a pre-written plan |
 | `agent:validating` | Agent is validating a pre-written plan against the codebase |
@@ -89,7 +95,7 @@ All agent labels:
 
 ## Event Triggers
 
-The system uses four reusable GitHub Actions workflows (`sandbox-pal-*.yml`) that your repository calls via `workflow_call`. Each responds to a different GitHub event.
+The system uses six reusable GitHub Actions workflows (`sandbox-pal-*.yml`) that your repository calls via `workflow_call`. Each responds to a different GitHub event.
 
 | Event | Trigger | Reusable Workflow | Filter (in your caller workflow) |
 |-------|---------|-------------------|----------------------------------|
@@ -98,6 +104,7 @@ The system uses four reusable GitHub Actions workflows (`sandbox-pal-*.yml`) tha
 | `issue_comment.created` | Human replies on issue | `sandbox-pal-reply.yml` | Issue has `agent:needs-info` label, commenter != `your-bot` |
 | `issues.labeled` | `agent:implement` label added | `sandbox-pal-direct-implement.yml` | Label is `agent:implement`, actor != `your-bot` |
 | `pull_request_review.submitted` | Review with changes requested | `sandbox-pal-review.yml` | State is `changes_requested`, reviewer != `your-bot` |
+| `pull_request.closed` | merged agent PR | `sandbox-pal-post-merge.yml` | PR merged, PR author == `your-bot` |
 
 The actor/commenter/reviewer filters are critical -- without them, the bot's own actions would re-trigger workflows in an infinite loop.
 
@@ -125,6 +132,18 @@ Triggered by the `agent:plan-approved` label. The agent:
 4. Sets `agent:pr-open`
 
 This two-phase design ensures a human reviews the plan before any code is written. For urgent issues, the human can approve the plan immediately after it is posted.
+
+## Post-Implementation Review Loop
+
+Before a PR is created, `handle_post_implementation()` runs a capped, ledger-driven review loop instead of a single adversarial pass:
+
+1. A fresh review session checks the diff against the issue/plan and reports findings.
+2. Findings are merged into a ledger at `.agent-data/review-ledger.json` (committed to the work branch after every pass, so the history survives across retries).
+3. If no blocking findings remain open, the loop exits clean and the PR opens as `agent:pr-open`.
+4. Otherwise, if the retry count is under the cap (`AGENT_POST_IMPL_REVIEW_MAX_RETRIES`, default 3), a fix session addresses the open findings, dispositions them in the ledger, and the loop re-reviews.
+5. If the cap is reached with findings still open, the loop stops and the PR opens anyway -- labeled `agent:review-unresolved` **in addition to** `agent:pr-open` -- with the outstanding findings summarized at the top of the PR body.
+
+`AGENT_POST_IMPL_REVIEW_MAX_RETRIES=0` means a single review pass with no fix loop: any open finding immediately produces an `agent:review-unresolved` PR. This replaces the earlier single-retry Gate B design.
 
 ## Dispatch Flow by Event Type
 
@@ -212,6 +231,26 @@ pull_request_review.submitted (changes_requested)
   --> if new commits: push, set agent:pr-open
   --> if no commits: post comment explaining inability, keep agent:revision
 ```
+
+### Post-Merge Cleanup (post_merge)
+
+```
+pull_request.closed
+  --> check AGENT_CLEANUP_ENABLED (skip if disabled)
+  --> verify PR is merged and authored by AGENT_BOT_USER (skip otherwise)
+  --> check_circuit_breaker, ensure_repo
+  --> delete the merged remote branch (best-effort)
+  --> fresh worktree off latest main (chore/agent-cleanup-pr-<N> branch)
+  --> run claude -p with cleanup prompt (read-write tools),
+      given PR title/body, merged branch name, linked issue, and the
+      review ledger from the merged branch
+  --> file follow-up issues from the session's structured output
+  --> if doc commits were made: push directly to main,
+      falling back to a chore PR if the direct push is rejected
+  --> strip agent labels from the closed issue
+```
+
+This is distinct from the scheduled `cleanup` event below: `post_merge` runs once per merged agent PR and does tracking-doc/follow-up-issue work, while scheduled `cleanup` is a periodic housekeeping sweep across the whole repo.
 
 ### Cleanup (cleanup)
 
@@ -307,7 +346,7 @@ Data from comments and gists is framed as "untrusted user-submitted data" in the
 | **Execution model** | Runs Claude in a GitHub Actions container per event | Runs Claude on persistent self-hosted runners with state |
 | **State persistence** | Stateless -- fresh clone each run | Worktrees persist between phases; repo clone reused across runs |
 | **Plan/implement separation** | Single invocation | Two-phase: plan then implement with human approval gate |
-| **Label state machine** | No structured label tracking | Full state machine with 10 labels tracking agent progress |
+| **Label state machine** | No structured label tracking | Full state machine with 13 labels tracking agent progress |
 | **Tool restrictions** | Configurable | Phase-specific: read-only for triage, read-write for implementation |
 | **Circuit breaker** | No | Configurable comments-per-hour limit |
 | **Debug data pipeline** | No | Pre-fetches gists and attachments before invoking Claude |

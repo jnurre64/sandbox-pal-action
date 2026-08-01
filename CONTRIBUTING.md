@@ -49,6 +49,7 @@ git submodule update --init --recursive
 | `tests/test_defaults.bats` | Config loading, default values, overrides, required settings |
 | `tests/test_data_fetch.bats` | Debug data extraction from comments, gist/attachment downloads, error handling |
 | `tests/test_worktree.bats` | Git worktree management (source verification) |
+| `tests/test_dispatch_post_merge.bats` | Post-merge cleanup event: config gate, merged/author guards |
 
 ### Writing new tests
 

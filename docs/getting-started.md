@@ -149,7 +149,7 @@ All scripts, prompts, and workflow files are copied directly into your target re
 Thin caller workflow files live in your target repo and call back to the upstream `sandbox-pal-action` reusable workflows. Scripts run from a clone of this repo on the runner.
 
 **Pros:**
-- Minimal files added to your repo (just 5 small workflow YAMLs)
+- Minimal files added to your repo (just 6 small workflow YAMLs)
 - Automatic updates when the upstream repo releases new versions
 - Clean separation between your code and agent infrastructure
 
