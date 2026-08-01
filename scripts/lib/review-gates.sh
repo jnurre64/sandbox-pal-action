@@ -1,7 +1,6 @@
 #!/bin/bash
 # ─── Review gates: adversarial plan review + post-implementation review ──
-# Provides: run_adversarial_plan_review, run_post_impl_review,
-#           handle_post_impl_review_retry
+# Provides: run_adversarial_plan_review, run_post_impl_review, run_post_impl_retry_session, run_post_impl_review_loop, ledger helpers
 
 # ─── JSON extraction helper ─────────────────────────────────────
 # Claude sometimes prefixes a narrative preamble or wraps the JSON in
@@ -339,106 +338,45 @@ $(echo "$test_output" | tail -100)
     return 0
 }
 
-# ─── Gate B Retry: Address Concerns and Re-Review ───────────────
-# Called when run_post_impl_review returns 1 (concerns found).
-# Runs a new implementation session to fix concerns, then re-reviews.
-# Returns 0 if retry succeeds, 1 if it fails.
-# Side effects: sets REVIEW_RETRY_CONCERNS, REVIEW_RETRY_COMMITS on success.
-export REVIEW_RETRY_CONCERNS=""
-export REVIEW_RETRY_COMMITS=""
-
-handle_post_impl_review_retry() {
+# ─── Gate B: capped review loop ────────────────────────────────────
+# review → (fix → review)* until no open blocking findings, capped at
+# AGENT_POST_IMPL_REVIEW_MAX_RETRIES fix sessions.
+# Returns: 0 = clean, 1 = hard failure (already labeled/commented),
+#          2 = cap reached with blocking findings still open.
+run_post_impl_review_loop() {
     local impl_tools="$1"
 
-    if [ "${AGENT_POST_IMPL_REVIEW_MAX_RETRIES}" -eq 0 ]; then
-        log "Post-impl review retry: disabled (MAX_RETRIES=0)"
-        set_label "agent:failed"
-        gh issue comment "$NUMBER" --repo "$REPO" --body "## Post-Implementation Review: Concerns Found
-
-The post-implementation review identified concerns:
-
-${POST_IMPL_REVIEW_CONCERNS}
-
-Retries are disabled. Please review the branch manually." 2>/dev/null || true
-        return 1
+    if [ "${AGENT_POST_IMPL_REVIEW}" != "true" ]; then
+        log "Post-implementation review loop: skipped (disabled)"
+        return 0
     fi
 
-    log "Post-impl review retry: attempting to address concerns..."
-
-    # Capture pre-retry state
-    local retry_start_sha
-    retry_start_sha=$(git -C "$WORKTREE_DIR" rev-parse HEAD 2>/dev/null || echo "")
-
-    # Export concerns for the retry prompt
-    export AGENT_REVIEW_CONCERNS="$POST_IMPL_REVIEW_CONCERNS"
-
-    local prompt
-    prompt=$(load_prompt "post-impl-retry" "${AGENT_PROMPT_POST_IMPL_RETRY}")
-
-    local result
-    result=$(run_claude "$prompt" "$impl_tools" "$AGENT_MODEL_POST_IMPL_RETRY")
-
-    local claude_output
-    claude_output=$(parse_claude_output "$result")
-    log "Retry output: ${claude_output:0:500}"
-
-    # Capture post-retry state
-    local retry_end_sha
-    retry_end_sha=$(git -C "$WORKTREE_DIR" rev-parse HEAD 2>/dev/null || echo "")
-
-    # Re-run tests if configured
-    if [ -n "$AGENT_TEST_COMMAND" ]; then
-        if [ -n "${AGENT_TEST_SETUP_COMMAND:-}" ]; then
-            (cd "$WORKTREE_DIR" && eval "$AGENT_TEST_SETUP_COMMAND") 2>&1 || log "WARN: Test setup command exited with non-zero (continuing)"
-        fi
-
-        log "Post-impl retry: re-running tests..."
-        local test_output test_exit
-        set +e
-        test_output=$(cd "$WORKTREE_DIR" && eval "$AGENT_TEST_COMMAND" 2>&1)
-        test_exit=$?
-        set -e
-
-        if [ "$test_exit" -ne 0 ]; then
-            log "Post-impl retry: tests failed after retry"
-            set_label "agent:failed"
-            gh issue comment "$NUMBER" --repo "$REPO" \
-                --body "## Post-Implementation Review: Retry Failed
-
-Tests failed after addressing review concerns.
-
-<details><summary>Test output (last 100 lines)</summary>
-
-\`\`\`
-$(echo "$test_output" | tail -100)
-\`\`\`
-</details>" 2>/dev/null || true
+    _ledger_init
+    local retries=0
+    while true; do
+        if ! run_post_impl_review; then
             return 1
         fi
-    fi
+        _ledger_merge_review "$POST_IMPL_REVIEW_JSON"
+        _ledger_commit "review pass $((retries + 1))"
 
-    # Re-run post-implementation review
-    log "Post-impl retry: re-running review..."
-    if run_post_impl_review; then
-        log "Post-impl retry: review passed on retry"
-        # Export for use by handle_post_implementation in common.sh
-        export REVIEW_RETRY_CONCERNS="${AGENT_REVIEW_CONCERNS}"
-        export REVIEW_RETRY_COMMITS="${retry_start_sha:0:7}..${retry_end_sha:0:7}"
-        return 0
-    else
-        log "Post-impl retry: review still has concerns after retry"
-        set_label "agent:failed"
-        gh issue comment "$NUMBER" --repo "$REPO" --body "## Post-Implementation Review: Concerns Persist After Retry
+        local open
+        open=$(_ledger_blocking_open_count)
+        if [ "$open" -eq 0 ]; then
+            log "Review loop: clean after $((retries + 1)) review pass(es), ${retries} retry session(s)"
+            return 0
+        fi
 
-The post-implementation review still has concerns after the agent attempted to address them.
+        if [ "$retries" -ge "$AGENT_POST_IMPL_REVIEW_MAX_RETRIES" ]; then
+            log "Review loop: cap reached (${AGENT_POST_IMPL_REVIEW_MAX_RETRIES} retries) with ${open} open blocking finding(s)"
+            return 2
+        fi
 
-**Original concerns:**
-${AGENT_REVIEW_CONCERNS}
-
-**Remaining concerns:**
-${POST_IMPL_REVIEW_CONCERNS}
-
-Please review the branch manually." 2>/dev/null || true
-        return 1
-    fi
+        retries=$((retries + 1))
+        if ! run_post_impl_retry_session "$impl_tools"; then
+            return 1
+        fi
+        _ledger_apply_dispositions "$RETRY_DISPOSITIONS_JSON"
+        _ledger_commit "retry ${retries} dispositions"
+    done
 }

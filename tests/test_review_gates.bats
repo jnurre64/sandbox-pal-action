@@ -171,53 +171,106 @@ _source_review_gates() {
 }
 
 # ═══════════════════════════════════════════════════════════════
-# handle_post_impl_review_retry
+# run_post_impl_review_loop
 # ═══════════════════════════════════════════════════════════════
 
-@test "Retry: skipped when MAX_RETRIES=0" {
-    export AGENT_POST_IMPL_REVIEW_MAX_RETRIES="0"
-    export POST_IMPL_REVIEW_CONCERNS="Tests are weak"
-    create_mock "gh" ""
+_setup_loop_worktree() {
+    export WORKTREE_DIR="${TEST_TEMP_DIR}/wt"
+    mkdir -p "$WORKTREE_DIR"
+    git -C "$WORKTREE_DIR" init -q
+    git -C "$WORKTREE_DIR" config user.email "t@t" && git -C "$WORKTREE_DIR" config user.name "t"
     _source_review_gates
-
-    run handle_post_impl_review_retry "Read,Write"
-    assert_failure
-    local calls
-    calls=$(get_mock_calls "gh")
-    [[ "$calls" == *"agent:failed"* ]]
 }
 
-@test "Retry: runs retry session and re-reviews on success" {
-    export AGENT_POST_IMPL_REVIEW_MAX_RETRIES="1"
-    export POST_IMPL_REVIEW_CONCERNS="Tests are weak"
-    export AGENT_TEST_COMMAND=""
-    _source_review_gates
+@test "review loop: clean first pass returns 0" {
+    _setup_loop_worktree
+    run_claude() { echo '{"result":"{\"action\": \"approved\", \"verified_fixed\": [], \"reopened\": [], \"findings\": []}"}'; }
+    run run_post_impl_review_loop "Read,Edit"
+    assert_success
+}
 
-    # Use file-based counter since run_claude is called in subshells via $()
-    echo "0" > "${TEST_TEMP_DIR}/call_count"
+@test "review loop: converges on second pass after a fix" {
+    _setup_loop_worktree
+    export AGENT_POST_IMPL_REVIEW_MAX_RETRIES=3
+    LOOP_CALL_FILE="${TEST_TEMP_DIR}/calls"
+    echo 0 > "$LOOP_CALL_FILE"
     run_claude() {
-        local count
-        count=$(cat "${TEST_TEMP_DIR}/call_count")
-        count=$((count + 1))
-        echo "$count" > "${TEST_TEMP_DIR}/call_count"
-        if [ "$count" -eq 1 ]; then
-            # Retry implementation session
-            echo '{"result":"Fixed the tests"}'
-        else
-            # Re-review passes
-            echo '{"result":"{\"action\": \"approved\"}"}'
-        fi
-    }
-    # Mock git commands
-    git() {
-        case "$2" in
-            rev-parse) echo "abc1234" ;;
-            *) echo "" ;;
+        local n; n=$(cat "$LOOP_CALL_FILE"); echo $((n + 1)) > "$LOOP_CALL_FILE"
+        case "$n" in
+            0) echo '{"result":"{\"action\": \"concerns\", \"verified_fixed\": [], \"reopened\": [], \"findings\": [{\"severity\": \"blocking\", \"description\": \"gap\"}]}"}' ;;
+            1) echo '{"result":"{\"action\": \"addressed\", \"dispositions\": [{\"id\": \"F1\", \"status\": \"fixed\", \"note\": \"done\"}]}"}' ;;
+            *) echo '{"result":"{\"action\": \"approved\", \"verified_fixed\": [\"F1\"], \"reopened\": [], \"findings\": []}"}' ;;
         esac
     }
-
-    run handle_post_impl_review_retry "Read,Write"
+    run run_post_impl_review_loop "Read,Edit"
     assert_success
+    # 3 sessions: review, retry, review
+    [ "$(cat "$LOOP_CALL_FILE")" = "3" ]
+}
+
+@test "review loop: rejection with justification exits loop at next clean review" {
+    _setup_loop_worktree
+    export AGENT_POST_IMPL_REVIEW_MAX_RETRIES=3
+    LOOP_CALL_FILE="${TEST_TEMP_DIR}/calls"
+    echo 0 > "$LOOP_CALL_FILE"
+    run_claude() {
+        local n; n=$(cat "$LOOP_CALL_FILE"); echo $((n + 1)) > "$LOOP_CALL_FILE"
+        case "$n" in
+            0) echo '{"result":"{\"action\": \"concerns\", \"verified_fixed\": [], \"reopened\": [], \"findings\": [{\"severity\": \"blocking\", \"description\": \"gap\"}]}"}' ;;
+            1) echo '{"result":"{\"action\": \"addressed\", \"dispositions\": [{\"id\": \"F1\", \"status\": \"rejected\", \"note\": \"by design\"}]}"}' ;;
+            *) echo '{"result":"{\"action\": \"approved\", \"verified_fixed\": [], \"reopened\": [], \"findings\": []}"}' ;;
+        esac
+    }
+    run run_post_impl_review_loop "Read,Edit"
+    assert_success
+    run jq -r '.findings[0].status' "${WORKTREE_DIR}/.agent-data/review-ledger.json"
+    assert_output "rejected"
+}
+
+@test "review loop: cap-hit returns 2 with findings still open" {
+    _setup_loop_worktree
+    export AGENT_POST_IMPL_REVIEW_MAX_RETRIES=1
+    LOOP_CALL_FILE="${TEST_TEMP_DIR}/calls"
+    echo 0 > "$LOOP_CALL_FILE"
+    run_claude() {
+        local n; n=$(cat "$LOOP_CALL_FILE"); echo $((n + 1)) > "$LOOP_CALL_FILE"
+        case "$n" in
+            1) echo '{"result":"{\"action\": \"addressed\", \"dispositions\": []}"}' ;;
+            *) echo '{"result":"{\"action\": \"concerns\", \"verified_fixed\": [], \"reopened\": [], \"findings\": [{\"severity\": \"blocking\", \"description\": \"still broken '"$RANDOM"'\"}]}"}' ;;
+        esac
+    }
+    run run_post_impl_review_loop "Read,Edit"
+    [ "$status" -eq 2 ]
+}
+
+@test "review loop: MAX_RETRIES=0 returns 2 on first concerns (no retry session)" {
+    _setup_loop_worktree
+    export AGENT_POST_IMPL_REVIEW_MAX_RETRIES=0
+    run_claude() { echo '{"result":"{\"action\": \"concerns\", \"verified_fixed\": [], \"reopened\": [], \"findings\": [{\"severity\": \"blocking\", \"description\": \"gap\"}]}"}'; }
+    run run_post_impl_review_loop "Read,Edit"
+    [ "$status" -eq 2 ]
+}
+
+@test "review loop: parse failure returns 1" {
+    _setup_loop_worktree
+    create_mock "gh" ""
+    run_claude() { echo '{"result":"garbage"}'; }
+    run run_post_impl_review_loop "Read,Edit"
+    [ "$status" -eq 1 ]
+}
+
+@test "review loop: ledger is committed on the branch" {
+    _setup_loop_worktree
+    run_claude() { echo '{"result":"{\"action\": \"approved\", \"verified_fixed\": [], \"reopened\": [], \"findings\": []}"}'; }
+    run_post_impl_review_loop "Read,Edit"
+    run git -C "$WORKTREE_DIR" log --format='%s' -1
+    assert_output --partial "review ledger"
+}
+
+@test "defaults: AGENT_POST_IMPL_REVIEW_MAX_RETRIES defaults to 3" {
+    unset AGENT_POST_IMPL_REVIEW_MAX_RETRIES
+    source "${LIB_DIR}/defaults.sh"
+    assert_equal "$AGENT_POST_IMPL_REVIEW_MAX_RETRIES" "3"
 }
 
 # ═══════════════════════════════════════════════════════════════

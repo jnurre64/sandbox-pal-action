@@ -264,13 +264,13 @@ EOF
     assert_equal "$AGENT_POST_IMPL_REVIEW" "true"
 }
 
-@test "defaults.sh: AGENT_POST_IMPL_REVIEW_MAX_RETRIES defaults to 1" {
+@test "defaults.sh: AGENT_POST_IMPL_REVIEW_MAX_RETRIES defaults to 3" {
     export AGENT_BOT_USER="test-bot"
     unset AGENT_POST_IMPL_REVIEW_MAX_RETRIES
 
     source "${LIB_DIR}/defaults.sh"
 
-    assert_equal "$AGENT_POST_IMPL_REVIEW_MAX_RETRIES" "1"
+    assert_equal "$AGENT_POST_IMPL_REVIEW_MAX_RETRIES" "3"
 }
 
 @test "defaults.sh: AGENT_MODEL defaults to empty" {
