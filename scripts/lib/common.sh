@@ -149,15 +149,33 @@ load_prompt() {
 #   <!-- agent-branch: feature/123-some-slug -->
 # naming the pre-pushed feature branch the implementation must build on.
 # Prints the branch name, or nothing when absent/unsafe.
+#
+# Plan comments are not author-filtered (anyone who can comment on the
+# issue can shape this marker), so validation is deliberately strict:
+# charset-safe, namespaced (so it can't redirect to `main`/`master` or
+# any other un-namespaced branch), and no segment may start with `-`
+# (which could be interpreted as an option by a downstream git/gh
+# invocation).
 extract_plan_branch() {
     local plan="$1"
     local branch
     branch=$(printf '%s' "$plan" \
         | grep -oE '<!-- agent-branch: [^ >]+ -->' | head -1 \
         | sed -E 's/<!-- agent-branch: ([^ >]+) -->/\1/')
-    if [[ "$branch" =~ ^[A-Za-z0-9._/-]+$ ]]; then
-        printf '%s' "$branch"
-    fi
+
+    [ -z "$branch" ] && return 0
+    [[ "$branch" =~ ^[A-Za-z0-9._/-]+$ ]] || return 0
+    [ "$branch" = "main" ] && return 0
+    [ "$branch" = "master" ] && return 0
+    [[ "$branch" == */* ]] || return 0
+
+    local seg
+    IFS='/' read -ra _extract_plan_branch_segs <<< "$branch"
+    for seg in "${_extract_plan_branch_segs[@]}"; do
+        [[ "$seg" == -* ]] && return 0
+    done
+
+    printf '%s' "$branch"
 }
 
 # ─── Run Claude and capture structured output ────────────────────

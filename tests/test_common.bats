@@ -616,3 +616,47 @@ _setup_post_impl() {
 <!-- agent-branch: feature/2-b -->"
     assert_output "feature/1-a"
 }
+
+# ─── Finding 2: dangerous branch names must be rejected ─────────
+
+@test "extract_plan_branch: rejects exact 'main'" {
+    source "${LIB_DIR}/common.sh"
+    run extract_plan_branch "<!-- agent-branch: main -->"
+    assert_output ""
+}
+
+@test "extract_plan_branch: rejects exact 'master'" {
+    source "${LIB_DIR}/common.sh"
+    run extract_plan_branch "<!-- agent-branch: master -->"
+    assert_output ""
+}
+
+@test "extract_plan_branch: rejects leading-dash first segment" {
+    source "${LIB_DIR}/common.sh"
+    run extract_plan_branch "<!-- agent-branch: -x/evil -->"
+    assert_output ""
+}
+
+@test "extract_plan_branch: rejects leading-dash later segment" {
+    source "${LIB_DIR}/common.sh"
+    run extract_plan_branch "<!-- agent-branch: feature/--force -->"
+    assert_output ""
+}
+
+@test "extract_plan_branch: rejects un-namespaced branch name" {
+    source "${LIB_DIR}/common.sh"
+    run extract_plan_branch "<!-- agent-branch: mybranch -->"
+    assert_output ""
+}
+
+@test "extract_plan_branch: still accepts namespaced feature branch" {
+    source "${LIB_DIR}/common.sh"
+    run extract_plan_branch "<!-- agent-branch: feature/400-async-rest-settle -->"
+    assert_output "feature/400-async-rest-settle"
+}
+
+@test "extract_plan_branch: still accepts a fix/ namespaced branch" {
+    source "${LIB_DIR}/common.sh"
+    run extract_plan_branch "<!-- agent-branch: fix/123-some-bug -->"
+    assert_output "fix/123-some-bug"
+}

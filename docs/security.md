@@ -15,6 +15,8 @@ Anyone who can create an issue or comment in your repository can influence the a
 
 **Mitigations**: Tool allowlists prevent the agent from accessing the network, pushing code, or running arbitrary commands. CLAUDE.md rules instruct the agent to never modify sensitive files. Branch protection ensures a human reviews all changes before merging. Issue content is passed via environment variables, not shell-interpolated.
 
+**Plan-comment branch marker**: An interactively-authored plan comment can carry a `<!-- agent-branch: ... -->` marker (`extract_plan_branch` in `scripts/lib/common.sh`) naming the pre-pushed branch the implement phase should build on. Plan comments are not author-filtered, so this marker is validated defense-in-depth: charset-restricted (`[A-Za-z0-9._/-]`), must be namespaced (contain at least one `/`, ruling out `main`/`master` and any other un-namespaced branch), must not equal `main` or `master` exactly, and no `/`-separated segment may start with `-` (which could otherwise be interpreted as an option by a downstream `git`/`gh` invocation). Residual risk: a malicious commenter can still redirect the implement phase to any *existing, non-protected, already-namespaced* branch in the repo (e.g. another open feature branch) — branch protection and PR review remain the backstop for what actually lands on `main`.
+
 ### Runaway Loops
 
 Without safeguards, the bot's own actions (comments, label changes) could re-trigger workflows, creating an infinite loop that burns through API quota and runner time.
