@@ -13,6 +13,11 @@ Read the approved implementation plan:
 
 This plan has been reviewed and approved by a human. Follow it closely.
 
+## Prior Work on This Branch
+A previous attempt may have completed part (or all) of the implementation before a test gate or review gate failed — the branch is preserved across attempts.
+- Run: git log --format="- %h %s" origin/main..HEAD
+- If commits exist beyond the plan/spec documents, READ the diff (git diff origin/main..HEAD) before writing any code. Resume from where the previous attempt stopped — do not redo or revert finished work. Your first priority is whatever made the previous attempt fail (check the latest issue comments for the failure output).
+
 ### Attached Data
 Debug data, logs, or other files may be attached to the issue for context:
 - Run: echo "$AGENT_DATA_COMMENT_FILE" -- path to the latest data comment

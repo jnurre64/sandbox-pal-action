@@ -312,14 +312,15 @@ The tests run in the worktree directory, which may not have all dependencies ins
 
 ### Recovery
 
-The agent's commits are still in the worktree (but not pushed). You can:
+The agent's commits are pushed to the work branch (`agent/issue-N`) before `agent:failed` is set — the failure comment links it. You can:
 
-1. Fix the test issue and retry the whole process
-2. Manually check out the branch, fix the tests, and create the PR yourself:
+1. Fix the underlying problem (e.g. a broken `AGENT_TEST_COMMAND`) and re-apply `agent:plan-approved` — the dispatch resumes from the pushed branch instead of starting over
+2. Check out the branch, fix the tests yourself, and create the PR manually:
    ```bash
-   cd ~/.claude/worktrees/default/my-repo-issue-42
+   git fetch origin agent/issue-42
+   git checkout agent/issue-42
    # inspect and fix
-   git push -u origin agent/issue-42
+   git push origin agent/issue-42
    gh pr create --head agent/issue-42 ...
    ```
 
