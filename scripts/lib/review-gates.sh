@@ -381,9 +381,10 @@ run_post_impl_review() {
         *)
             log "Post-implementation review: could not parse response"
             log "Raw output: $claude_output"
+            preserve_branch || true
             set_label "agent:failed"
             gh issue comment "$NUMBER" --repo "$REPO" \
-                --body "Agent post-implementation review could not parse its output. Please check the branch and create a PR manually if the implementation looks correct." 2>/dev/null || true
+                --body "Agent post-implementation review could not parse its output. The implementation commits are pushed to the \`${BRANCH_NAME}\` branch — check it and create a PR manually if the implementation looks correct." 2>/dev/null || true
             return 1
             ;;
     esac
@@ -426,11 +427,12 @@ run_post_impl_retry_session() {
         set -e
         if [ "$test_exit" -ne 0 ]; then
             log "Review loop retry: tests failed after retry"
+            preserve_branch || true
             set_label "agent:failed"
             gh issue comment "$NUMBER" --repo "$REPO" \
                 --body "## Post-Implementation Review: Retry Failed
 
-Tests failed after addressing review findings.
+Tests failed after addressing review findings. The work (including retry commits) is pushed to the \`${BRANCH_NAME}\` branch.
 
 <details><summary>Test output (last 100 lines)</summary>
 

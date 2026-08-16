@@ -735,3 +735,26 @@ _setup_test_gate() {
     [ -n "$setup_line" ] && [ -n "$test_line" ]
     [ "$setup_line" -lt "$test_line" ]
 }
+
+@test "REGRESSION issue-73: Gate B parse failure preserves the branch and names it" {
+    _setup_test_gate
+    export AGENT_POST_IMPL_REVIEW="true"
+    _ledger_init
+    run_claude() { echo '{"result":"not valid json at all"}'; }
+    run run_post_impl_review
+    assert_failure
+    [ -f "${TEST_TEMP_DIR}/preserve_calls" ]
+    local calls
+    calls=$(get_mock_calls "gh")
+    [[ "$calls" == *"agent/issue-99"* ]]
+}
+
+@test "REGRESSION issue-73: retry-session test failure preserves the branch" {
+    _setup_test_gate
+    export AGENT_TEST_COMMAND="false"
+    _ledger_init
+    run_claude() { echo '{"result":"{\"action\": \"addressed\", \"dispositions\": []}"}'; }
+    run run_post_impl_retry_session "Read,Edit"
+    assert_failure
+    [ -f "${TEST_TEMP_DIR}/preserve_calls" ]
+}
