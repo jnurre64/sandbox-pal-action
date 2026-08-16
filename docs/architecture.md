@@ -43,7 +43,10 @@ agent:triage  ................ agent is analyzing the issue
                 |
                 +--> (CHANGES_REQUESTED) --> agent:revision --> agent:pr-open
                 |
-                +--> (APPROVED) --> merged --> post_merge cleanup, labels removed
+                +--> (APPROVED) --> merged
+                        |
+                        v
+              agent:done ....... PR merged — terminal state
 
 At any point on failure: --> agent:failed
 ```
@@ -88,6 +91,7 @@ All agent labels:
 | `agent:in-progress` | Agent is implementing code |
 | `agent:pr-open` | PR created, awaiting review |
 | `agent:review-unresolved` | Annotation label (applied alongside `agent:pr-open`): the review loop hit its retry cap with findings still outstanding |
+| `agent:done` | Terminal: the agent's PR merged; linked issue closed and cleaned |
 | `agent:revision` | Agent is addressing review feedback |
 | `agent:implement` | Human trigger: skip triage, validate and implement a pre-written plan |
 | `agent:validating` | Agent is validating a pre-written plan against the codebase |
@@ -242,18 +246,20 @@ pull_request_review.submitted (changes_requested)
 
 ```
 pull_request.closed
-  --> check AGENT_CLEANUP_ENABLED (skip if disabled)
   --> verify PR is merged and authored by AGENT_BOT_USER (skip otherwise)
+  --> resolve all linked issues (closingIssuesReferences, else branch name)
+  --> replace each linked issue's agent:* state labels with agent:done
+  --> check AGENT_CLEANUP_ENABLED (if disabled, stop here — only the
+      doc-cleanup session below is skipped; labels are already done)
   --> check_circuit_breaker, ensure_repo
   --> delete the merged remote branch (best-effort)
   --> fresh worktree off latest main (chore/agent-cleanup-pr-<N> branch)
   --> run claude -p with cleanup prompt (read-write tools),
-      given PR title/body, merged branch name, linked issue, and the
+      given PR title/body, merged branch name, first linked issue, and the
       review ledger from the merged branch
   --> file follow-up issues from the session's structured output
   --> if doc commits were made: push directly to main,
       falling back to a chore PR if the direct push is rejected
-  --> strip agent labels from the closed issue
 ```
 
 This is distinct from the scheduled `cleanup` event below: `post_merge` runs once per merged agent PR and does tracking-doc/follow-up-issue work, while scheduled `cleanup` is a periodic housekeeping sweep across the whole repo.

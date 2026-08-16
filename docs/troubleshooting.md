@@ -410,6 +410,27 @@ For organization repositories, the organization must also allow Actions.
 
 ---
 
+## Closed Issue Still Shows an agent:* State Label
+
+A closed issue carrying `agent:pr-open` (or another state label) means the
+per-merge transition didn't run. Check, in order:
+
+1. The consuming repo has a post-merge caller workflow wired to
+   `sandbox-pal-post-merge.yml` (the `caller-post-merge.yml` template).
+   Repos set up before this workflow existed won't have it — re-run setup
+   or copy the template.
+2. The merged PR was authored by the bot account (`AGENT_BOT_USER`) —
+   human-authored PRs are skipped by design.
+3. The `agent:done` label exists on the repo
+   (`scripts/create-labels.sh <owner/repo>` provisions it; the dispatch
+   also creates it best-effort on first use).
+
+The weekly cleanup cron sweeps any stragglers: stale state labels on closed
+issues are stripped, with `agent:done` applied when a merged agent PR
+closed the issue.
+
+---
+
 ## Getting Debug Information
 
 When reporting issues or investigating problems, gather these pieces of information:

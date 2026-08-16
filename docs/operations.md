@@ -72,7 +72,10 @@ agent:triage  ............  agent is analyzing the issue
                 |
                 +--> (reviewer requests changes) --> agent:revision --> agent:pr-open
                 |
-                +--> (reviewer approves) --> human merges, labels removed
+                +--> (reviewer approves) --> human merges
+                       |
+                       v
+              agent:done .........  PR merged — terminal state
 
 At any point on failure:
   agent:failed
@@ -90,13 +93,14 @@ At any point on failure:
 | `agent:plan-approved` | Plan approved, implementation can begin | Human |
 | `agent:in-progress` | Agent is actively implementing code | Dispatch script |
 | `agent:pr-open` | PR created, awaiting human review | Dispatch script |
+| `agent:done` | Terminal: agent PR merged, issue cleaned | Dispatch script / weekly sweep |
 | `agent:revision` | Agent is addressing review feedback on the PR | Dispatch script |
 | `agent:failed` | Something went wrong; needs human attention | Dispatch script |
 
 ### Expected Transitions
 
 **Happy path (no questions):**
-`agent` -> `agent:triage` -> `agent:plan-review` -> `agent:plan-approved` -> `agent:in-progress` -> `agent:pr-open` -> merged
+`agent` -> `agent:triage` -> `agent:plan-review` -> `agent:plan-approved` -> `agent:in-progress` -> `agent:pr-open` -> merged -> `agent:done`
 
 **With questions:**
 `agent` -> `agent:triage` -> `agent:needs-info` -> (human replies) -> `agent:ready` -> `agent:plan-review` -> `agent:plan-approved` -> `agent:in-progress` -> `agent:pr-open`
