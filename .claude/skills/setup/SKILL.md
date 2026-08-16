@@ -140,14 +140,14 @@ For each template:
 
 Ask the user where their target repo is cloned locally so you can write the files there. For standalone mode, this was already collected in Step 2.
 
-### Discord bot dispatch (optional)
+### Programmatic dispatch (optional)
 
-If the user has set up the Discord bot (see `docs/notifications.md`), also deploy the dispatch template:
+If any automation will trigger the agent while authenticated as the bot account -- the Discord bot (see `docs/notifications.md`), an orchestrator session, or scripts using the bot PAT -- also deploy the dispatch template:
 
 - **Reference mode:** `caller-dispatch.yml`
 - **Standalone mode:** `sandbox-pal-dispatch.yml` (from `templates/standalone/`)
 
-This template enables the Discord bot's Approve, Retry, Comment, and Request Changes actions to trigger agent workflows. It is only needed if the Discord bot is in use.
+This "Agent Dispatch (programmatic)" workflow is the official programmatic on-ramp: `repository_dispatch` with event types `agent-triage`, `agent-implement`, and `agent-reply`. Label events applied by the bot account are filtered by the anti-self-trigger guard, so bot-driven automation must use this path. The Discord bot's Approve, Retry, Comment, and Request Changes actions are one caller of it. See `docs/architecture.md`, "Programmatic Triggering (repository_dispatch)".
 
 ## Step 7: Guide Secret Setup
 

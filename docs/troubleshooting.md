@@ -51,7 +51,17 @@ Your calling workflow must filter out the bot account to prevent self-triggering
 if: github.event.label.name == 'agent' && github.actor != 'my-bot'
 ```
 
-If the bot account is the one adding the label, the workflow will not fire. The `agent` label must be added by a human account.
+If the bot account is the one adding the label, the workflow will not fire. This is by design (the anti-self-trigger guard) and applies to *any* automation authenticated as the bot -- an orchestrator session, a chat bot, a script using the bot PAT. Repos set up with current templates leave a breadcrumb comment on the issue when this happens; older setups skip silently.
+
+Trigger labels must be added by a human account. The supported programmatic trigger is `repository_dispatch`, handled by the "Agent Dispatch (programmatic)" workflow:
+
+```bash
+gh api repos/OWNER/REPO/dispatches \
+  -f event_type=agent-triage \
+  -F 'client_payload[issue_number]=42'
+```
+
+Event types: `agent-triage` (= `agent` label), `agent-implement` (= `agent:plan-approved`), `agent-reply` (= human reply). See [architecture.md](architecture.md#programmatic-triggering-repository_dispatch) for the full contract.
 
 ### Check 3: Workflow Trigger Configuration
 

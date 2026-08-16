@@ -7,7 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- Actor-filter breadcrumb (#75): the label caller templates (triage, implement, direct-implement; reference and standalone variants) now include an `actor-filter-notice` job that comments on the issue when a trigger label is applied by the bot account — previously the anti-self-trigger guard skipped the run with no feedback anywhere. The comment runs on `ubuntu-latest` with the default `GITHUB_TOKEN`, so it works even when the self-hosted runner is down and cannot re-trigger workflows.
+- `repository_dispatch` documented as the official programmatic on-ramp (#75): event types `agent-triage`/`agent-implement`/`agent-reply` and the `client_payload.issue_number` payload are now covered in `docs/architecture.md` ("Programmatic Triggering"), `docs/troubleshooting.md` (Actor Filter check), and the setup skill.
+
 ### Changed
+- Dispatch caller workflow renamed from "Claude Agent: Discord Dispatch" to "Agent Dispatch (programmatic)" (#75) — Discord is one caller of the `repository_dispatch` entry point, not its owner. Cosmetic `name:` change only; filenames and event types are unchanged, no migration needed for existing consumers.
 - `discord-bot/install.sh` now accepts `--config <path>` for non-interactive use, matching `slack-bot/install.sh`. Previously the Discord installer always prompted via `read`, making scripted reinstalls fragile (callers had to feed an empty line via stdin to use the default). Both installers now share the same option-parsing block and reject unknown flags with exit 1.
 
 ### Fixed
