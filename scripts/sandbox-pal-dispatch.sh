@@ -724,11 +724,6 @@ You may need to provide more specific guidance or handle this manually." 2>/dev/
 # heredoc/case/etc. that lands a `}` at column 0 would truncate the
 # sed extraction and silently break those tests.
 handle_post_merge() {
-    if [ "${AGENT_CLEANUP_ENABLED}" != "true" ]; then
-        log "Post-merge cleanup: disabled (AGENT_CLEANUP_ENABLED=${AGENT_CLEANUP_ENABLED})"
-        return 0
-    fi
-
     local pr_number="$NUMBER"
     local pr_json
     pr_json=$(gh pr view "$pr_number" --repo "$REPO" --json title,body,headRefName,mergedAt,author,closingIssuesReferences)
@@ -747,19 +742,37 @@ handle_post_merge() {
     branch=$(echo "$pr_json" | jq -r '.headRefName')
     pr_title=$(echo "$pr_json" | jq -r '.title')
 
+    # Linked issues: all closingIssuesReferences, else branch-name conventions
+    local linked_issues
+    linked_issues=$(echo "$pr_json" | jq -r '.closingIssuesReferences[]?.number' 2>/dev/null || true)
+    if [ -z "$linked_issues" ]; then
+        linked_issues=$(echo "$branch" | sed -nE 's/.*issue-([0-9]+).*/\1/p')
+    fi
+    if [ -z "$linked_issues" ]; then
+        linked_issues=$(echo "$branch" | sed -nE 's|^feature/([0-9]+)-.*|\1|p')
+    fi
+
+    # Terminal label transition FIRST (#74) — before the circuit breaker,
+    # worktree, or Claude session can fail and strand stale state labels.
+    # Deliberately NOT gated by AGENT_CLEANUP_ENABLED: that flag controls
+    # the doc-cleanup session below, not label bookkeeping.
+    local done_issue
+    for done_issue in $linked_issues; do
+        mark_issue_done "$done_issue"
+        log "Issue #${done_issue}: agent state labels replaced with agent:done"
+    done
+
+    if [ "${AGENT_CLEANUP_ENABLED}" != "true" ]; then
+        log "Post-merge doc cleanup: disabled (AGENT_CLEANUP_ENABLED=${AGENT_CLEANUP_ENABLED})"
+        return 0
+    fi
+
     log "Post-merge cleanup for PR #${pr_number} (branch ${branch})..."
     check_circuit_breaker
     ensure_repo
 
-    # Linked issue: closingIssuesReferences, else branch-name conventions
-    local issue_num
-    issue_num=$(echo "$pr_json" | jq -r '.closingIssuesReferences[0].number // empty')
-    if [ -z "$issue_num" ]; then
-        issue_num=$(echo "$branch" | sed -nE 's/.*issue-([0-9]+).*/\1/p')
-    fi
-    if [ -z "$issue_num" ]; then
-        issue_num=$(echo "$branch" | sed -nE 's|^feature/([0-9]+)-.*|\1|p')
-    fi
+    local first_issue
+    first_issue=$(echo "$linked_issues" | head -n 1)
 
     # Delete the merged remote branch (best-effort)
     git -C "$REPO_DIR" push origin --delete "$branch" 2>/dev/null \
@@ -778,7 +791,7 @@ handle_post_merge() {
     export AGENT_PR_BODY
     AGENT_PR_BODY=$(echo "$pr_json" | jq -r '.body // ""')
     export AGENT_MERGED_BRANCH="$branch"
-    export AGENT_ISSUE_NUMBER="${issue_num:-}"
+    export AGENT_ISSUE_NUMBER="${first_issue:-}"
     export AGENT_REVIEW_LEDGER=""
     if [ -f "${WORKTREE_DIR}/.agent-data/review-ledger.json" ]; then
         AGENT_REVIEW_LEDGER=$(cat "${WORKTREE_DIR}/.agent-data/review-ledger.json")
@@ -823,11 +836,6 @@ _Filed automatically by the post-merge cleanup of PR #${pr_number}._" 2>/dev/nul
                 --title "chore: post-merge cleanup for PR #${pr_number}" \
                 --body "Tracking-doc updates from the automated post-merge cleanup of PR #${pr_number}." 2>/dev/null || true
         fi
-    fi
-
-    # Strip agent labels from the closed issue
-    if [ -n "$issue_num" ]; then
-        (NUMBER="$issue_num"; remove_all_agent_labels) || true
     fi
 
     notify "cleanup_done" "$pr_title" "https://github.com/${REPO}/pull/${pr_number}" \
