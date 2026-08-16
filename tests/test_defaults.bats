@@ -413,3 +413,18 @@ EOF
     grep -q '_ledger_pr_summary' "${LIB_DIR}/common.sh"
     grep -q 'Adversarial Review Ledger' "${LIB_DIR}/common.sh"
 }
+
+# ─── REGRESSION: issue-73 — test gate fix loop config ───────────
+
+@test "REGRESSION issue-73: AGENT_TEST_GATE_MAX_RETRIES defaults to 2" {
+    export AGENT_BOT_USER="test-bot"
+    source "${LIB_DIR}/defaults.sh"
+    assert_equal "$AGENT_TEST_GATE_MAX_RETRIES" "2"
+}
+
+@test "REGRESSION issue-73: AGENT_PROMPT_TEST_FIX and AGENT_MODEL_TEST_FIX default to empty" {
+    export AGENT_BOT_USER="test-bot"
+    source "${LIB_DIR}/defaults.sh"
+    assert_equal "$AGENT_PROMPT_TEST_FIX" ""
+    assert_equal "$AGENT_MODEL_TEST_FIX" ""
+}

@@ -62,11 +62,15 @@ AGENT_ADVERSARIAL_PLAN_REVIEW="${AGENT_ADVERSARIAL_PLAN_REVIEW:-true}"
 AGENT_POST_IMPL_REVIEW="${AGENT_POST_IMPL_REVIEW:-true}"
 # Max fix sessions for the post-impl review loop (0 = single review pass; unresolved findings surface on the PR as agent:review-unresolved)
 AGENT_POST_IMPL_REVIEW_MAX_RETRIES="${AGENT_POST_IMPL_REVIEW_MAX_RETRIES:-3}"
+# Max Claude fix sessions when the pre-PR test gate fails
+# (0 = fail immediately; the work branch is pushed either way — issue #73)
+AGENT_TEST_GATE_MAX_RETRIES="${AGENT_TEST_GATE_MAX_RETRIES:-2}"
 
 # Review gate prompt overrides (empty = use built-in defaults)
 AGENT_PROMPT_ADVERSARIAL_PLAN="${AGENT_PROMPT_ADVERSARIAL_PLAN:-}"
 AGENT_PROMPT_POST_IMPL_REVIEW="${AGENT_PROMPT_POST_IMPL_REVIEW:-}"
 AGENT_PROMPT_POST_IMPL_RETRY="${AGENT_PROMPT_POST_IMPL_RETRY:-}"
+AGENT_PROMPT_TEST_FIX="${AGENT_PROMPT_TEST_FIX:-}"
 
 # ─── Post-merge cleanup phase ────────────────────────────────
 # Runs a short headless session after an agent PR merges: tracking-doc
@@ -88,6 +92,7 @@ AGENT_MODEL_REVIEW="${AGENT_MODEL_REVIEW:-}"
 AGENT_MODEL_ADVERSARIAL_PLAN="${AGENT_MODEL_ADVERSARIAL_PLAN:-}"
 AGENT_MODEL_POST_IMPL_REVIEW="${AGENT_MODEL_POST_IMPL_REVIEW:-}"
 AGENT_MODEL_POST_IMPL_RETRY="${AGENT_MODEL_POST_IMPL_RETRY:-}"
+AGENT_MODEL_TEST_FIX="${AGENT_MODEL_TEST_FIX:-}"  # pre-PR test-gate fix sessions
 AGENT_MODEL_CLEANUP="${AGENT_MODEL_CLEANUP:-}"  # post-merge cleanup phase
 
 # ─── Label-to-tool mapping ────────────────────────────────────────
