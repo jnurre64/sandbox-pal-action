@@ -1,4 +1,4 @@
-name: "Claude Agent: Discord Dispatch"
+name: "Agent Dispatch (programmatic)"
 
 on:
   repository_dispatch:

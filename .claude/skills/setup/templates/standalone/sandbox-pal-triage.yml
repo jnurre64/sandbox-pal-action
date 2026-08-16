@@ -33,3 +33,23 @@ jobs:
             new_issue \
             "${{ github.repository }}" \
             "${{ github.event.issue.number }}"
+
+  # Breadcrumb: label events from the bot account are filtered by the
+  # anti-self-trigger guard above. Leave a comment explaining the skip so
+  # programmatic callers aren't debugging silence — they should use
+  # repository_dispatch (see "Agent Dispatch (programmatic)").
+  actor-filter-notice:
+    if: >-
+      github.event.label.name == 'agent' &&
+      github.actor == '{{BOT_USER}}'
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Explain the skipped label trigger
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh issue comment "${{ github.event.issue.number }}" \
+            --repo "${{ github.repository }}" \
+            --body 'The `agent` label was applied by the bot account (`{{BOT_USER}}`), so the label-triggered agent workflow was intentionally skipped (anti-self-trigger guard). Automation running as the bot should trigger via `repository_dispatch` instead — see https://github.com/jnurre64/sandbox-pal-action/blob/main/docs/architecture.md#programmatic-triggering-repository_dispatch'

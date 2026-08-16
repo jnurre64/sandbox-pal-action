@@ -109,8 +109,35 @@ The system uses six reusable GitHub Actions workflows (`sandbox-pal-*.yml`) that
 | `issues.labeled` | `agent:implement` label added | `sandbox-pal-direct-implement.yml` | Label is `agent:implement`, actor != `your-bot` |
 | `pull_request_review.submitted` | Review with changes requested | `sandbox-pal-review.yml` | State is `changes_requested`, reviewer != `your-bot` |
 | `pull_request.closed` | merged agent PR | `sandbox-pal-post-merge.yml` | PR merged, PR author == `your-bot` |
+| `repository_dispatch` | `agent-triage` / `agent-implement` / `agent-reply` event type | `sandbox-pal-triage.yml` / `sandbox-pal-implement.yml` / `sandbox-pal-reply.yml` | Event type match only -- no actor filter (see below) |
 
 The actor/commenter/reviewer filters are critical -- without them, the bot's own actions would re-trigger workflows in an infinite loop.
+
+### Programmatic Triggering (`repository_dispatch`)
+
+The label filters above mean a trigger label applied *by the bot account itself* is ignored by design. Any automation that authenticates as the bot -- an orchestrator session, a chat bot, a script using the bot PAT -- must therefore not use labels to start work; its label events are filtered (repos set up with current templates leave a breadcrumb comment on the issue explaining the skip; older setups skip silently). The supported programmatic on-ramp is `repository_dispatch`.
+
+The dispatch caller workflow ("Agent Dispatch (programmatic)", installed by `/setup` as `caller-dispatch.yml` in reference mode or `sandbox-pal-dispatch.yml` in standalone mode) listens for three event types:
+
+| Event type | Phase | Human-path equivalent |
+|------------|-------|-----------------------|
+| `agent-triage` | Triage a new issue | Adding the `agent` label |
+| `agent-implement` | Implement an approved plan | Adding the `agent:plan-approved` label |
+| `agent-reply` | Process a reply on a waiting issue | Commenting on an `agent:needs-info` / `agent:plan-review` issue |
+
+The payload carries one field, `client_payload.issue_number`:
+
+```bash
+gh api repos/OWNER/REPO/dispatches \
+  -f event_type=agent-implement \
+  -F 'client_payload[issue_number]=42'
+```
+
+Notes:
+
+- Do **not** also apply the trigger label when firing `repository_dispatch`. The dispatch script manages state labels itself; a bot-applied trigger label only produces a skipped run and the breadcrumb comment.
+- The Discord bot is one caller of this entry point, not its owner -- anything holding the bot PAT can use it.
+- Direct implement (`agent:implement`) and post-merge cleanup have no dispatch event types today; those flows are label/PR-event only. The reusable workflows accept `issue_number`/`pr_number` input overrides if a consuming repo wants to wire up additional event types (see [configuration.md](configuration.md)).
 
 ## Two-Phase Dispatch
 
