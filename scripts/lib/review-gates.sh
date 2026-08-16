@@ -1,6 +1,6 @@
 #!/bin/bash
 # ─── Review gates: adversarial plan review + post-implementation review ──
-# Provides: run_adversarial_plan_review, run_post_impl_review, run_post_impl_retry_session, run_post_impl_review_loop, ledger helpers
+# Provides: run_adversarial_plan_review, run_test_gate, run_post_impl_review, run_post_impl_retry_session, run_post_impl_review_loop, ledger helpers
 
 # ─── JSON extraction helper ─────────────────────────────────────
 # Claude sometimes prefixes a narrative preamble or wraps the JSON in
@@ -223,6 +223,105 @@ Please respond to these questions. Implementation will resume after clarificatio
             return 1
             ;;
     esac
+}
+
+# ─── Pre-PR test gate with bounded fix sessions ─────────────────
+# Runs AGENT_TEST_COMMAND in the worktree. On failure, up to
+# AGENT_TEST_GATE_MAX_RETRIES fresh Claude fix sessions are fed the
+# failing output (AGENT_TEST_OUTPUT / AGENT_TEST_EXIT_CODE) and the
+# tests are re-run after each. A fix session that produces no new
+# commits ends the loop early: nothing changed, so re-running the same
+# command would fail the same way (issue #73 — e.g. the test command
+# itself is broken in repo config, which no in-repo fix can cure).
+# On final failure the work branch is pushed (preserve_branch), the
+# failure comment links it, agent:failed is set, and 1 is returned.
+# Returns 0 when the gate passes or is disabled.
+#
+# NOTE: tests extract this function body with
+# `sed -n '/^run_test_gate()/,/^}/p'` — keep any column-0 `}` out of
+# the body before the function's real closing brace.
+run_test_gate() {
+    local impl_tools="$1"
+    local issue_title="$2"
+
+    if [ -z "$AGENT_TEST_COMMAND" ]; then
+        return 0
+    fi
+
+    # Validate the cap like AGENT_POST_IMPL_REVIEW_MAX_RETRIES: a
+    # non-integer would error the -ge comparison on every iteration.
+    local max_retries="$AGENT_TEST_GATE_MAX_RETRIES"
+    if ! [[ "$max_retries" =~ ^[0-9]+$ ]]; then
+        log "WARN: AGENT_TEST_GATE_MAX_RETRIES='${max_retries}' is not a non-negative integer; using 2"
+        max_retries=2
+    fi
+
+    local attempt=0 test_output test_exit stop_reason=""
+    while true; do
+        if [ -n "${AGENT_TEST_SETUP_COMMAND:-}" ]; then
+            log "Running test setup: $AGENT_TEST_SETUP_COMMAND"
+            (cd "$WORKTREE_DIR" && eval "$AGENT_TEST_SETUP_COMMAND") 2>&1 || log "WARN: Test setup command exited with non-zero (continuing)"
+        fi
+
+        log "Running pre-PR test gate (attempt $((attempt + 1)))..."
+        set +e
+        test_output=$(cd "$WORKTREE_DIR" && eval "$AGENT_TEST_COMMAND" 2>&1)
+        test_exit=$?
+        set -e
+
+        if [ "$test_exit" -eq 0 ]; then
+            if [ "$attempt" -gt 0 ]; then
+                log "Pre-PR test gate green after ${attempt} fix session(s)"
+            fi
+            return 0
+        fi
+
+        if [ "$attempt" -ge "$max_retries" ]; then
+            stop_reason="fix-session cap (${max_retries}) reached"
+            break
+        fi
+
+        attempt=$((attempt + 1))
+        log "Pre-PR test gate failed (exit ${test_exit}); starting fix session ${attempt}/${max_retries}..."
+
+        export AGENT_TEST_OUTPUT
+        AGENT_TEST_OUTPUT=$(echo "$test_output" | tail -100)
+        export AGENT_TEST_EXIT_CODE="$test_exit"
+
+        local before_sha
+        before_sha=$(git -C "$WORKTREE_DIR" rev-parse HEAD 2>/dev/null || echo "")
+
+        local prompt result
+        prompt=$(load_prompt "test-fix" "${AGENT_PROMPT_TEST_FIX}")
+        result=$(run_claude "$prompt" "$impl_tools" "$AGENT_MODEL_TEST_FIX")
+        log "Test-fix session output: $(parse_claude_output "$result" | head -c 300)"
+
+        local after_sha
+        after_sha=$(git -C "$WORKTREE_DIR" rev-parse HEAD 2>/dev/null || echo "")
+        if [ "$after_sha" = "$before_sha" ]; then
+            stop_reason="fix session ${attempt} made no commits (failure likely not fixable from inside the repo, e.g. a broken test command in config)"
+            break
+        fi
+    done
+
+    log "Pre-PR test gate FAILED: ${stop_reason}"
+    preserve_branch || true
+    gh issue comment "$NUMBER" --repo "$REPO" \
+        --body "## Test Failure (Pre-PR Gate)
+
+Tests failed after implementation (${stop_reason}). Setting \`agent:failed\`.
+
+**Your work is safe:** the implementation commits are pushed to the \`${BRANCH_NAME}\` branch. Re-applying \`agent:plan-approved\` resumes from that branch instead of starting over.
+
+<details><summary>Test output (last 100 lines)</summary>
+
+\`\`\`
+$(echo "$test_output" | tail -100)
+\`\`\`
+</details>" 2>/dev/null || true
+    set_label "agent:failed"
+    notify "tests_failed" "$issue_title" "https://github.com/${REPO}/issues/${NUMBER}" "Pre-PR test gate failed after ${attempt} fix session(s)"
+    return 1
 }
 
 # ─── Gate B: Post-Implementation Review (one pass) ──────────────
