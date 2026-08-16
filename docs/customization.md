@@ -143,9 +143,10 @@ The `AGENT_TEST_COMMAND` setting adds a mandatory test step after implementation
 ### How It Works
 
 1. The agent finishes implementation and commits its changes
-2. The dispatch script runs `AGENT_TEST_COMMAND` in the worktree
-3. If the command exits with code 0, the branch is pushed and a PR is created
-4. If the command exits with a non-zero code, the last 100 lines of output are posted as an issue comment and the issue is labeled `agent:failed`
+2. The dispatch script pushes the work branch (so a later failure never loses the work), then runs `AGENT_TEST_COMMAND` in the worktree
+3. If the command exits with code 0, the review loop runs and a PR is created
+4. If the command exits non-zero, up to `AGENT_TEST_GATE_MAX_RETRIES` (default 2) automated fix sessions get the failing output and try to make the suite green; a session that makes no commits stops the loop early
+5. If the gate still fails, the last 100 lines of output are posted as an issue comment (linking the pushed branch) and the issue is labeled `agent:failed`; re-applying `agent:plan-approved` resumes from the pushed branch
 
 ### Examples by Framework
 

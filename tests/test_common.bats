@@ -152,6 +152,27 @@ _source_common() {
 }
 
 # ═══════════════════════════════════════════════════════════════
+# preserve_branch — issue #73
+# ═══════════════════════════════════════════════════════════════
+
+@test "REGRESSION issue-73: preserve_branch pushes the work branch" {
+    _source_common
+    git() { echo "git $*" >> "${TEST_TEMP_DIR}/git_calls"; return 0; }
+    run preserve_branch
+    assert_success
+    run cat "${TEST_TEMP_DIR}/git_calls"
+    assert_output --partial "push -u origin agent/issue-99"
+}
+
+@test "REGRESSION issue-73: preserve_branch push failure warns and returns 1" {
+    _source_common
+    git() { return 1; }
+    run preserve_branch
+    assert_failure
+    assert_output --partial "WARN: could not push"
+}
+
+# ═══════════════════════════════════════════════════════════════
 # PR body regression test
 # ═══════════════════════════════════════════════════════════════
 
@@ -169,14 +190,18 @@ _source_common() {
 
 # ─── REGRESSION: v1.0.3 — AGENT_TEST_SETUP_COMMAND ──────────────
 
-@test "REGRESSION v1.0.3: test setup command present in handle_post_implementation" {
-    grep -q 'AGENT_TEST_SETUP_COMMAND' "${LIB_DIR}/common.sh"
+# issue #73 moved the gate from handle_post_implementation into
+# run_test_gate (review-gates.sh); the protected behavior travels with it.
+@test "REGRESSION v1.0.3: test setup command present in the pre-PR test gate" {
+    sed -n '/^run_test_gate()/,/^}/p' "${LIB_DIR}/review-gates.sh" | grep -q 'AGENT_TEST_SETUP_COMMAND'
 }
 
-@test "REGRESSION v1.0.3: test setup runs before test command in source" {
-    local setup_line test_line
-    setup_line=$(grep -n 'AGENT_TEST_SETUP_COMMAND' "${LIB_DIR}/common.sh" | grep -v "^#" | head -1 | cut -d: -f1)
-    test_line=$(grep -n 'eval.*AGENT_TEST_COMMAND' "${LIB_DIR}/common.sh" | head -1 | cut -d: -f1)
+@test "REGRESSION v1.0.3: test setup runs before test command in the gate source" {
+    local body setup_line test_line
+    body=$(sed -n '/^run_test_gate()/,/^}/p' "${LIB_DIR}/review-gates.sh")
+    setup_line=$(echo "$body" | grep -n 'AGENT_TEST_SETUP_COMMAND' | head -1 | cut -d: -f1)
+    test_line=$(echo "$body" | grep -n 'eval "\$AGENT_TEST_COMMAND"' | head -1 | cut -d: -f1)
+    [ -n "$setup_line" ] && [ -n "$test_line" ]
     [ "$setup_line" -lt "$test_line" ]
 }
 
@@ -522,6 +547,13 @@ MOCK
     assert_output --partial "review concerns"
 }
 
+@test "load_prompt: test-fix falls back to built-in prompt" {
+    _source_common
+    run load_prompt "test-fix" ""
+    assert_success
+    assert_output --partial "pre-PR test gate failed"
+}
+
 # ═══════════════════════════════════════════════════════════════
 # handle_post_implementation × review loop
 # ═══════════════════════════════════════════════════════════════
@@ -659,4 +691,26 @@ _setup_post_impl() {
     source "${LIB_DIR}/common.sh"
     run extract_plan_branch "<!-- agent-branch: fix/123-some-bug -->"
     assert_output "fix/123-some-bug"
+}
+
+@test "REGRESSION issue-73: work branch is preserved before the test gate runs" {
+    _setup_post_impl
+    preserve_branch() { echo "preserve" >> "${TEST_TEMP_DIR}/order"; return 0; }
+    run_test_gate() { echo "gate" >> "${TEST_TEMP_DIR}/order"; return 0; }
+    run_post_impl_review_loop() { _ledger_init; _ledger_merge_review '{"findings":[]}'; return 0; }
+    run handle_post_implementation "" "Test issue" "did the thing"
+    assert_success
+    run cat "${TEST_TEMP_DIR}/order"
+    assert_line --index 0 "preserve"
+    assert_line --index 1 "gate"
+}
+
+@test "REGRESSION issue-73: test gate failure halts before PR creation" {
+    _setup_post_impl
+    preserve_branch() { :; }
+    run_test_gate() { return 1; }
+    run handle_post_implementation "" "Test issue" "did the thing"
+    assert_failure
+    run get_mock_calls "gh"
+    refute_output --partial "pr create"
 }

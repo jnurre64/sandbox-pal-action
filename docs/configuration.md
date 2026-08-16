@@ -108,7 +108,7 @@ The agent reads this file but never writes to it. Only interactive sessions shou
 
 ### AGENT_TEST_COMMAND
 
-A shell command to run as a pre-PR test gate. If set, the dispatch script runs this command after implementation and before creating the PR. If the tests fail, the PR is not created and the issue is labeled `agent:failed`.
+A shell command to run as a pre-PR test gate. If set, the dispatch script runs this command after implementation and before creating the PR. If the tests fail, up to `AGENT_TEST_GATE_MAX_RETRIES` automated fix sessions attempt to get the suite green; if it still fails, the work branch is pushed, the failure comment links it, and the issue is labeled `agent:failed`. Re-applying `agent:plan-approved` resumes from the preserved branch.
 
 | Key | Default | Type |
 |-----|---------|------|
@@ -129,6 +129,16 @@ AGENT_TEST_COMMAND="go test ./..."
 ```
 
 The test command is also referenced in the implement and review prompts as `$AGENT_TEST_COMMAND`, so the agent can run tests during its TDD cycles.
+
+### AGENT_TEST_GATE_MAX_RETRIES
+
+Maximum automated fix sessions when the pre-PR test gate fails. Each session is a fresh Claude run given the failing test output; the gate re-runs after each. A session that makes no commits ends the loop early (the failure is judged unfixable from inside the repo — e.g. a broken `AGENT_TEST_COMMAND`). Whatever happens, the work branch is pushed before `agent:failed` is set, so implementation work is never lost.
+
+| Key | Default | Type |
+|-----|---------|------|
+| `AGENT_TEST_GATE_MAX_RETRIES` | `2` | non-negative integer (`0` = no fix sessions) |
+| `AGENT_PROMPT_TEST_FIX` | *(empty, built-in `prompts/test-fix.md`)* | path |
+| `AGENT_MODEL_TEST_FIX` | *(empty, falls back to `AGENT_MODEL`)* | model name |
 
 ### AGENT_EFFORT_LEVEL
 

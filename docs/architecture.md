@@ -195,8 +195,10 @@ issues.labeled "agent:plan-approved"
   --> run claude -p with implement prompt (read-write tools)
   --> handle_post_implementation:
       if new commits:
-        run pre-PR test gate (if configured) -> fail -> agent:failed
-        push branch
+        push branch (preserve work before any gate can fail)
+        run pre-PR test gate (if configured)
+          -> fail -> bounded fix sessions (AGENT_TEST_GATE_MAX_RETRIES)
+          -> still failing -> agent:failed (branch stays pushed)
         create PR with Closes #N
         set agent:pr-open
       if no commits:

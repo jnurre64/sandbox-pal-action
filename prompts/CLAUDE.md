@@ -14,6 +14,7 @@ Default agent prompts for each dispatch phase. Each prompt is passed to `claude 
 | `adversarial-plan.md` | `implement` (pre-gate) | Read-only | Fresh-session adversarial review of plan vs issue |
 | `post-impl-review.md` | `implement` (post-gate) | Read-only | Fresh-session review of diff vs issue/plan |
 | `post-impl-retry.md` | `implement` (retry) | Read-write | Address post-impl review concerns |
+| `test-fix.md` | `implement` (test gate retry) | Read-write | Fix a failing pre-PR test gate without reverting the implementation |
 
 ## Output Format Convention
 

@@ -3,7 +3,7 @@
 # Provides: log, set_label, remove_all_agent_labels, check_circuit_breaker,
 #           load_shared_memory, detect_label_tools, get_implementation_tools,
 #           load_prompt, extract_plan_branch, run_claude, parse_claude_output,
-#           handle_post_implementation
+#           preserve_branch, handle_post_implementation
 
 # ─── Logging ─────────────────────────────────────────────────────
 log() {
@@ -186,7 +186,7 @@ run_claude() {
     local memory
     memory=$(load_shared_memory)
 
-    cd "$WORKTREE_DIR"
+    cd "$WORKTREE_DIR" || return 1
     local stderr_log="$AGENT_LOG_DIR/claude-stderr-${REPO_NAME}-${NUMBER}-${TIMESTAMP}.log"
     local claude_args=(
         -p "$prompt"
@@ -226,6 +226,21 @@ parse_claude_output() {
     echo "$claude_output"
 }
 
+# ─── Preserve implementation work on the remote ──────────────────
+# Best-effort push of the work branch so a controlled failure never
+# strands finished commits in a worktree that the next dispatch's
+# setup_worktree will delete (issue #73). setup_worktree checks out
+# origin/$BRANCH_NAME when it exists, so a preserved branch turns a
+# re-dispatch into a resume instead of a restart.
+preserve_branch() {
+    if git -C "$WORKTREE_DIR" push -u origin "$BRANCH_NAME" 2>/dev/null; then
+        log "Preserved work branch: pushed ${BRANCH_NAME} to origin"
+        return 0
+    fi
+    log "WARN: could not push ${BRANCH_NAME} to origin — commits remain only in the local worktree"
+    return 1
+}
+
 # ─── Check for new commits and handle push/PR ────────────────────
 # Usage: handle_post_implementation "$start_sha" "$issue_title" "$claude_output"
 handle_post_implementation() {
@@ -241,45 +256,23 @@ handle_post_implementation() {
     fi
 
     if [ "$commit_count" -gt 0 ]; then
-        # ── Pre-PR test gate ──────────────────────────────────────
-        if [ -n "$AGENT_TEST_COMMAND" ]; then
-            # Run optional setup command first (e.g., npm install, godot --headless --import)
-            if [ -n "${AGENT_TEST_SETUP_COMMAND:-}" ]; then
-                log "Running test setup: $AGENT_TEST_SETUP_COMMAND"
-                (cd "$WORKTREE_DIR" && eval "$AGENT_TEST_SETUP_COMMAND") 2>&1 || log "WARN: Test setup command exited with non-zero (continuing)"
-            fi
+        # Preserve finished work on the remote BEFORE any gate can fail.
+        # A gate failure used to strand unpushed commits in a worktree
+        # that the next dispatch's setup_worktree deletes (issue #73);
+        # setup_worktree resumes from origin/$BRANCH_NAME when it exists.
+        preserve_branch || true
 
-            log "Running pre-PR test gate ($commit_count commits)..."
-            local test_output test_exit
-            set +e
-            test_output=$(cd "$WORKTREE_DIR" && eval "$AGENT_TEST_COMMAND" 2>&1)
-            test_exit=$?
-            set -e
+        local impl_tools review_rc=0
+        impl_tools=$(get_implementation_tools)
 
-            if [ "$test_exit" -ne 0 ]; then
-                log "Pre-PR test gate FAILED (exit code $test_exit)."
-                gh issue comment "$NUMBER" --repo "$REPO" \
-                    --body "## Test Failure (Pre-PR Gate)
-
-Tests failed after implementation. Setting \`agent:failed\`.
-
-<details><summary>Test output (last 100 lines)</summary>
-
-\`\`\`
-$(echo "$test_output" | tail -100)
-\`\`\`
-</details>" 2>/dev/null || true
-                set_label "agent:failed"
-                notify "tests_failed" "$issue_title" "https://github.com/${REPO}/issues/${NUMBER}" "Pre-PR test gate failed (exit code $test_exit)"
-                return 1
-            fi
+        # ── Pre-PR test gate (bounded fix sessions) ───────────────
+        if ! run_test_gate "$impl_tools" "$issue_title"; then
+            return 1
         fi
 
         notify "tests_passed" "$issue_title" "https://github.com/${REPO}/issues/${NUMBER}" "Pre-PR tests passed ($commit_count commits)"
 
         # ── Post-implementation review loop (Gate B) ─────────────
-        local impl_tools review_rc=0
-        impl_tools=$(get_implementation_tools)
         run_post_impl_review_loop "$impl_tools" || review_rc=$?
         if [ "$review_rc" -eq 1 ]; then
             log "Post-implementation review loop halted PR creation."

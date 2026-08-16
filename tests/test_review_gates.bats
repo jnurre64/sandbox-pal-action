@@ -623,3 +623,138 @@ _setup_ledger() {
     [[ "$AGENT_REVIEW_CONCERNS" == *"needs coverage"* ]]
     [[ "$AGENT_REVIEW_CONCERNS" != *"nit"* ]]
 }
+
+# ═══════════════════════════════════════════════════════════════
+# run_test_gate — pre-PR test gate with bounded fix sessions (#73)
+# ═══════════════════════════════════════════════════════════════
+
+_setup_test_gate() {
+    export WORKTREE_DIR="${TEST_TEMP_DIR}/wt"
+    export BRANCH_NAME="agent/issue-99"
+    mkdir -p "$WORKTREE_DIR"
+    git -C "$WORKTREE_DIR" init -q
+    git -C "$WORKTREE_DIR" config user.email "t@t" && git -C "$WORKTREE_DIR" config user.name "t"
+    (cd "$WORKTREE_DIR" && echo base > base.txt && git add base.txt && git commit -qm "base")
+    export AGENT_TEST_GATE_MAX_RETRIES="2"
+    create_mock "gh" ""
+    _source_review_gates
+    notify() { :; }
+    preserve_branch() { echo "preserve" >> "${TEST_TEMP_DIR}/preserve_calls"; return 0; }
+}
+
+@test "test gate: disabled when AGENT_TEST_COMMAND is empty" {
+    _setup_test_gate
+    export AGENT_TEST_COMMAND=""
+    run run_test_gate "Read,Edit" "Test issue"
+    assert_success
+}
+
+@test "test gate: passing tests return 0 with no fix session" {
+    _setup_test_gate
+    export AGENT_TEST_COMMAND="true"
+    run_claude() { echo "session" >> "${TEST_TEMP_DIR}/claude_calls"; echo '{"result":"x"}'; }
+    run run_test_gate "Read,Edit" "Test issue"
+    assert_success
+    [ ! -f "${TEST_TEMP_DIR}/claude_calls" ]
+}
+
+@test "REGRESSION issue-73: fix session that heals the suite returns 0" {
+    _setup_test_gate
+    export AGENT_TEST_COMMAND="test -f fixed.txt"
+    run_claude() {
+        echo "session" >> "${TEST_TEMP_DIR}/claude_calls"
+        (cd "$WORKTREE_DIR" && echo ok > fixed.txt && git add fixed.txt && git commit -qm "fix(tests): create fixed.txt")
+        echo '{"result":"fixed the suite"}'
+    }
+    run run_test_gate "Read,Edit" "Test issue"
+    assert_success
+    [ "$(wc -l < "${TEST_TEMP_DIR}/claude_calls")" -eq 1 ]
+}
+
+@test "REGRESSION issue-73: no-commit fix session breaks the loop early" {
+    _setup_test_gate
+    export AGENT_TEST_COMMAND="false"
+    run_claude() { echo "session" >> "${TEST_TEMP_DIR}/claude_calls"; echo '{"result":"cannot fix: broken config"}'; }
+    run run_test_gate "Read,Edit" "Test issue"
+    assert_failure
+    # cap is 2 but only ONE session ran — no commits means no point retrying
+    [ "$(wc -l < "${TEST_TEMP_DIR}/claude_calls")" -eq 1 ]
+    [ -f "${TEST_TEMP_DIR}/preserve_calls" ]
+}
+
+@test "REGRESSION issue-73: cap reached after max fix sessions with commits" {
+    _setup_test_gate
+    export AGENT_TEST_COMMAND="false"
+    run_claude() {
+        echo "session" >> "${TEST_TEMP_DIR}/claude_calls"
+        (cd "$WORKTREE_DIR" && echo fix >> churn.txt && git add churn.txt && git commit -qm "fix(tests): attempt")
+        echo '{"result":"tried a fix"}'
+    }
+    run run_test_gate "Read,Edit" "Test issue"
+    assert_failure
+    [ "$(wc -l < "${TEST_TEMP_DIR}/claude_calls")" -eq 2 ]
+}
+
+@test "REGRESSION issue-73: retries=0 fails immediately but still preserves the branch" {
+    _setup_test_gate
+    export AGENT_TEST_GATE_MAX_RETRIES="0"
+    export AGENT_TEST_COMMAND="false"
+    run_claude() { echo "session" >> "${TEST_TEMP_DIR}/claude_calls"; echo '{"result":"x"}'; }
+    run run_test_gate "Read,Edit" "Test issue"
+    assert_failure
+    [ ! -f "${TEST_TEMP_DIR}/claude_calls" ]
+    [ -f "${TEST_TEMP_DIR}/preserve_calls" ]
+}
+
+@test "REGRESSION issue-73: failure comment names the preserved branch and sets agent:failed" {
+    _setup_test_gate
+    export AGENT_TEST_GATE_MAX_RETRIES="0"
+    export AGENT_TEST_COMMAND="false"
+    run run_test_gate "Read,Edit" "Test issue"
+    local calls
+    calls=$(get_mock_calls "gh")
+    [[ "$calls" == *"agent/issue-99"* ]]
+    [[ "$calls" == *"agent:failed"* ]]
+    [[ "$calls" == *"Test Failure (Pre-PR Gate)"* ]]
+}
+
+@test "REGRESSION issue-73: non-integer AGENT_TEST_GATE_MAX_RETRIES falls back to 2" {
+    _setup_test_gate
+    export AGENT_TEST_GATE_MAX_RETRIES="lots"
+    export AGENT_TEST_COMMAND="true"
+    run run_test_gate "Read,Edit" "Test issue"
+    assert_success
+    assert_output --partial "using 2"
+}
+
+@test "REGRESSION issue-73: test setup command runs before the test command" {
+    local body setup_line test_line
+    body=$(sed -n '/^run_test_gate()/,/^}/p' "${LIB_DIR}/review-gates.sh")
+    setup_line=$(echo "$body" | grep -n 'AGENT_TEST_SETUP_COMMAND' | head -1 | cut -d: -f1)
+    test_line=$(echo "$body" | grep -n 'eval "\$AGENT_TEST_COMMAND"' | head -1 | cut -d: -f1)
+    [ -n "$setup_line" ] && [ -n "$test_line" ]
+    [ "$setup_line" -lt "$test_line" ]
+}
+
+@test "REGRESSION issue-73: Gate B parse failure preserves the branch and names it" {
+    _setup_test_gate
+    export AGENT_POST_IMPL_REVIEW="true"
+    _ledger_init
+    run_claude() { echo '{"result":"not valid json at all"}'; }
+    run run_post_impl_review
+    assert_failure
+    [ -f "${TEST_TEMP_DIR}/preserve_calls" ]
+    local calls
+    calls=$(get_mock_calls "gh")
+    [[ "$calls" == *"agent/issue-99"* ]]
+}
+
+@test "REGRESSION issue-73: retry-session test failure preserves the branch" {
+    _setup_test_gate
+    export AGENT_TEST_COMMAND="false"
+    _ledger_init
+    run_claude() { echo '{"result":"{\"action\": \"addressed\", \"dispositions\": []}"}'; }
+    run run_post_impl_retry_session "Read,Edit"
+    assert_failure
+    [ -f "${TEST_TEMP_DIR}/preserve_calls" ]
+}

@@ -399,11 +399,14 @@ EOF
     grep -q 'run_post_impl_review' "${LIB_DIR}/common.sh"
 }
 
-@test "common.sh: run_post_impl_review runs AFTER tests pass and BEFORE push" {
+@test "common.sh: run_post_impl_review runs AFTER tests pass and BEFORE the final push" {
     local tests_line review_line push_line
     tests_line=$(grep -n 'tests_passed' "${LIB_DIR}/common.sh" | head -1 | cut -d: -f1)
     review_line=$(grep -n 'run_post_impl_review' "${LIB_DIR}/common.sh" | head -1 | cut -d: -f1)
-    push_line=$(grep -n 'git.*push.*origin' "${LIB_DIR}/common.sh" | head -1 | cut -d: -f1)
+    # issue #73: preserve_branch intentionally pushes EARLY (before any gate
+    # can fail), so the invariant guards the FINAL push — the last
+    # `git push origin` in the file, which immediately precedes PR creation.
+    push_line=$(grep -n 'git.*push.*origin' "${LIB_DIR}/common.sh" | tail -1 | cut -d: -f1)
 
     [ "$tests_line" -lt "$review_line" ]
     [ "$review_line" -lt "$push_line" ]
@@ -412,4 +415,19 @@ EOF
 @test "common.sh: PR body includes the review ledger summary" {
     grep -q '_ledger_pr_summary' "${LIB_DIR}/common.sh"
     grep -q 'Adversarial Review Ledger' "${LIB_DIR}/common.sh"
+}
+
+# ─── REGRESSION: issue-73 — test gate fix loop config ───────────
+
+@test "REGRESSION issue-73: AGENT_TEST_GATE_MAX_RETRIES defaults to 2" {
+    export AGENT_BOT_USER="test-bot"
+    source "${LIB_DIR}/defaults.sh"
+    assert_equal "$AGENT_TEST_GATE_MAX_RETRIES" "2"
+}
+
+@test "REGRESSION issue-73: AGENT_PROMPT_TEST_FIX and AGENT_MODEL_TEST_FIX default to empty" {
+    export AGENT_BOT_USER="test-bot"
+    source "${LIB_DIR}/defaults.sh"
+    assert_equal "$AGENT_PROMPT_TEST_FIX" ""
+    assert_equal "$AGENT_MODEL_TEST_FIX" ""
 }
