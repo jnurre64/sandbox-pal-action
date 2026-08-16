@@ -543,6 +543,13 @@ MOCK
     assert_output --partial "review concerns"
 }
 
+@test "load_prompt: test-fix falls back to built-in prompt" {
+    _source_common
+    run load_prompt "test-fix" ""
+    assert_success
+    assert_output --partial "pre-PR test gate failed"
+}
+
 # ═══════════════════════════════════════════════════════════════
 # handle_post_implementation × review loop
 # ═══════════════════════════════════════════════════════════════
