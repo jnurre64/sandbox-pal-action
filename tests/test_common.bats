@@ -152,6 +152,27 @@ _source_common() {
 }
 
 # ═══════════════════════════════════════════════════════════════
+# preserve_branch — issue #73
+# ═══════════════════════════════════════════════════════════════
+
+@test "REGRESSION issue-73: preserve_branch pushes the work branch" {
+    _source_common
+    git() { echo "git $*" >> "${TEST_TEMP_DIR}/git_calls"; return 0; }
+    run preserve_branch
+    assert_success
+    run cat "${TEST_TEMP_DIR}/git_calls"
+    assert_output --partial "push -u origin agent/issue-99"
+}
+
+@test "REGRESSION issue-73: preserve_branch push failure warns and returns 1" {
+    _source_common
+    git() { return 1; }
+    run preserve_branch
+    assert_failure
+    assert_output --partial "WARN: could not push"
+}
+
+# ═══════════════════════════════════════════════════════════════
 # PR body regression test
 # ═══════════════════════════════════════════════════════════════
 

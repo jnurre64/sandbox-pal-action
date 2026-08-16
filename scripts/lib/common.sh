@@ -3,7 +3,7 @@
 # Provides: log, set_label, remove_all_agent_labels, check_circuit_breaker,
 #           load_shared_memory, detect_label_tools, get_implementation_tools,
 #           load_prompt, extract_plan_branch, run_claude, parse_claude_output,
-#           handle_post_implementation
+#           preserve_branch, handle_post_implementation
 
 # ─── Logging ─────────────────────────────────────────────────────
 log() {
@@ -224,6 +224,21 @@ parse_claude_output() {
         claude_output="$result"
     fi
     echo "$claude_output"
+}
+
+# ─── Preserve implementation work on the remote ──────────────────
+# Best-effort push of the work branch so a controlled failure never
+# strands finished commits in a worktree that the next dispatch's
+# setup_worktree will delete (issue #73). setup_worktree checks out
+# origin/$BRANCH_NAME when it exists, so a preserved branch turns a
+# re-dispatch into a resume instead of a restart.
+preserve_branch() {
+    if git -C "$WORKTREE_DIR" push -u origin "$BRANCH_NAME" 2>/dev/null; then
+        log "Preserved work branch: pushed ${BRANCH_NAME} to origin"
+        return 0
+    fi
+    log "WARN: could not push ${BRANCH_NAME} to origin — commits remain only in the local worktree"
+    return 1
 }
 
 # ─── Check for new commits and handle push/PR ────────────────────
