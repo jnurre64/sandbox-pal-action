@@ -1,6 +1,7 @@
 #!/bin/bash
 # ─── Common functions: logging, labels, circuit breaker, memory, claude runner ──
-# Provides: log, set_label, remove_all_agent_labels, check_circuit_breaker,
+# Provides: log, set_label, remove_all_agent_labels, mark_issue_done,
+#           check_circuit_breaker,
 #           load_shared_memory, detect_label_tools, get_implementation_tools,
 #           load_prompt, extract_plan_branch, run_claude, parse_claude_output,
 #           preserve_branch, handle_post_implementation
@@ -25,6 +26,7 @@ ALL_AGENT_LABELS=(
     agent:implement
     agent:validating
     agent:review-unresolved
+    agent:done
 )
 
 remove_all_agent_labels() {
@@ -36,6 +38,27 @@ remove_all_agent_labels() {
 set_label() {
     remove_all_agent_labels
     gh issue edit "$NUMBER" --repo "$REPO" --add-label "$1" 2>/dev/null || true
+}
+
+# Terminal transition (#74): replace all agent:* state labels on the given
+# issue with agent:done. Called when an agent PR merges. The label is
+# created best-effort first so repos provisioned before agent:done existed
+# in labels.txt still get marked. Membership of agent:done in
+# ALL_AGENT_LABELS means any later set_label (e.g. re-triage after a
+# reopen) strips it naturally.
+mark_issue_done() {
+    local issue="$1"
+    gh label create "agent:done" --color "6F42C1" \
+        --description "Agent PR merged — work complete" \
+        --force --repo "$REPO" 2>/dev/null || true
+    # Save/restore NUMBER rather than a subshell so shellcheck's
+    # SC2030/SC2031 subshell-modification warnings don't fire on every
+    # later use of NUMBER in this file. set_label is all-best-effort, so
+    # the restore below always runs.
+    local saved_number="${NUMBER-}"
+    NUMBER="$issue"
+    set_label "agent:done"
+    NUMBER="$saved_number"
 }
 
 # ─── Circuit breaker ────────────────────────────────────────────
