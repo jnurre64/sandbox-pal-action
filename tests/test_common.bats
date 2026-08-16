@@ -714,3 +714,47 @@ _setup_post_impl() {
     run get_mock_calls "gh"
     refute_output --partial "pr create"
 }
+
+# ═══════════════════════════════════════════════════════════════
+# REGRESSION: v1.2.0 — terminal agent:done label (#74)
+# Closed issues kept stale agent:* state labels after PR merge.
+# ═══════════════════════════════════════════════════════════════
+
+@test "REGRESSION v1.2.0: ALL_AGENT_LABELS includes agent:done" {
+    _source_common
+    local found=false
+    for label in "${ALL_AGENT_LABELS[@]}"; do
+        [ "$label" = "agent:done" ] && found=true
+    done
+    [ "$found" = "true" ]
+}
+
+@test "labels.txt: defines agent:done" {
+    run grep -E '^agent:done\|' "${SCRIPTS_DIR}/../labels.txt"
+    assert_success
+}
+
+@test "mark_issue_done: best-effort creates the label, then sets agent:done on the given issue" {
+    _source_common
+    gh() { echo "$@" >> "${TEST_TEMP_DIR}/gh_calls"; }
+    mark_issue_done "55"
+    run cat "${TEST_TEMP_DIR}/gh_calls"
+    assert_output --partial "label create agent:done"
+    assert_output --partial "issue edit 55 --repo test-org/test-repo --add-label agent:done"
+}
+
+@test "mark_issue_done: strips prior state labels before adding agent:done" {
+    _source_common
+    gh() { echo "$@" >> "${TEST_TEMP_DIR}/gh_calls"; }
+    mark_issue_done "55"
+    run cat "${TEST_TEMP_DIR}/gh_calls"
+    assert_output --partial "issue edit 55 --repo test-org/test-repo --remove-label agent:pr-open"
+}
+
+@test "mark_issue_done: leaves the caller's NUMBER untouched" {
+    _source_common
+    gh() { :; }
+    NUMBER="99"
+    mark_issue_done "55"
+    assert_equal "$NUMBER" "99"
+}

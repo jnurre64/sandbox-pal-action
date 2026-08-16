@@ -296,7 +296,7 @@ If something goes wrong, the label changes to `agent:failed`. Check the workflow
 To continue past the test:
 - Add the `agent:plan-approved` label to trigger implementation
 - The agent will implement, run tests (if configured), push a branch, and create a PR
-- The label progresses through `agent:in-progress` to `agent:pr-open`
+- The label progresses through `agent:in-progress` to `agent:pr-open`, and to `agent:done` once the PR merges
 
 ---
 
@@ -326,7 +326,10 @@ agent:triage            Agent is analyzing the issue
                   |
                   +---> (reviewer requests changes) ---> agent:revision ---> agent:pr-open
                   |
-                  +---> (approved & merged) ---> labels removed
+                  +---> (approved & merged)
+                          |
+                          v
+                agent:done          PR merged — terminal state
 ```
 
 At any point, if the agent encounters an unrecoverable error, the label is set to `agent:failed`.

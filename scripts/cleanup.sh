@@ -23,6 +23,17 @@ for arg in "$@"; do
     esac
 done
 
+# ─── Agent config (optional) ────────────────────────────────────
+# AGENT_BOT_USER (used by the stale-label sweep) lives in the runner's
+# agent config. Absence is fine — the sweep degrades gracefully: with no
+# bot user configured, any merged closing PR counts as agent work.
+AGENT_CONFIG="${AGENT_CONFIG:-$HOME/agent-infra/config.env}"
+if [ -f "$AGENT_CONFIG" ]; then
+    # shellcheck disable=SC1090
+    source "$AGENT_CONFIG"
+fi
+AGENT_BOT_USER="${AGENT_BOT_USER:-}"
+
 # ─── Token Configuration ────────────────────────────────────────
 # AGENT_PAT (fine-grained): branches, workflow runs, issues, PRs
 # AGENT_GIST_PAT (classic, gist scope): gist list/delete operations
@@ -70,6 +81,7 @@ echo 0 > "$COUNTER_DIR/branches_skipped"
 echo 0 > "$COUNTER_DIR/gists_deleted"
 echo 0 > "$COUNTER_DIR/runs_deleted"
 echo 0 > "$COUNTER_DIR/logs_cleaned"
+echo 0 > "$COUNTER_DIR/issues_relabeled"
 
 mkdir -p "$LOG_DIR"
 
@@ -443,6 +455,80 @@ cleanup_old_workflow_runs() {
     done
 }
 
+# ─── Task 5: Stale Agent Label Sweep (#74) ─────────────────────
+# Closed issues should not carry agent:* state labels. The per-merge
+# post-merge handler normally replaces them with agent:done, but repos
+# without the post-merge caller wired (or missed webhook deliveries,
+# or manually closed issues) leak stale state. Sweep: strip agent:*
+# state labels from closed issues; add agent:done only when a merged
+# agent PR closed the issue.
+# NOTE: tests/test_cleanup.bats extracts this function with sed — no
+# column-0 `}` inside the body.
+
+AGENT_STATE_LABELS="agent agent:triage agent:needs-info agent:ready agent:plan-review agent:plan-approved agent:in-progress agent:pr-open agent:revision agent:failed agent:implement agent:validating agent:review-unresolved"
+
+sweep_stale_agent_labels() {
+    log "INFO" "Checking closed issues with stale agent labels..."
+
+    local stale_numbers="" label nums
+    for label in $AGENT_STATE_LABELS; do
+        nums=$(gh issue list --repo "$REPO" --state closed --label "$label" \
+            --json number --jq '.[].number' --limit 100 2>/dev/null || true)
+        stale_numbers=$(printf '%s\n%s\n' "$stale_numbers" "$nums")
+    done
+    stale_numbers=$(echo "$stale_numbers" | grep -E '^[0-9]+$' | sort -un || true)
+
+    if [ -z "$stale_numbers" ]; then
+        verbose "No closed issues with stale agent labels"
+        return 0
+    fi
+
+    local issue_number
+    while IFS= read -r issue_number; do
+        # Did a merged agent PR close this issue? Then it earns agent:done.
+        local closing_prs pr_num is_done="false"
+        closing_prs=$(gh issue view "$issue_number" --repo "$REPO" \
+            --json closedByPullRequestsReferences \
+            --jq '.closedByPullRequestsReferences[]?.number' 2>/dev/null || true)
+        for pr_num in $closing_prs; do
+            local pr_info pr_author pr_merged
+            pr_info=$(gh pr view "$pr_num" --repo "$REPO" --json author,mergedAt 2>/dev/null || echo '{}')
+            pr_author=$(echo "$pr_info" | jq -r '.author.login // empty')
+            pr_merged=$(echo "$pr_info" | jq -r '.mergedAt // empty')
+            if [ -z "$pr_merged" ]; then
+                continue
+            fi
+            if [ -z "$AGENT_BOT_USER" ] || [ "$pr_author" = "$AGENT_BOT_USER" ]; then
+                is_done="true"
+                break
+            fi
+        done
+
+        if [ "$DRY_RUN" = true ]; then
+            log "INFO" "[DRY RUN] Would strip stale agent labels from closed issue #${issue_number} (agent:done: ${is_done})"
+        else
+            for label in $AGENT_STATE_LABELS; do
+                gh issue edit "$issue_number" --repo "$REPO" --remove-label "$label" 2>/dev/null || true
+            done
+            if [ "$is_done" = "true" ]; then
+                gh label create "agent:done" --color "6F42C1" \
+                    --description "Agent PR merged — work complete" \
+                    --force --repo "$REPO" 2>/dev/null || true
+                gh issue edit "$issue_number" --repo "$REPO" --add-label "agent:done" 2>/dev/null || true
+            fi
+            log "INFO" "Stripped stale agent labels from closed issue #${issue_number} (agent:done: ${is_done})"
+        fi
+
+        audit "$(jq -nc \
+            --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            --argjson issue "$issue_number" \
+            --argjson "done" "$([ "$is_done" = "true" ] && echo true || echo false)" \
+            '{ts: $ts, action: "sweep_agent_labels", issue: $issue, agent_done: $done}')"
+
+        increment issues_relabeled
+    done <<< "$stale_numbers"
+}
+
 # ─── Task 4: Log Self-Maintenance ──────────────────────────────
 
 cleanup_old_logs() {
@@ -512,6 +598,9 @@ print_summary() {
 ### Workflow Runs
 - Deleted: $(counter runs_deleted)
 
+### Stale Agent Labels
+- Issues relabeled: $(counter issues_relabeled)
+
 ### Log Maintenance
 - Cleaned: $(counter logs_cleaned) log file(s)
 EOF
@@ -537,6 +626,7 @@ main() {
     cleanup_tracked_gists
     cleanup_orphan_gists
     cleanup_old_workflow_runs
+    sweep_stale_agent_labels
     cleanup_old_logs
 
     print_summary

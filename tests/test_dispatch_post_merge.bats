@@ -17,12 +17,22 @@ _source_dispatch_functions() {
     source <(sed -n '/^handle_post_merge()/,/^}/p' "${SCRIPTS_DIR}/sandbox-pal-dispatch.sh")
 }
 
-@test "post_merge: disabled config gate returns 0 without calling gh" {
+# Merged bot PR closing two issues — used by the #74 regression tests
+PR_JSON_MERGED='{"title":"t","body":"b","headRefName":"agent/issue-41","mergedAt":"2026-08-01T00:00:00Z","author":{"login":"test-bot"},"closingIssuesReferences":[{"number":41},{"number":42}]}'
+
+@test "REGRESSION v1.2.0: disabled cleanup still transitions labels to agent:done (#74)" {
     export AGENT_CLEANUP_ENABLED="false"
     _source_dispatch_functions
+    gh() {
+        echo "$@" >> "${TEST_TEMP_DIR}/gh_calls"
+        if [ "$1" = "pr" ]; then echo "$PR_JSON_MERGED"; fi
+        return 0
+    }
     run handle_post_merge
     assert_success
-    [ ! -f "${TEST_TEMP_DIR}/mock_calls_gh" ]
+    assert_output --partial "doc cleanup: disabled"
+    run cat "${TEST_TEMP_DIR}/gh_calls"
+    assert_output --partial "issue edit 41 --repo test-org/test-repo --add-label agent:done"
 }
 
 @test "post_merge: unmerged PR is skipped" {
@@ -51,4 +61,62 @@ _source_dispatch_functions() {
 @test "dispatch: post_merge is a recognized event type" {
     run grep -E '^\s+post_merge\)' "${SCRIPTS_DIR}/sandbox-pal-dispatch.sh"
     assert_success
+}
+
+@test "REGRESSION v1.2.0: every linked issue gets agent:done, not just the first (#74)" {
+    export AGENT_CLEANUP_ENABLED="false"
+    _source_dispatch_functions
+    gh() {
+        echo "$@" >> "${TEST_TEMP_DIR}/gh_calls"
+        if [ "$1" = "pr" ]; then echo "$PR_JSON_MERGED"; fi
+        return 0
+    }
+    run handle_post_merge
+    assert_success
+    run cat "${TEST_TEMP_DIR}/gh_calls"
+    assert_output --partial "issue edit 41 --repo test-org/test-repo --add-label agent:done"
+    assert_output --partial "issue edit 42 --repo test-org/test-repo --add-label agent:done"
+}
+
+@test "post_merge: label transition runs before circuit breaker and worktree" {
+    export AGENT_CLEANUP_ENABLED="false"
+    _source_dispatch_functions
+    gh() {
+        echo "$@" >> "${TEST_TEMP_DIR}/gh_calls"
+        if [ "$1" = "pr" ]; then echo "$PR_JSON_MERGED"; fi
+        return 0
+    }
+    run handle_post_merge
+    assert_success
+    run cat "${TEST_TEMP_DIR}/gh_calls"
+    # check_circuit_breaker calls `gh api ...` — must not have run on the disabled path
+    refute_output --partial "api "
+}
+
+@test "post_merge: branch-name fallback still marks the issue when closingIssuesReferences is empty" {
+    export AGENT_CLEANUP_ENABLED="false"
+    _source_dispatch_functions
+    gh() {
+        echo "$@" >> "${TEST_TEMP_DIR}/gh_calls"
+        if [ "$1" = "pr" ]; then echo '{"title":"t","body":"","headRefName":"agent/issue-9","mergedAt":"2026-08-01T00:00:00Z","author":{"login":"test-bot"},"closingIssuesReferences":[]}'; fi
+        return 0
+    }
+    run handle_post_merge
+    assert_success
+    run cat "${TEST_TEMP_DIR}/gh_calls"
+    assert_output --partial "issue edit 9 --repo test-org/test-repo --add-label agent:done"
+}
+
+@test "post_merge: unmerged and non-bot PRs get no label edits" {
+    export AGENT_CLEANUP_ENABLED="true"
+    _source_dispatch_functions
+    gh() {
+        echo "$@" >> "${TEST_TEMP_DIR}/gh_calls"
+        if [ "$1" = "pr" ]; then echo '{"title":"t","body":"","headRefName":"feature/9-x","mergedAt":null,"author":{"login":"some-human"},"closingIssuesReferences":[{"number":9}]}'; fi
+        return 0
+    }
+    run handle_post_merge
+    assert_success
+    run cat "${TEST_TEMP_DIR}/gh_calls"
+    refute_output --partial "add-label"
 }

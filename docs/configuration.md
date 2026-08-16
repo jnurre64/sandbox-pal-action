@@ -230,7 +230,7 @@ When an agent-authored PR merges, an optional cleanup phase runs: tracking-doc u
 
 ### AGENT_CLEANUP_ENABLED
 
-Enables the post-merge cleanup phase. When disabled, a `pull_request.closed` event for a merged agent PR is a no-op.
+Enables the post-merge cleanup phase. When disabled, the doc-cleanup session is skipped for merged agent PRs.
 
 | Key | Default | Type |
 |-----|---------|------|
@@ -239,6 +239,10 @@ Enables the post-merge cleanup phase. When disabled, a `pull_request.closed` eve
 ```bash
 AGENT_CLEANUP_ENABLED="false"   # disable post-merge cleanup
 ```
+
+This flag gates only the doc-cleanup Claude session. The `agent:done` label
+transition on linked issues runs for every merged agent PR regardless of
+this setting — label bookkeeping is not cleanup.
 
 ### AGENT_PROMPT_CLEANUP
 
