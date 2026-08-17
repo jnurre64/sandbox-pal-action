@@ -80,12 +80,23 @@ AGENT_PROMPT_CLEANUP="${AGENT_PROMPT_CLEANUP:-}"
 AGENT_ALLOWED_TOOLS_CLEANUP="${AGENT_ALLOWED_TOOLS_CLEANUP:-Read,Edit,Write,Grep,Glob,Bash(git add:*),Bash(git commit:*),Bash(git rm:*),Bash(git status),Bash(git diff:*),Bash(git log:*),Bash(ls:*),Bash(cat:*),Bash(grep:*),Bash(find:*)}"
 
 # ─── Model configuration ────────────────────────────────────
-# Claude model to use (empty = use CLI default, currently Opus 4.6)
+# Claude model to use (empty = use CLI default, currently Opus)
 AGENT_MODEL="${AGENT_MODEL:-}"
 
 # Per-workflow model overrides (empty = fall back to AGENT_MODEL, then CLI default).
 # Use these to pick a faster/cheaper model for read-only review phases while
 # keeping a stronger model for implementation, or vice versa.
+#
+# Model-tier guidance: the all-defaults (Opus everywhere) configuration is the
+# recommended baseline. Pinning a frontier-tier model (e.g. claude-fable-5,
+# ~2x Opus pricing) across pipeline steps multiplies cost per issue with
+# little gain when a human or stronger orchestrator already gates plans and
+# merges — in one deployment, three frontier sessions per issue consumed the
+# bulk of the model budget while duplicating the orchestrator's own plan
+# review. If you escalate one slot, _ADVERSARIAL_PLAN is the highest-leverage
+# pin: it is read-mostly (cheap in tokens) and catches plan flaws before the
+# expensive implement/review cycle. Cheap/fast models fit _CLEANUP and other
+# bookkeeping steps.
 AGENT_MODEL_TRIAGE="${AGENT_MODEL_TRIAGE:-}"
 AGENT_MODEL_IMPLEMENT="${AGENT_MODEL_IMPLEMENT:-}"
 AGENT_MODEL_REVIEW="${AGENT_MODEL_REVIEW:-}"
