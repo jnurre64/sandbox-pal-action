@@ -11,7 +11,14 @@
 
 # ─── Logging ─────────────────────────────────────────────────────
 log() {
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] [$EVENT_TYPE] #$NUMBER: $*" | tee -a "$AGENT_LOG_DIR/sandbox-pal-dispatch.log"
+    # In orchestrator mode stdout is a machine contract — its final line
+    # is the dispatch result JSON — so human-readable output goes to
+    # stderr (and the log file) instead (#95).
+    if [ "${AGENT_EXECUTION_MODE:-actions}" = "orchestrator" ]; then
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] [$EVENT_TYPE] #$NUMBER: $*" | tee -a "$AGENT_LOG_DIR/sandbox-pal-dispatch.log" >&2
+    else
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] [$EVENT_TYPE] #$NUMBER: $*" | tee -a "$AGENT_LOG_DIR/sandbox-pal-dispatch.log"
+    fi
 }
 
 # ─── Label state machine ────────────────────────────────────────
@@ -506,6 +513,8 @@ Closes #${NUMBER}"
             --body "$pr_body" 2>/dev/null || echo "FAILED")
 
         if [ "$pr_url" != "FAILED" ]; then
+            # shellcheck disable=SC2034  # read by liveness.sh result/record
+            DISPATCH_PR_URL="$pr_url"
             log "PR created: $pr_url"
             notify "pr_created" "$issue_title" "$pr_url" "PR created with $commit_count commit(s)"
             set_label "agent:pr-open"

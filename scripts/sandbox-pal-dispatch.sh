@@ -26,6 +26,9 @@ _on_unexpected_error() {
     local line=${1:-unknown}
     # EXIT trap fires on success too — only act on errors
     [ "$exit_code" -eq 0 ] && return 0
+    # status is a read-only diagnostic: it must never mutate the issue,
+    # even when it dies in a half-configured environment (#95)
+    [ "$EVENT_TYPE" = "status" ] && return 0
     # Best-effort: every command uses || true since gh/notify may be
     # unavailable (they might be the thing that's broken).
     # Capture common diagnostic context
@@ -80,6 +83,11 @@ _on_dispatch_exit() {
     fi
     if command -v release_dispatch_lock &>/dev/null; then
         release_dispatch_lock 2>/dev/null || true
+    fi
+    # Must be the very last output: in orchestrator mode the final line
+    # of stdout is the dispatch result JSON (#95).
+    if command -v emit_orchestrator_result &>/dev/null; then
+        emit_orchestrator_result "$exit_code" 2>/dev/null || true
     fi
 }
 trap '_on_dispatch_exit' EXIT
@@ -919,6 +927,8 @@ fi
 # holder is named in the log, and a stale lock was already reclaimed
 # inside acquire_dispatch_lock.
 if ! acquire_dispatch_lock; then
+    # shellcheck disable=SC2034  # read by emit_orchestrator_result
+    DISPATCH_LOCK_REFUSED=1
     log "Dispatch refused — another run owns the lock for #${NUMBER}."
     exit 0
 fi

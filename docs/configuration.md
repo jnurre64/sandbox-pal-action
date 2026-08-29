@@ -82,6 +82,14 @@ Maximum number of bot comments allowed per hour on a single issue. If the limit 
 AGENT_CIRCUIT_BREAKER_LIMIT=8
 ```
 
+### AGENT_EXECUTION_MODE
+
+How the dispatch script is being invoked. `actions` (the default) is the GitHub Actions workflow path and changes nothing. `orchestrator` is for invocation by an interactive Claude Code session (see the Orchestrator Mode section of the architecture guide): human-readable log output moves to stderr, and the final line of stdout becomes a compact JSON result object for the calling session to parse. Usually set per-invocation by the `sp-*` skills (`AGENT_EXECUTION_MODE=orchestrator scripts/sandbox-pal-dispatch.sh …`) rather than in config.
+
+| Key | Default | Type |
+|-----|---------|------|
+| `AGENT_EXECUTION_MODE` | `actions` | `actions` \| `orchestrator` |
+
 ### AGENT_LOCK_DIR
 
 Directory for per-issue dispatch locks and last-dispatch outcome records (see the Dispatch Liveness section of the architecture guide). The lock enforces one dispatch per issue and carries a phase heartbeat; the last-dispatch record preserves each run's outcome even when the caller lost track of it.
