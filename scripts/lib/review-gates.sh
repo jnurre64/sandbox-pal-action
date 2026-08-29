@@ -54,7 +54,7 @@ _extract_review_json() {
 # ─── Review ledger ──────────────────────────────────────────────
 # A structured findings file that rides the work branch across review
 # cycles. Path: ${WORKTREE_DIR}/.agent-data/review-ledger.json
-# Schema: {"cycles": N, "findings": [{"id","severity","description","status","justification"}]}
+# Schema: {"issue": N, "cycles": N, "findings": [{"id","severity","description","status","justification"}]}
 #   severity: "blocking" | "non-blocking"
 #   status:   "open" | "fixed" | "rejected"
 LEDGER_FILE=""
@@ -62,9 +62,19 @@ LEDGER_FILE=""
 _ledger_init() {
     LEDGER_FILE="${WORKTREE_DIR}/.agent-data/review-ledger.json"
     mkdir -p "$(dirname "$LEDGER_FILE")"
-    if [ ! -f "$LEDGER_FILE" ] || ! jq -e '.findings' "$LEDGER_FILE" >/dev/null 2>&1; then
-        echo '{"cycles": 0, "findings": []}' > "$LEDGER_FILE"
+    local current_issue="${NUMBER:-}"
+    if [ -f "$LEDGER_FILE" ] && jq -e '.findings' "$LEDGER_FILE" >/dev/null 2>&1; then
+        # The ledger rides the work branch, so a branch cut after a merge
+        # inherits the previous PR's ledger. One stamped with another issue,
+        # or with no stamp at all, is a stale leftover — not history.
+        if jq -e --arg n "$current_issue" \
+            '.issue != null and (.issue | tostring) == $n' "$LEDGER_FILE" >/dev/null 2>&1; then
+            return 0
+        fi
+        log "Discarding stale review ledger (stamped: $(jq -r '.issue // "unstamped"' "$LEDGER_FILE"); current issue: ${current_issue:-unset})"
     fi
+    jq -n --arg issue "$current_issue" \
+        '{issue: ($issue | tonumber? // $issue), cycles: 0, findings: []}' > "$LEDGER_FILE"
 }
 
 # Merge one review pass's parsed JSON output into the ledger.

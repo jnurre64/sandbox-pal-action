@@ -117,6 +117,50 @@ _source_review_gates() {
 }
 
 # ═══════════════════════════════════════════════════════════════
+# Ledger issue-stamping (#89)
+# ═══════════════════════════════════════════════════════════════
+
+@test "REGRESSION v1.2.0: _ledger_init discards a ledger stamped with a different issue" {
+    export WORKTREE_DIR="$TEST_TEMP_DIR"
+    export NUMBER="8"
+    _source_review_gates
+    mkdir -p "${TEST_TEMP_DIR}/.agent-data"
+    echo '{"issue": 34, "cycles": 6, "findings": [{"id":"F1","severity":"blocking","description":"stale finding from issue 34","status":"open","justification":""}]}' \
+        > "${TEST_TEMP_DIR}/.agent-data/review-ledger.json"
+
+    _ledger_init
+
+    [ "$(jq -r '.findings | length' "$LEDGER_FILE")" = "0" ]
+    [ "$(jq -r '.cycles' "$LEDGER_FILE")" = "0" ]
+    [ "$(jq -r '.issue' "$LEDGER_FILE")" = "8" ]
+}
+
+@test "REGRESSION v1.2.0: _ledger_init discards an unstamped ledger" {
+    export WORKTREE_DIR="$TEST_TEMP_DIR"
+    export NUMBER="8"
+    _source_review_gates
+    mkdir -p "${TEST_TEMP_DIR}/.agent-data"
+    echo '{"cycles": 2, "findings": [{"id":"F1","severity":"blocking","description":"pre-stamp leftover","status":"open","justification":""}]}' \
+        > "${TEST_TEMP_DIR}/.agent-data/review-ledger.json"
+
+    _ledger_init
+
+    [ "$(jq -r '.findings | length' "$LEDGER_FILE")" = "0" ]
+    [ "$(jq -r '.issue' "$LEDGER_FILE")" = "8" ]
+}
+
+@test "_ledger_init stamps a fresh ledger with the current issue" {
+    export WORKTREE_DIR="$TEST_TEMP_DIR"
+    export NUMBER="42"
+    _source_review_gates
+
+    _ledger_init
+
+    [ "$(jq -r '.issue' "$LEDGER_FILE")" = "42" ]
+    [ "$(jq -r '.findings | length' "$LEDGER_FILE")" = "0" ]
+}
+
+# ═══════════════════════════════════════════════════════════════
 # run_post_impl_review — Gate B
 # ═══════════════════════════════════════════════════════════════
 
@@ -482,11 +526,12 @@ _setup_ledger() {
     assert_output "0"
 }
 
-@test "ledger: init preserves an existing ledger" {
+@test "ledger: init preserves an existing ledger stamped with the current issue" {
     export WORKTREE_DIR="$TEST_TEMP_DIR"
+    export NUMBER="7"
     _source_review_gates
     mkdir -p "${TEST_TEMP_DIR}/.agent-data"
-    echo '{"cycles":2,"findings":[{"id":"F1","severity":"blocking","description":"x","status":"open","justification":""}]}' \
+    echo '{"issue":7,"cycles":2,"findings":[{"id":"F1","severity":"blocking","description":"x","status":"open","justification":""}]}' \
         > "${TEST_TEMP_DIR}/.agent-data/review-ledger.json"
     _ledger_init
     run jq -r '.cycles' "$LEDGER_FILE"
