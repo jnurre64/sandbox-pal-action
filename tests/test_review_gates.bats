@@ -3,9 +3,11 @@
 
 load 'helpers/test_helper'
 
-# Helper to source review-gates.sh (requires common.sh first)
+# Helper to source review-gates.sh (requires common.sh first;
+# liveness.sh provides set_heartbeat, a no-op without a held lock)
 _source_review_gates() {
     source "${LIB_DIR}/common.sh"
+    source "${LIB_DIR}/liveness.sh"
     source "${LIB_DIR}/review-gates.sh"
 }
 

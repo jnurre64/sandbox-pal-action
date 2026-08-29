@@ -106,6 +106,28 @@ Labels are case-sensitive. Ensure the label you added matches exactly what the w
 
 ---
 
+## Dispatch Reported Killed or Dead — Is It?
+
+**Symptom**: A monitor, notification, or wrapper reports a running dispatch as `killed` or `failed`, but you are not sure the work is actually lost.
+
+### Cause
+
+Background-task monitors are not reliable for long dispatches: a run that outlives a foreground timeout can be reported killed while it is still running — and go on to open a PR. Trusting the notification means telling someone their work is lost when it is finished.
+
+### Resolution — the notification is unverified until you check
+
+1. **`status` first** — usually the whole answer:
+   ```bash
+   ./scripts/sandbox-pal-dispatch.sh status <owner/repo> <issue>
+   ```
+   `stale: false` = the run is alive; the output names its current phase and how long it has been there. `stale: true` = it really died (the next dispatch reclaims the lock — status does not clean it up).
+2. **Read the last-dispatch record** at `$AGENT_LOCK_DIR/<repo>-<issue>-last-dispatch.json` — every run writes its outcome there before exiting, on failures too. If the caller lost the pipe, this file is the outcome.
+3. **Check the work branch** — `git log origin/agent/issue-<N>` — commits are pushed before gates can fail, so finished work is visible there regardless.
+
+Report the dispatch as stopped only once all of that agrees. Never describe the working tree as half-finished, or advise discarding or salvaging work, on the strength of the notification alone.
+
+---
+
 ## Agent Reports Success but a `.claude/` File Was Never Written
 
 **Symptom**: A phase was asked to update a file under `.claude/` (rules, skills, settings) and reported success, but the file is unchanged. No error appears anywhere.

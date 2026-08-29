@@ -39,6 +39,10 @@ remove_all_agent_labels() {
 }
 
 set_label() {
+    # The last agent label set is the best outcome summary a dispatch
+    # has — record it for the last-dispatch liveness record (#94).
+    # shellcheck disable=SC2034  # read by liveness.sh's write_last_dispatch
+    DISPATCH_OUTCOME="$1"
     remove_all_agent_labels
     gh issue edit "$NUMBER" --repo "$REPO" --add-label "$1" 2>/dev/null || true
 }

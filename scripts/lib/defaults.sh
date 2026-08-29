@@ -148,3 +148,6 @@ AGENT_NOTIFY_SLACK_WEBHOOK_MAP="${AGENT_NOTIFY_SLACK_WEBHOOK_MAP:-}"
 
 # ─── Paths ───────────────────────────────────────────────────────
 AGENT_LOG_DIR="${AGENT_LOG_DIR:-$HOME/.claude/agent-logs}"
+
+# Dispatch locks and last-dispatch outcome records (liveness, #94)
+AGENT_LOCK_DIR="${AGENT_LOCK_DIR:-$AGENT_LOG_DIR/locks}"

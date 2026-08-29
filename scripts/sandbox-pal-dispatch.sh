@@ -22,7 +22,7 @@ NUMBER="${3:?}"  # Issue or PR number
 # Catch unexpected errors (config failures, missing tools, script bugs)
 # and post a comment on the issue so failures aren't silent.
 _on_unexpected_error() {
-    local exit_code=$?
+    local exit_code=${2:-$?}
     local line=${1:-unknown}
     # EXIT trap fires on success too — only act on errors
     [ "$exit_code" -eq 0 ] && return 0
@@ -67,7 +67,22 @@ Check the [workflow run logs](https://github.com/${REPO}/actions) for details." 
     fi
 }
 trap '_on_unexpected_error $LINENO' ERR
-trap '_on_unexpected_error exit' EXIT
+
+# On every exit — success, controlled failure, or crash — report errors,
+# write the last-dispatch outcome record, and release the lock (#94).
+# The liveness functions may not be loaded yet if we die during config;
+# guard each call.
+_on_dispatch_exit() {
+    local exit_code=$?
+    _on_unexpected_error exit "$exit_code"
+    if command -v write_last_dispatch &>/dev/null; then
+        write_last_dispatch "$exit_code" 2>/dev/null || true
+    fi
+    if command -v release_dispatch_lock &>/dev/null; then
+        release_dispatch_lock 2>/dev/null || true
+    fi
+}
+trap '_on_dispatch_exit' EXIT
 
 # ─── Load configuration ─────────────────────────────────────────
 # Layered config: defaults (committed) → overrides (gitignored) → defaults.sh
@@ -135,6 +150,8 @@ source "${SCRIPT_DIR}/lib/notify.sh"
 source "${SCRIPT_DIR}/lib/review-gates.sh"
 # shellcheck source=lib/rules-staging.sh
 source "${SCRIPT_DIR}/lib/rules-staging.sh"
+# shellcheck source=lib/liveness.sh
+source "${SCRIPT_DIR}/lib/liveness.sh"
 
 # ═══════════════════════════════════════════════════════════════
 # EVENT: New issue labeled "agent" → Triage + Plan (no implementation)
@@ -166,6 +183,7 @@ handle_new_issue() {
     prompt=$(load_prompt "triage" "$AGENT_PROMPT_TRIAGE")
 
     local result
+    set_heartbeat "triage"
     result=$(run_claude "$prompt" "$AGENT_ALLOWED_TOOLS_TRIAGE" "$AGENT_MODEL_TRIAGE")
     log_permission_denials "$result" "triage"
 
@@ -311,6 +329,7 @@ handle_issue_reply() {
     prompt=$(load_prompt "reply" "$AGENT_PROMPT_REPLY")
 
     local result
+    set_heartbeat "reply"
     result=$(run_claude "$prompt" "$AGENT_ALLOWED_TOOLS_TRIAGE" "$AGENT_MODEL_TRIAGE")
     log_permission_denials "$result" "reply"
     local claude_output
@@ -457,6 +476,7 @@ handle_implement() {
     stage_rules_files
 
     local result
+    set_heartbeat "implement"
     result=$(run_claude "$prompt" "$impl_tools" "$AGENT_MODEL_IMPLEMENT")
     log_permission_denials "$result" "implement"
 
@@ -542,6 +562,7 @@ handle_direct_implement() {
     prompt=$(load_prompt "validate" "$AGENT_PROMPT_VALIDATE")
 
     local result
+    set_heartbeat "validate"
     result=$(run_claude "$prompt" "$AGENT_ALLOWED_TOOLS_TRIAGE" "$AGENT_MODEL_TRIAGE")
     log_permission_denials "$result" "validate"
 
@@ -708,6 +729,7 @@ handle_pr_review() {
     stage_rules_files
 
     local result
+    set_heartbeat "pr-review"
     result=$(run_claude "$prompt" "$pr_tools" "$AGENT_MODEL_REVIEW")
     log_permission_denials "$result" "pr-review"
 
@@ -837,6 +859,7 @@ handle_post_merge() {
     stage_rules_files
 
     local result
+    set_heartbeat "cleanup"
     result=$(run_claude "$prompt" "$AGENT_ALLOWED_TOOLS_CLEANUP" "$AGENT_MODEL_CLEANUP")
     log_permission_denials "$result" "cleanup"
     local claude_output
@@ -885,6 +908,21 @@ _Filed automatically by the post-merge cleanup of PR #${pr_number}._" 2>/dev/nul
 # ═══════════════════════════════════════════════════════════════
 # Dispatch based on event type
 # ═══════════════════════════════════════════════════════════════
+# Status is read-only and never takes the lock — it must be usable to
+# diagnose a dispatch that is currently holding it (#94).
+if [ "$EVENT_TYPE" = "status" ]; then
+    handle_status
+    exit 0
+fi
+
+# One dispatch per issue. A refused lock is a controlled no-op: the
+# holder is named in the log, and a stale lock was already reclaimed
+# inside acquire_dispatch_lock.
+if ! acquire_dispatch_lock; then
+    log "Dispatch refused — another run owns the lock for #${NUMBER}."
+    exit 0
+fi
+
 case "$EVENT_TYPE" in
     new_issue)
         handle_new_issue

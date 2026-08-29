@@ -82,6 +82,14 @@ Maximum number of bot comments allowed per hour on a single issue. If the limit 
 AGENT_CIRCUIT_BREAKER_LIMIT=8
 ```
 
+### AGENT_LOCK_DIR
+
+Directory for per-issue dispatch locks and last-dispatch outcome records (see the Dispatch Liveness section of the architecture guide). The lock enforces one dispatch per issue and carries a phase heartbeat; the last-dispatch record preserves each run's outcome even when the caller lost track of it.
+
+| Key | Default | Type |
+|-----|---------|------|
+| `AGENT_LOCK_DIR` | `$AGENT_LOG_DIR/locks` | directory path |
+
 ### AGENT_ADD_DIRS
 
 Space-separated list of extra directories phases may access without prompting, passed to `claude -p` as `--add-dir` flags. Path gating is separate from tool allow rules: a command matching an allow rule is still denied when it touches a path outside the working directory, so sibling repos, scratch areas, and package caches need to be listed here even when the account can already read them.
