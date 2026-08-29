@@ -1,0 +1,19 @@
+{
+  "type": "object",
+  "properties": {
+    "action": {"type": "string", "enum": ["addressed"]},
+    "dispositions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {"type": "string"},
+          "status": {"type": "string", "enum": ["fixed", "rejected"]},
+          "note": {"type": "string"}
+        },
+        "required": ["id", "status"]
+      }
+    }
+  },
+  "required": ["action", "dispositions"]
+}

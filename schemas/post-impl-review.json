@@ -1,0 +1,20 @@
+{
+  "type": "object",
+  "properties": {
+    "action": {"type": "string", "enum": ["approved", "concerns"]},
+    "verified_fixed": {"type": "array", "items": {"type": "string"}},
+    "reopened": {"type": "array", "items": {"type": "string"}},
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "severity": {"type": "string", "enum": ["blocking", "non-blocking"]},
+          "description": {"type": "string"}
+        },
+        "required": ["severity", "description"]
+      }
+    }
+  },
+  "required": ["action", "verified_fixed", "reopened", "findings"]
+}

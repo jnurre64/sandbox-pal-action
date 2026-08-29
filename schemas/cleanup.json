@@ -1,0 +1,19 @@
+{
+  "type": "object",
+  "properties": {
+    "action": {"type": "string", "enum": ["done"]},
+    "summary": {"type": "string"},
+    "follow_up_issues": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "title": {"type": "string"},
+          "body": {"type": "string"}
+        },
+        "required": ["title", "body"]
+      }
+    }
+  },
+  "required": ["action", "summary", "follow_up_issues"]
+}

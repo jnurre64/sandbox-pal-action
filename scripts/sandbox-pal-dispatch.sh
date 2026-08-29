@@ -192,7 +192,7 @@ handle_new_issue() {
 
     local result
     set_heartbeat "triage"
-    result=$(run_claude "$prompt" "$AGENT_ALLOWED_TOOLS_TRIAGE" "$AGENT_MODEL_TRIAGE")
+    result=$(run_claude "$prompt" "$AGENT_ALLOWED_TOOLS_TRIAGE" "$AGENT_MODEL_TRIAGE" "$AGENT_JSON_SCHEMA_TRIAGE")
     log_permission_denials "$result" "triage"
 
     local claude_output
@@ -202,7 +202,10 @@ handle_new_issue() {
     # Parse the action
     local triage_json action
     set +e
-    triage_json=$(echo "$claude_output" | grep -oE '[{][^{}]*"action"[^{}]*[}]' | tail -1)
+    triage_json=$(get_structured_output "$result")
+    if [ -z "$triage_json" ]; then
+        triage_json=$(echo "$claude_output" | grep -oE '[{][^{}]*"action"[^{}]*[}]' | tail -1)
+    fi
     if [ -z "$triage_json" ]; then
         triage_json="$claude_output"
     fi
@@ -338,14 +341,17 @@ handle_issue_reply() {
 
     local result
     set_heartbeat "reply"
-    result=$(run_claude "$prompt" "$AGENT_ALLOWED_TOOLS_TRIAGE" "$AGENT_MODEL_TRIAGE")
+    result=$(run_claude "$prompt" "$AGENT_ALLOWED_TOOLS_TRIAGE" "$AGENT_MODEL_TRIAGE" "$AGENT_JSON_SCHEMA_REPLY")
     log_permission_denials "$result" "reply"
     local claude_output
     claude_output=$(parse_claude_output "$result")
 
     local triage_json action
     set +e
-    triage_json=$(echo "$claude_output" | grep -oE '[{][^{}]*"action"[^{}]*[}]' | tail -1)
+    triage_json=$(get_structured_output "$result")
+    if [ -z "$triage_json" ]; then
+        triage_json=$(echo "$claude_output" | grep -oE '[{][^{}]*"action"[^{}]*[}]' | tail -1)
+    fi
     if [ -z "$triage_json" ]; then
         triage_json="$claude_output"
     fi
@@ -571,7 +577,7 @@ handle_direct_implement() {
 
     local result
     set_heartbeat "validate"
-    result=$(run_claude "$prompt" "$AGENT_ALLOWED_TOOLS_TRIAGE" "$AGENT_MODEL_TRIAGE")
+    result=$(run_claude "$prompt" "$AGENT_ALLOWED_TOOLS_TRIAGE" "$AGENT_MODEL_TRIAGE" "$AGENT_JSON_SCHEMA_VALIDATE")
     log_permission_denials "$result" "validate"
 
     local claude_output
@@ -581,7 +587,10 @@ handle_direct_implement() {
     # Parse the action
     local validate_json action
     set +e
-    validate_json=$(echo "$claude_output" | grep -oE '[{][^{}]*"action"[^{}]*[}]' | tail -1)
+    validate_json=$(get_structured_output "$result")
+    if [ -z "$validate_json" ]; then
+        validate_json=$(echo "$claude_output" | grep -oE '[{][^{}]*"action"[^{}]*[}]' | tail -1)
+    fi
     if [ -z "$validate_json" ]; then
         validate_json="$claude_output"
     fi
@@ -868,7 +877,7 @@ handle_post_merge() {
 
     local result
     set_heartbeat "cleanup"
-    result=$(run_claude "$prompt" "$AGENT_ALLOWED_TOOLS_CLEANUP" "$AGENT_MODEL_CLEANUP")
+    result=$(run_claude "$prompt" "$AGENT_ALLOWED_TOOLS_CLEANUP" "$AGENT_MODEL_CLEANUP" "$AGENT_JSON_SCHEMA_CLEANUP")
     log_permission_denials "$result" "cleanup"
     local claude_output
     claude_output=$(parse_claude_output "$result")
@@ -878,7 +887,8 @@ handle_post_merge() {
 
     # Follow-up issues from the session's structured output
     local json_block fu_count i=0
-    json_block=$(_extract_review_json "$claude_output")
+    json_block=$(get_structured_output "$result")
+    [ -z "$json_block" ] && json_block=$(_extract_review_json "$claude_output")
     set +e
     fu_count=$(printf '%s' "$json_block" | jq -r '(.follow_up_issues // []) | length' 2>/dev/null)
     set -e

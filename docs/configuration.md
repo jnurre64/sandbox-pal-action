@@ -82,6 +82,22 @@ Maximum number of bot comments allowed per hour on a single issue. If the limit 
 AGENT_CIRCUIT_BREAKER_LIMIT=8
 ```
 
+### AGENT_JSON_SCHEMA_* (structured phase output)
+
+Each machine-consumed phase passes a JSON Schema to `claude -p --json-schema`, so the CLI returns a guaranteed-shape object in the envelope's `structured_output` field instead of the dispatch script parsing free text. Handlers prefer the validated object and fall back to text extraction, so older CLIs and custom prompts keep working.
+
+| Key | Default | Phase |
+|-----|---------|-------|
+| `AGENT_JSON_SCHEMA_TRIAGE` | `schemas/triage.json` | triage |
+| `AGENT_JSON_SCHEMA_REPLY` | `schemas/reply.json` | issue reply |
+| `AGENT_JSON_SCHEMA_VALIDATE` | `schemas/validate.json` | direct-implement validation |
+| `AGENT_JSON_SCHEMA_ADVERSARIAL_PLAN` | `schemas/adversarial-plan.json` | Gate A plan review |
+| `AGENT_JSON_SCHEMA_POST_IMPL_REVIEW` | `schemas/post-impl-review.json` | Gate B review |
+| `AGENT_JSON_SCHEMA_POST_IMPL_RETRY` | `schemas/post-impl-retry.json` | Gate B retry |
+| `AGENT_JSON_SCHEMA_CLEANUP` | `schemas/cleanup.json` | post-merge cleanup |
+
+Set a variable to `""` (explicitly empty) to disable that phase's schema, or point it at your own file — absolute, or relative to the config directory. Phases with no machine-consumed result (`implement`, `pr_review` revision) take no schema. If you override a phase's prompt with a different output contract, override or disable its schema to match — a configured schema whose shape the prompt never produces is reported as a schema/prompt mismatch, distinct from an agent failure.
+
 ### AGENT_EXECUTION_MODE
 
 How the dispatch script is being invoked. `actions` (the default) is the GitHub Actions workflow path and changes nothing. `orchestrator` is for invocation by an interactive Claude Code session (see the Orchestrator Mode section of the architecture guide): human-readable log output moves to stderr, and the final line of stdout becomes a compact JSON result object for the calling session to parse. Usually set per-invocation by the `sp-*` skills (`AGENT_EXECUTION_MODE=orchestrator scripts/sandbox-pal-dispatch.sh …`) rather than in config.

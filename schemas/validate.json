@@ -1,0 +1,8 @@
+{
+  "type": "object",
+  "properties": {
+    "action": {"type": "string", "enum": ["valid", "issues_found"]},
+    "issues": {"type": "array", "items": {"type": "string"}}
+  },
+  "required": ["action"]
+}

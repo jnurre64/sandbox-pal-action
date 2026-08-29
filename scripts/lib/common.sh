@@ -296,6 +296,7 @@ run_claude() {
     local prompt="$1"
     local allowed_tools="${2:-$AGENT_ALLOWED_TOOLS_IMPLEMENT}"
     local model_override="${3:-}"
+    local schema_file="${4:-}"
     local memory
     memory=$(load_shared_memory)
 
@@ -325,6 +326,19 @@ run_claude() {
     if [ -n "$memory" ]; then
         claude_args+=(--append-system-prompt "$memory")
     fi
+    # Structured output: the CLI validates the phase's final output
+    # against the schema and returns it in .structured_output (#96).
+    # Relative override paths resolve against CONFIG_DIR, like prompts.
+    if [ -n "$schema_file" ]; then
+        if [ ! -f "$schema_file" ] && [ -n "${CONFIG_DIR:-}" ] && [ -f "${CONFIG_DIR}/${schema_file}" ]; then
+            schema_file="${CONFIG_DIR}/${schema_file}"
+        fi
+        if [ -f "$schema_file" ]; then
+            claude_args+=(--json-schema "$(jq -c . "$schema_file")")
+        else
+            log "WARN: schema file not found, running without --json-schema: ${schema_file}"
+        fi
+    fi
 
     local raw_output exit_code=0
     raw_output=$(timeout "$AGENT_TIMEOUT" claude "${claude_args[@]}" 2>"$stderr_log") || exit_code=$?
@@ -339,6 +353,18 @@ run_claude() {
         log "Claude exited with code $exit_code. Stderr: $(head -20 "$stderr_log")"
         echo '{"result":"Claude timed out or errored (exit code '"$exit_code"')","error":true}'
     fi
+}
+
+# ─── Structured output ───────────────────────────────────────────
+# The schema-validated object from the envelope, compact, or empty when
+# the phase ran without a schema (or the CLI predates --json-schema).
+# Handlers prefer this and fall back to text extraction, so custom
+# prompts and disabled schemas keep working unchanged.
+get_structured_output() {
+    local result="$1"
+    printf '%s' "$result" \
+        | jq -c '.structured_output // empty | select(. != null)' 2>/dev/null \
+        || true
 }
 
 # ─── Parse Claude JSON output ────────────────────────────────────
