@@ -126,6 +126,25 @@ Space-separated list of extra directories phases may access without prompting, p
 AGENT_ADD_DIRS="$HOME/repos/shared-assets $HOME/.cache/packages"
 ```
 
+### AGENT_MEMORY_DIR
+
+Path to a shared memory **directory** — an index plus the files its pointers name (the `~/.claude/projects/<slug>/memory/` layout). `AGENT_MEMORY_FILE` alone injects only the index, which for this layout is a table of contents for a book the agent cannot open: 25 one-line pointers to files the phase has no way to read.
+
+When set:
+- The index (`MEMORY.md` in the directory, or `AGENT_MEMORY_FILE` if also set) is injected via `--append-system-prompt` exactly as before.
+- The directory is passed as `--add-dir`, so the phase can `Read` the file a pointer names — path gating would otherwise deny out-of-tree reads.
+- The injected preamble names the directory and keeps memory **read-only**: only interactive sessions manage memory.
+
+Supports absolute or workspace-relative paths. `AGENT_MEMORY_FILE` alone behaves exactly as before.
+
+| Key | Default | Type |
+|-----|---------|------|
+| `AGENT_MEMORY_DIR` | *(empty)* | directory path (absolute or workspace-relative) |
+
+```bash
+AGENT_MEMORY_DIR="$HOME/.claude/projects/-home-user-repos-myproject/memory"
+```
+
 ### AGENT_MEMORY_FILE
 
 Path to a shared Claude memory file. If set and the file exists, its contents are appended to the system prompt for every `claude -p` invocation via `--append-system-prompt`. This lets the agent benefit from context accumulated during interactive Claude Code sessions.
