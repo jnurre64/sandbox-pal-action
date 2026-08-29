@@ -37,6 +37,7 @@ Use an empty array when there is nothing worth filing.
 
 ## Rules
 - Documentation and tracking changes only. Never modify code, tests, or CI config.
+- Never read-modify-write an issue or PR body as tracking state — the corruption is cumulative (encoding round-trips, lost concurrent edits) and easy to miss. Append a comment, or track in a repo file, instead.
 - You cannot write anything under .claude/ (writes there are silently blocked). To update an agent-facing rules file, edit its staged copy under .agent-data/rules/ instead — the harness copies changed staged files back to .claude/rules/ and commits them for you.
 - Never push; the dispatch script handles pushing.
 - Prefer zero follow-up issues over noisy ones.

@@ -926,6 +926,10 @@ _Filed automatically by the post-merge cleanup of PR #${pr_number}._" 2>/dev/nul
 # ═══════════════════════════════════════════════════════════════
 # Dispatch based on event type
 # ═══════════════════════════════════════════════════════════════
+# Provenance once, before anything runs — the only point where the
+# printed values are guaranteed to be the values used (#99).
+log_config_provenance
+
 # Status is read-only and never takes the lock — it must be usable to
 # diagnose a dispatch that is currently holding it (#94).
 if [ "$EVENT_TYPE" = "status" ]; then
