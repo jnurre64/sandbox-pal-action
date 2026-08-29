@@ -3,8 +3,9 @@
 # Provides: log, set_label, remove_all_agent_labels, mark_issue_done,
 #           check_circuit_breaker,
 #           load_shared_memory, detect_label_tools, get_implementation_tools,
-#           load_prompt, extract_plan_branch, run_claude, parse_claude_output,
-#           classify_claude_result, preserve_branch, handle_post_implementation
+#           load_prompt, extract_plan_branch, redact_secrets, run_claude,
+#           parse_claude_output, classify_claude_result, preserve_branch,
+#           handle_post_implementation
 
 # ─── Logging ─────────────────────────────────────────────────────
 log() {
@@ -201,6 +202,36 @@ extract_plan_branch() {
     printf '%s' "$branch"
 }
 
+# ─── Redact secrets from phase output ────────────────────────────
+# stdin → stdout filter. Scrubs two match classes: well-known token
+# shapes, and the literal value of every credential-looking variable in
+# the process environment (which a phase inherits and can read). Deny
+# rules are the first line of defence; this is the second — a denied
+# command is echoed verbatim to explain the denial, which is exactly
+# where a credential shows up in a log or comment.
+redact_secrets() {
+    local text
+    text=$(cat)
+    text=$(printf '%s' "$text" | sed -E \
+        -e 's/github_pat_[A-Za-z0-9_]{20,}/[REDACTED_TOKEN]/g' \
+        -e 's/gh[pousr]_[A-Za-z0-9]{20,}/[REDACTED_TOKEN]/g' \
+        -e 's/([Aa]uthorization:[[:space:]]*([Tt]oken|[Bb]earer|[Bb]asic)[[:space:]]+)[^[:space:]"'\'']+/\1[REDACTED]/g')
+    local var_name var_value
+    while read -r var_name; do
+        case "$var_name" in
+            *TOKEN*|*SECRET*|*PASSWORD*|*API_KEY*|*APIKEY*|*CREDENTIAL*)
+                var_value="${!var_name-}"
+                # Short values are skipped: replacing a 2-char password
+                # everywhere it appears would mangle ordinary text.
+                if [ "${#var_value}" -ge 8 ]; then
+                    text="${text//"$var_value"/[REDACTED:${var_name}]}"
+                fi
+                ;;
+        esac
+    done < <(compgen -e)
+    printf '%s\n' "$text"
+}
+
 # ─── Run Claude and capture structured output ────────────────────
 run_claude() {
     local prompt="$1"
@@ -226,11 +257,19 @@ run_claude() {
         claude_args+=(--append-system-prompt "$memory")
     fi
 
-    timeout "$AGENT_TIMEOUT" claude "${claude_args[@]}" 2>"$stderr_log" || {
-        local exit_code=$?
+    local raw_output exit_code=0
+    raw_output=$(timeout "$AGENT_TIMEOUT" claude "${claude_args[@]}" 2>"$stderr_log") || exit_code=$?
+
+    # Scrub at the point of capture — before the envelope or the stderr
+    # log reaches any log line, parse, file, or comment (#91).
+    redact_secrets < "$stderr_log" > "${stderr_log}.tmp" \
+        && mv "${stderr_log}.tmp" "$stderr_log"
+    printf '%s\n' "$raw_output" | redact_secrets
+
+    if [ "$exit_code" -ne 0 ]; then
         log "Claude exited with code $exit_code. Stderr: $(head -20 "$stderr_log")"
         echo '{"result":"Claude timed out or errored (exit code '"$exit_code"')","error":true}'
-    }
+    fi
 }
 
 # ─── Parse Claude JSON output ────────────────────────────────────

@@ -111,6 +111,23 @@ If `AGENT_TEST_COMMAND` is configured, the dispatch script runs the test suite a
 
 The safety mechanisms above align with emerging industry frameworks for autonomous AI agents, including the [OWASP Top 10 for Agentic Applications](https://genai.owasp.org/resource/owasp-top-10-for-agentic-applications-for-2026/) (principle of least agency — only grant agents the minimum autonomy required for safe, bounded tasks) and the [NVIDIA AI Red Team's recommended controls](https://developer.nvidia.com/blog/securing-ai-agents-best-practices-from-nvidias-ai-red-team/) for autonomous agents (network egress restrictions, file write restrictions, approval architecture).
 
+### Phase Output Redaction
+
+Everything a phase session outputs — the JSON envelope on stdout and the CLI's stderr log — is scrubbed by `redact_secrets` at the point of capture in `run_claude`, before it reaches any log line, saved file, parse, or issue/PR comment. Two match classes are covered:
+
+1. **Well-known token shapes**: `github_pat_…`, `gh[pousr]_…` (classic PATs, OAuth, server/user/refresh tokens), and the value following an `Authorization: token|bearer|basic` header.
+2. **The literal value of every credential-looking environment variable** in the dispatch process — names matching `TOKEN`, `SECRET`, `PASSWORD`, `API_KEY`/`APIKEY`, or `CREDENTIAL`. A phase inherits these (on a self-hosted runner that includes `AGENT_PAT`) and can read them, so their exact values are replaced wherever they appear.
+
+**Why it exists**: deny rules are the first line of defence, but a *denied* command is echoed verbatim to explain the denial — which is precisely where a credential surfaces. In a reference implementation of this pipeline, a phase typed a bot PAT into a denied `curl` and the harness echoed the denied command, token included, into the log and the transcript. The deny rule worked; the reporting path leaked.
+
+**Limits** (redaction is the second line of defence, not a guarantee):
+- Environment-variable matching is by name convention — a secret in an unconventionally named variable (e.g. `MY_VALUE`) is not caught by class 2, only by class 1 if its shape is recognizable.
+- Values shorter than 8 characters are deliberately not replaced (scrubbing a 2-character password everywhere it appears would mangle ordinary text).
+- A secret transformed by the phase (base64-encoded, split across lines) will not match either class.
+- Secrets that exist only inside the phase's sandbox (fetched at runtime, never in the dispatch environment) are unknown to the filter.
+
+The first line of defence remains keeping phases off the network and out of credential stores via deny rules, which this project configures by default.
+
 ### Data Privacy
 
 Issue content (titles, bodies, comments, attached gists/files) is sent to the Anthropic API for inference. This is the same trust boundary as using Claude Code interactively on your codebase.

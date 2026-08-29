@@ -172,6 +172,72 @@ _source_common() {
 }
 
 # ═══════════════════════════════════════════════════════════════
+# redact_secrets tests (#91)
+# ═══════════════════════════════════════════════════════════════
+
+@test "redact_secrets: scrubs classic ghp_ token shapes" {
+    _source_common
+    run redact_secrets <<< "denied: curl -H ghp_abcdefghijklmnopqrstuvwxyz1234 done"
+    assert_output --partial "[REDACTED_TOKEN]"
+    refute_output --partial "ghp_abcdefghijklmnopqrstuvwxyz1234"
+}
+
+@test "redact_secrets: scrubs fine-grained github_pat_ token shapes" {
+    _source_common
+    run redact_secrets <<< "github_pat_11ABCDEFG0abcdefghijklmnopqrstuv leaked"
+    assert_output --partial "[REDACTED_TOKEN]"
+    refute_output --partial "github_pat_11ABCDEFG0abcdefghijklmnopqrstuv"
+}
+
+@test "redact_secrets: scrubs the value after an Authorization header" {
+    _source_common
+    run redact_secrets <<< 'curl -H "Authorization: bearer sekrit-value-123" https://x'
+    refute_output --partial "sekrit-value-123"
+    assert_output --partial "Authorization: bearer [REDACTED]"
+}
+
+@test "redact_secrets: scrubs the literal value of credential-looking env vars" {
+    _source_common
+    export FAKE_AGENT_TOKEN="supersecretvalue123"
+    run redact_secrets <<< "the agent typed supersecretvalue123 into a command"
+    refute_output --partial "supersecretvalue123"
+    assert_output --partial "[REDACTED:FAKE_AGENT_TOKEN]"
+}
+
+@test "redact_secrets: leaves short env-var values alone to avoid mangling text" {
+    _source_common
+    export FAKE_AGENT_PASSWORD="ab"
+    run redact_secrets <<< "absolutely normal text"
+    assert_output "absolutely normal text"
+}
+
+@test "redact_secrets: passes clean text through unchanged" {
+    _source_common
+    run redact_secrets <<< "a perfectly ordinary envelope"
+    assert_output "a perfectly ordinary envelope"
+}
+
+@test "REGRESSION v1.2.0: run_claude redacts the envelope and the stderr log at capture" {
+    _source_common
+    export WORKTREE_DIR="$TEST_TEMP_DIR"
+    mkdir -p "${TEST_TEMP_DIR}/bin"
+    cat > "${TEST_TEMP_DIR}/bin/claude" <<'MOCK'
+#!/bin/bash
+echo "denied command echoed: curl -H ghp_abcdefghijklmnopqrstuvwxyz1234" >&2
+echo '{"result":"phase output containing ghp_abcdefghijklmnopqrstuvwxyz1234"}'
+MOCK
+    chmod +x "${TEST_TEMP_DIR}/bin/claude"
+    export PATH="${TEST_TEMP_DIR}/bin:${PATH}"
+
+    run run_claude "test prompt"
+    refute_output --partial "ghp_abcdefghijklmnopqrstuvwxyz1234"
+    assert_output --partial "[REDACTED_TOKEN]"
+
+    ! grep -q "ghp_abcdefghijklmnopqrstuvwxyz1234" "${AGENT_LOG_DIR}"/claude-stderr-*.log
+    grep -q "REDACTED_TOKEN" "${AGENT_LOG_DIR}"/claude-stderr-*.log
+}
+
+# ═══════════════════════════════════════════════════════════════
 # classify_claude_result tests (#90)
 # ═══════════════════════════════════════════════════════════════
 
