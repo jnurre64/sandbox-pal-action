@@ -171,6 +171,15 @@ AGENT_JSON_SCHEMA_POST_IMPL_REVIEW="${AGENT_JSON_SCHEMA_POST_IMPL_REVIEW-${_SPA_
 AGENT_JSON_SCHEMA_POST_IMPL_RETRY="${AGENT_JSON_SCHEMA_POST_IMPL_RETRY-${_SPA_SCHEMAS_DIR}/post-impl-retry.json}"
 AGENT_JSON_SCHEMA_CLEANUP="${AGENT_JSON_SCHEMA_CLEANUP-${_SPA_SCHEMAS_DIR}/cleanup.json}"
 
+# ─── Per-phase invocation flags (#98) ────────────────────────────
+# All optional, defaulting to current behaviour. Per-phase variants
+# (AGENT_BUDGET_USD_<PHASE>, AGENT_EFFORT_<PHASE>,
+# AGENT_PERMISSION_MODE_<PHASE>) are read dynamically by run_claude.
+AGENT_BUDGET_USD="${AGENT_BUDGET_USD:-}"          # limitless unless set
+AGENT_MCP_CONFIG="${AGENT_MCP_CONFIG:-}"          # path → --mcp-config + --strict-mcp-config
+AGENT_STRICT_MCP="${AGENT_STRICT_MCP:-}"          # "true" → --strict-mcp-config alone (no MCP servers)
+AGENT_SESSION_PERSISTENCE="${AGENT_SESSION_PERSISTENCE:-false}"  # "true" keeps resumable phase sessions
+
 # ─── Execution mode ──────────────────────────────────────────────
 # actions:      invoked by a GitHub Actions workflow (default)
 # orchestrator: invoked by an interactive Claude Code session; logs go
