@@ -117,6 +117,38 @@ _source_review_gates() {
 }
 
 # ═══════════════════════════════════════════════════════════════
+# Fail-fast on API errors (#90)
+# ═══════════════════════════════════════════════════════════════
+
+@test "REGRESSION v1.2.0: Gate B review reports an API error as such, not as a parse failure" {
+    export WORKTREE_DIR="$TEST_TEMP_DIR"
+    export BRANCH_NAME="feature/test-branch"
+    create_mock "gh" ""
+    _source_review_gates
+    _ledger_init
+    run_claude() { echo '{"is_error":true,"subtype":"success"}'; }
+
+    run run_post_impl_review
+    assert_failure
+
+    grep -q "API error" "${TEST_TEMP_DIR}/mock_calls_gh"
+    ! grep -q "could not parse" "${TEST_TEMP_DIR}/mock_calls_gh"
+}
+
+@test "retry session aborts the loop on an API-error envelope" {
+    export WORKTREE_DIR="$TEST_TEMP_DIR"
+    export BRANCH_NAME="feature/test-branch"
+    create_mock "gh" ""
+    _source_review_gates
+    _ledger_init
+    run_claude() { echo '{"is_error":true,"subtype":"success"}'; }
+
+    run run_post_impl_retry_session "Read,Edit"
+    assert_failure
+    grep -q "API error" "${TEST_TEMP_DIR}/mock_calls_gh"
+}
+
+# ═══════════════════════════════════════════════════════════════
 # Ledger issue-stamping (#89)
 # ═══════════════════════════════════════════════════════════════
 
