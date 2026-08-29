@@ -3,8 +3,10 @@
 # Provides: log, set_label, remove_all_agent_labels, mark_issue_done,
 #           check_circuit_breaker,
 #           load_shared_memory, detect_label_tools, get_implementation_tools,
-#           load_prompt, extract_plan_branch, redact_secrets, run_claude,
-#           parse_claude_output, classify_claude_result, preserve_branch,
+#           load_prompt, extract_plan_branch, redact_secrets,
+#           extract_permission_denials, log_permission_denials,
+#           denials_report_section, run_claude, parse_claude_output,
+#           classify_claude_result, preserve_branch,
 #           handle_post_implementation
 
 # ─── Logging ─────────────────────────────────────────────────────
@@ -232,6 +234,52 @@ redact_secrets() {
     printf '%s\n' "$text"
 }
 
+# ─── Surface permission denials ──────────────────────────────────
+# Denied tool calls are the largest silent time sink in a headless
+# loop: the phase retries variants and burns its turn cap on nothing,
+# looking from outside like a phase that was merely slow. Every denial
+# is an allow-list gap to fix in config, not noise. (#93)
+
+# Envelope → one line per denial: "tool_name: command|file_path|pattern"
+extract_permission_denials() {
+    local result="$1"
+    printf '%s' "$result" | jq -r '
+        (.permission_denials // [])[]
+        | .tool_name + ": "
+          + ((.tool_input.command // .tool_input.file_path // .tool_input.pattern // "unknown") | tostring)
+    ' 2>/dev/null || true
+}
+
+# Log each denial and append it (phase-tagged) to the dispatch-scoped
+# denials file, which the run summary and failure comments read.
+# Call in non-captured context only — log() writes to stdout.
+log_permission_denials() {
+    local result="$1" phase="${2:-phase}"
+    local denials
+    denials=$(extract_permission_denials "$result")
+    [ -z "$denials" ] && return 0
+    log "WARN: ${phase}: permission denial(s) — each is an allow-list gap costing turns:"
+    local line
+    while IFS= read -r line; do
+        log "  denied: $line"
+        if [ -n "${WORKTREE_DIR:-}" ] && [ -d "$WORKTREE_DIR" ]; then
+            mkdir -p "${WORKTREE_DIR}/.agent-data"
+            printf '[%s] %s\n' "$phase" "$line" >> "${WORKTREE_DIR}/.agent-data/permission-denials.log"
+        fi
+    done <<< "$denials"
+    return 0
+}
+
+# Markdown block of the run's accumulated denials, for PR bodies and
+# failure comments. Empty when nothing was denied.
+denials_report_section() {
+    local denials_file="${WORKTREE_DIR}/.agent-data/permission-denials.log"
+    [ -s "$denials_file" ] || return 0
+    # shellcheck disable=SC2016  # literal markdown code fence, not an expansion
+    printf '\n### Permission Denials\n\nEach denial is an allow-list gap that cost the agent turns — fix it in config (see docs/customization.md):\n\n```\n%s\n```\n' \
+        "$(head -30 "$denials_file")"
+}
+
 # ─── Run Claude and capture structured output ────────────────────
 run_claude() {
     local prompt="$1"
@@ -252,6 +300,16 @@ run_claude() {
     local effective_model="${model_override:-${AGENT_MODEL:-}}"
     if [ -n "$effective_model" ]; then
         claude_args+=(--model "$effective_model")
+    fi
+    # Path gating is separate from tool rules: a command matching an
+    # allow rule is still denied when it touches a path outside the
+    # working directory. Sibling repos, scratch areas and package
+    # caches need --add-dir (#93).
+    if [ -n "${AGENT_ADD_DIRS:-}" ]; then
+        local add_dir
+        for add_dir in $AGENT_ADD_DIRS; do
+            claude_args+=(--add-dir "$add_dir")
+        done
     fi
     if [ -n "$memory" ]; then
         claude_args+=(--append-system-prompt "$memory")
@@ -421,12 +479,13 @@ $(_ledger_outstanding_summary)
             fi
         fi
 
-        local pr_body="${unresolved_header}## Automated PR for #${NUMBER}
+        local pr_body
+        pr_body="${unresolved_header}## Automated PR for #${NUMBER}
 
 This PR was created by the Claude Code agent.
 
 ${claude_output:0:2000}
-${ledger_summary}
+${ledger_summary}$(denials_report_section)
 ### Commits
 ${commit_log}
 

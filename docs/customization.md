@@ -179,6 +179,15 @@ AGENT_TEST_COMMAND="npm run lint && npm test"
 
 ---
 
+## Tool Allow-Lists: Broad Allows, Narrow Denies
+
+Deny rules beat allow rules, so the robust idiom is a **broad allow with narrow denies**: allow `Bash(git:*)` and put the hard limits — `git push`, `git merge`, `git add -A` — in `AGENT_DISALLOWED_TOOLS`. The alternative (enumerating every allowed verb) fails one denial at a time: every verb the allow list happens to miss (`checkout`, `rm`, `stash`, `rev-parse`) is a denied call that costs a turn, and denied calls compound — the phase does not know why it failed, retries a variant, and burns its turn cap on nothing.
+
+Two tools make the gaps visible and fixable:
+
+- **Denial surfacing**: after every phase, the dispatch script extracts the envelope's `permission_denials`, logs each one, and accumulates them in `.agent-data/permission-denials.log`. Non-empty denials appear in the PR body and in failure comments. **Treat every entry as an allow-list gap to fix in config, not as noise.**
+- **`AGENT_ADD_DIRS`**: path gating is separate from tool rules. A command matching an allow rule is still denied when it touches a path outside the working directory — sibling repos, scratch areas, and package caches need `--add-dir` (see the configuration guide).
+
 ## Agent-Maintained Rules Files (`.claude/rules/`)
 
 A headless phase **cannot write anything under `.claude/`** — a built-in, path-based guard in Claude Code, not something an allow-list entry can lift. `Edit` and `Bash` writes both fail, and the phase typically reports success having written nothing (see the troubleshooting guide). Only `--permission-mode bypassPermissions` lifts the guard, and it drops every deny rule with it — not a trade worth making.
