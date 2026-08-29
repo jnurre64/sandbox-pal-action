@@ -1,0 +1,9 @@
+{
+  "type": "object",
+  "properties": {
+    "action": {"type": "string", "enum": ["approved", "corrected"]},
+    "corrections": {"type": "array", "items": {"type": "string"}},
+    "revised_plan": {"type": "string"}
+  },
+  "required": ["action"]
+}

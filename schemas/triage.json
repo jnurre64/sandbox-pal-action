@@ -1,0 +1,9 @@
+{
+  "type": "object",
+  "properties": {
+    "action": {"type": "string", "enum": ["ask_questions", "plan_ready"]},
+    "questions": {"type": "array", "items": {"type": "string"}},
+    "summary": {"type": "string"}
+  },
+  "required": ["action"]
+}

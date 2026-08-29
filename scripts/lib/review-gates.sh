@@ -167,7 +167,7 @@ run_adversarial_plan_review() {
 
     local result
     set_heartbeat "adversarial-plan"
-    result=$(run_claude "$prompt" "$AGENT_ALLOWED_TOOLS_TRIAGE" "$AGENT_MODEL_ADVERSARIAL_PLAN")
+    result=$(run_claude "$prompt" "$AGENT_ALLOWED_TOOLS_TRIAGE" "$AGENT_MODEL_ADVERSARIAL_PLAN" "$AGENT_JSON_SCHEMA_ADVERSARIAL_PLAN")
     log_permission_denials "$result" "adversarial-plan"
 
     local claude_output
@@ -178,7 +178,8 @@ run_adversarial_plan_review() {
     # preamble/postamble, or wrapped in a markdown fence. _extract_review_json
     # returns the last balanced {...} block so jq lookups succeed in all cases.
     local json_block action
-    json_block=$(_extract_review_json "$claude_output")
+    json_block=$(get_structured_output "$result")
+    [ -z "$json_block" ] && json_block=$(_extract_review_json "$claude_output")
     set +e
     action=$(printf '%s' "$json_block" | jq -r '.action // empty' 2>/dev/null || echo "")
     set -e
@@ -361,7 +362,7 @@ run_post_impl_review() {
 
     local result
     set_heartbeat "post-impl-review"
-    result=$(run_claude "$prompt" "$AGENT_ALLOWED_TOOLS_TRIAGE" "$AGENT_MODEL_POST_IMPL_REVIEW")
+    result=$(run_claude "$prompt" "$AGENT_ALLOWED_TOOLS_TRIAGE" "$AGENT_MODEL_POST_IMPL_REVIEW" "$AGENT_JSON_SCHEMA_POST_IMPL_REVIEW")
     log_permission_denials "$result" "post-impl-review"
 
     local claude_output
@@ -378,7 +379,8 @@ run_post_impl_review() {
     fi
 
     local json_block action
-    json_block=$(_extract_review_json "$claude_output")
+    json_block=$(get_structured_output "$result")
+    [ -z "$json_block" ] && json_block=$(_extract_review_json "$claude_output")
     set +e
     action=$(printf '%s' "$json_block" | jq -r '.action // empty' 2>/dev/null || echo "")
     set -e
@@ -405,12 +407,19 @@ run_post_impl_review() {
             return 0
             ;;
         *)
-            log "Post-implementation review: could not parse response"
+            # A missing structured_output with a schema configured is a
+            # schema/prompt mismatch, not an agent failure — operators
+            # respond to those differently (#96).
+            local parse_note=""
+            if [ -n "${AGENT_JSON_SCHEMA_POST_IMPL_REVIEW:-}" ]; then
+                parse_note=" A structured-output schema was configured but the envelope carried no validated object — likely a schema/prompt mismatch (check AGENT_JSON_SCHEMA_POST_IMPL_REVIEW against the review prompt's output contract), not an implementation failure."
+            fi
+            log "Post-implementation review: could not parse response${parse_note}"
             log "Raw output: $claude_output"
             preserve_branch || true
             set_label "agent:failed"
             gh issue comment "$NUMBER" --repo "$REPO" \
-                --body "Agent post-implementation review could not parse its output. The implementation commits are pushed to the \`${BRANCH_NAME}\` branch — check it and create a PR manually if the implementation looks correct." 2>/dev/null || true
+                --body "Agent post-implementation review could not parse its output.${parse_note} The implementation commits are pushed to the \`${BRANCH_NAME}\` branch — check it and create a PR manually if the implementation looks correct." 2>/dev/null || true
             return 1
             ;;
     esac
@@ -435,7 +444,7 @@ run_post_impl_retry_session() {
 
     local result
     set_heartbeat "post-impl-retry"
-    result=$(run_claude "$prompt" "$impl_tools" "$AGENT_MODEL_POST_IMPL_RETRY")
+    result=$(run_claude "$prompt" "$impl_tools" "$AGENT_MODEL_POST_IMPL_RETRY" "$AGENT_JSON_SCHEMA_POST_IMPL_RETRY")
     log_permission_denials "$result" "post-impl-retry"
 
     local claude_output
@@ -482,7 +491,8 @@ $(echo "$test_output" | tail -100)
     fi
 
     local json_block action
-    json_block=$(_extract_review_json "$claude_output")
+    json_block=$(get_structured_output "$result")
+    [ -z "$json_block" ] && json_block=$(_extract_review_json "$claude_output")
     set +e
     action=$(printf '%s' "$json_block" | jq -r '.action // empty' 2>/dev/null || echo "")
     set -e

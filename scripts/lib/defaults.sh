@@ -152,6 +152,21 @@ AGENT_LOG_DIR="${AGENT_LOG_DIR:-$HOME/.claude/agent-logs}"
 # Dispatch locks and last-dispatch outcome records (liveness, #94)
 AGENT_LOCK_DIR="${AGENT_LOCK_DIR:-$AGENT_LOG_DIR/locks}"
 
+# ─── Structured output schemas (#96) ─────────────────────────────
+# JSON Schema per machine-consumed phase, passed as --json-schema so
+# the CLI returns a guaranteed-shape object. Set a var to "" to disable
+# that phase's schema, or point it at your own file (absolute, or
+# relative to the config directory). Note `-` not `:-`: an explicitly
+# empty value disables; only an unset var gets the shipped default.
+_SPA_SCHEMAS_DIR="${SCRIPT_DIR:-.}/../schemas"
+AGENT_JSON_SCHEMA_TRIAGE="${AGENT_JSON_SCHEMA_TRIAGE-${_SPA_SCHEMAS_DIR}/triage.json}"
+AGENT_JSON_SCHEMA_REPLY="${AGENT_JSON_SCHEMA_REPLY-${_SPA_SCHEMAS_DIR}/reply.json}"
+AGENT_JSON_SCHEMA_VALIDATE="${AGENT_JSON_SCHEMA_VALIDATE-${_SPA_SCHEMAS_DIR}/validate.json}"
+AGENT_JSON_SCHEMA_ADVERSARIAL_PLAN="${AGENT_JSON_SCHEMA_ADVERSARIAL_PLAN-${_SPA_SCHEMAS_DIR}/adversarial-plan.json}"
+AGENT_JSON_SCHEMA_POST_IMPL_REVIEW="${AGENT_JSON_SCHEMA_POST_IMPL_REVIEW-${_SPA_SCHEMAS_DIR}/post-impl-review.json}"
+AGENT_JSON_SCHEMA_POST_IMPL_RETRY="${AGENT_JSON_SCHEMA_POST_IMPL_RETRY-${_SPA_SCHEMAS_DIR}/post-impl-retry.json}"
+AGENT_JSON_SCHEMA_CLEANUP="${AGENT_JSON_SCHEMA_CLEANUP-${_SPA_SCHEMAS_DIR}/cleanup.json}"
+
 # ─── Execution mode ──────────────────────────────────────────────
 # actions:      invoked by a GitHub Actions workflow (default)
 # orchestrator: invoked by an interactive Claude Code session; logs go
