@@ -331,6 +331,7 @@ run_claude() {
     local allowed_tools="${2:-$AGENT_ALLOWED_TOOLS_IMPLEMENT}"
     local model_override="${3:-}"
     local schema_file="${4:-}"
+    local phase="${5:-}"
     local memory
     memory=$(load_shared_memory)
 
@@ -363,6 +364,34 @@ run_claude() {
     memory_dir=$(_resolve_memory_dir)
     if [ -n "$memory_dir" ]; then
         claude_args+=(--add-dir "$memory_dir")
+    fi
+    # Per-phase invocation flags (#98). Every one optional, defaulting to
+    # current behaviour — budget in particular is LIMITLESS unless set:
+    # turns and dollars are not interchangeable bounds, but a cap is the
+    # operator's choice, never the harness's.
+    if [ -n "$phase" ]; then
+        local _var
+        _var="AGENT_BUDGET_USD_${phase}"
+        local budget="${!_var:-${AGENT_BUDGET_USD:-}}"
+        [ -n "$budget" ] && claude_args+=(--max-budget-usd "$budget")
+        _var="AGENT_EFFORT_${phase}"
+        local effort="${!_var:-}"
+        [ -n "$effort" ] && claude_args+=(--effort "$effort")
+        _var="AGENT_PERMISSION_MODE_${phase}"
+        local permission_mode="${!_var:-}"
+        [ -n "$permission_mode" ] && claude_args+=(--permission-mode "$permission_mode")
+    fi
+    # Gate the MCP tool surface explicitly: without --strict-mcp-config a
+    # phase silently inherits the operator's personal MCP servers —
+    # "inherit identity, memory and skills; gate the tool surface."
+    if [ -n "${AGENT_MCP_CONFIG:-}" ]; then
+        claude_args+=(--mcp-config "$AGENT_MCP_CONFIG" --strict-mcp-config)
+    elif [ "${AGENT_STRICT_MCP:-}" = "true" ]; then
+        claude_args+=(--strict-mcp-config)
+    fi
+    # Headless phases should not accumulate resumable sessions
+    if [ "${AGENT_SESSION_PERSISTENCE:-false}" != "true" ]; then
+        claude_args+=(--no-session-persistence)
     fi
     if [ -n "$memory" ]; then
         claude_args+=(--append-system-prompt "$memory")

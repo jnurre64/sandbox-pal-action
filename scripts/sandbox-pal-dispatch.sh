@@ -192,7 +192,7 @@ handle_new_issue() {
 
     local result
     set_heartbeat "triage"
-    result=$(run_claude "$prompt" "$AGENT_ALLOWED_TOOLS_TRIAGE" "$AGENT_MODEL_TRIAGE" "$AGENT_JSON_SCHEMA_TRIAGE")
+    result=$(run_claude "$prompt" "$AGENT_ALLOWED_TOOLS_TRIAGE" "$AGENT_MODEL_TRIAGE" "$AGENT_JSON_SCHEMA_TRIAGE" "TRIAGE")
     log_permission_denials "$result" "triage"
 
     local claude_output
@@ -341,7 +341,7 @@ handle_issue_reply() {
 
     local result
     set_heartbeat "reply"
-    result=$(run_claude "$prompt" "$AGENT_ALLOWED_TOOLS_TRIAGE" "$AGENT_MODEL_TRIAGE" "$AGENT_JSON_SCHEMA_REPLY")
+    result=$(run_claude "$prompt" "$AGENT_ALLOWED_TOOLS_TRIAGE" "$AGENT_MODEL_TRIAGE" "$AGENT_JSON_SCHEMA_REPLY" "REPLY")
     log_permission_denials "$result" "reply"
     local claude_output
     claude_output=$(parse_claude_output "$result")
@@ -491,7 +491,7 @@ handle_implement() {
 
     local result
     set_heartbeat "implement"
-    result=$(run_claude "$prompt" "$impl_tools" "$AGENT_MODEL_IMPLEMENT")
+    result=$(run_claude "$prompt" "$impl_tools" "$AGENT_MODEL_IMPLEMENT" "" "IMPLEMENT")
     log_permission_denials "$result" "implement"
 
     log "Raw claude output length: ${#result}"
@@ -577,7 +577,7 @@ handle_direct_implement() {
 
     local result
     set_heartbeat "validate"
-    result=$(run_claude "$prompt" "$AGENT_ALLOWED_TOOLS_TRIAGE" "$AGENT_MODEL_TRIAGE" "$AGENT_JSON_SCHEMA_VALIDATE")
+    result=$(run_claude "$prompt" "$AGENT_ALLOWED_TOOLS_TRIAGE" "$AGENT_MODEL_TRIAGE" "$AGENT_JSON_SCHEMA_VALIDATE" "VALIDATE")
     log_permission_denials "$result" "validate"
 
     local claude_output
@@ -747,7 +747,7 @@ handle_pr_review() {
 
     local result
     set_heartbeat "pr-review"
-    result=$(run_claude "$prompt" "$pr_tools" "$AGENT_MODEL_REVIEW")
+    result=$(run_claude "$prompt" "$pr_tools" "$AGENT_MODEL_REVIEW" "" "REVIEW")
     log_permission_denials "$result" "pr-review"
 
     log "PR review raw output length: ${#result}"
@@ -877,7 +877,7 @@ handle_post_merge() {
 
     local result
     set_heartbeat "cleanup"
-    result=$(run_claude "$prompt" "$AGENT_ALLOWED_TOOLS_CLEANUP" "$AGENT_MODEL_CLEANUP" "$AGENT_JSON_SCHEMA_CLEANUP")
+    result=$(run_claude "$prompt" "$AGENT_ALLOWED_TOOLS_CLEANUP" "$AGENT_MODEL_CLEANUP" "$AGENT_JSON_SCHEMA_CLEANUP" "CLEANUP")
     log_permission_denials "$result" "cleanup"
     local claude_output
     claude_output=$(parse_claude_output "$result")
