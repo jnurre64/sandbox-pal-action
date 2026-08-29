@@ -179,6 +179,20 @@ AGENT_TEST_COMMAND="npm run lint && npm test"
 
 ---
 
+## Agent-Maintained Rules Files (`.claude/rules/`)
+
+A headless phase **cannot write anything under `.claude/`** — a built-in, path-based guard in Claude Code, not something an allow-list entry can lift. `Edit` and `Bash` writes both fail, and the phase typically reports success having written nothing (see the troubleshooting guide). Only `--permission-mode bypassPermissions` lifts the guard, and it drops every deny rule with it — not a trade worth making.
+
+If you want agents to maintain agent-facing rules files, the dispatch script works around the guard by **staging**:
+
+1. Before each write phase (implement, revise, post-merge cleanup), every `*.md` file in `.claude/rules/` is copied into `.agent-data/rules/` — an ordinary, unguarded path.
+2. The phase edits the staged copies with a plain `Edit` (the default prompts tell it so).
+3. Afterwards, the harness copies back whatever differs and commits it. The phase authors the words; the harness does the writing.
+
+The apply step is deliberately restrictive: a staged file is honoured **only if `.claude/rules/` already holds a file of that name**, and the name must match `^[A-Za-z0-9._-]+\.md$`. A phase cannot invent a new rules file or traverse out of the staging directory — new rules files are created by humans under version control first.
+
+This is automatic: if your repo has no `.claude/rules/` directory, staging is a no-op.
+
 ## Shared Project Memory
 
 ### What It Is

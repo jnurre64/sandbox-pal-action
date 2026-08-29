@@ -382,7 +382,12 @@ handle_post_implementation() {
             log "Post-implementation review loop halted PR creation."
             return 1
         fi
-        # Retry sessions and ledger commits may have added commits
+        # Copy back and commit any staged rules edits (#92) before the
+        # push, so they ride the PR like any other change.
+        apply_rules_files
+
+        # Retry sessions, ledger commits and rules staging may have
+        # added commits
         if [ -n "$start_sha" ]; then
             commit_count=$(git -C "$WORKTREE_DIR" rev-list --count "${start_sha}..HEAD" 2>/dev/null || echo "0")
         fi
