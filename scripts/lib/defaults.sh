@@ -151,3 +151,9 @@ AGENT_LOG_DIR="${AGENT_LOG_DIR:-$HOME/.claude/agent-logs}"
 
 # Dispatch locks and last-dispatch outcome records (liveness, #94)
 AGENT_LOCK_DIR="${AGENT_LOCK_DIR:-$AGENT_LOG_DIR/locks}"
+
+# ─── Execution mode ──────────────────────────────────────────────
+# actions:      invoked by a GitHub Actions workflow (default)
+# orchestrator: invoked by an interactive Claude Code session; logs go
+#               to stderr and the final stdout line is the result JSON
+AGENT_EXECUTION_MODE="${AGENT_EXECUTION_MODE:-actions}"

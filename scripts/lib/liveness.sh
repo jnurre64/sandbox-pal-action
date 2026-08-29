@@ -15,6 +15,8 @@
 DISPATCH_LOCK_HELD=""
 DISPATCH_OUTCOME=""
 DISPATCH_STARTED=""
+DISPATCH_PR_URL=""
+DISPATCH_LOCK_REFUSED=""
 
 _lock_path() {
     echo "${AGENT_LOCK_DIR}/${REPO_NAME}-${NUMBER}.lock"
@@ -98,12 +100,40 @@ write_last_dispatch() {
         [ "$exit_code" -eq 0 ] && outcome="success" || outcome="error"
     fi
     jq -n --arg event "$EVENT_TYPE" --arg repo "$REPO" --arg issue "$NUMBER" \
-          --arg outcome "$outcome" --arg ec "$exit_code" \
+          --arg outcome "$outcome" --arg ec "$exit_code" --arg pr "$DISPATCH_PR_URL" \
           --arg started "${DISPATCH_STARTED:-}" --arg finished "$(_utc_now)" \
         '{event: $event, repo: $repo, issue: $issue, outcome: $outcome,
-          exit_code: ($ec | tonumber), started: $started, finished: $finished}' \
+          exit_code: ($ec | tonumber), pr_url: $pr,
+          started: $started, finished: $finished}' \
         > "$(_last_dispatch_path)"
     return 0
+}
+
+# The orchestrator-mode result: exactly one compact JSON line on stdout,
+# emitted as the very last thing the dispatch prints. Everything a
+# calling session needs to narrate the outcome; everything else went to
+# stderr and the log. Silent in actions mode, and for the status event,
+# which emits its own final line. (#95)
+emit_orchestrator_result() {
+    local exit_code="${1:-0}"
+    [ "${AGENT_EXECUTION_MODE:-actions}" = "orchestrator" ] || return 0
+    [ "$EVENT_TYPE" = "status" ] && return 0
+    local outcome="$DISPATCH_OUTCOME"
+    if [ -z "$outcome" ]; then
+        if [ -n "$DISPATCH_LOCK_REFUSED" ]; then
+            outcome="lock-refused"
+        elif [ "$exit_code" -eq 0 ]; then
+            outcome="success"
+        else
+            outcome="error"
+        fi
+    fi
+    jq -cn --arg event "$EVENT_TYPE" --arg repo "$REPO" --arg issue "$NUMBER" \
+           --arg outcome "$outcome" --arg ec "$exit_code" --arg pr "$DISPATCH_PR_URL" \
+           --arg started "${DISPATCH_STARTED:-}" --arg finished "$(_utc_now)" \
+        '{event: $event, repo: $repo, issue: $issue, outcome: $outcome,
+          exit_code: ($ec | tonumber), pr_url: $pr,
+          started: $started, finished: $finished}'
 }
 
 # Read-only status: reports the lock (live or stale) and the last

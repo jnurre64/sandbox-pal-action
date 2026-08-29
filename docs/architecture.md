@@ -300,6 +300,33 @@ schedule (cron) or manual dispatch
   --> clean up old gists, workflow runs, log files
 ```
 
+## Orchestrator Mode
+
+`AGENT_EXECUTION_MODE=orchestrator` adds a second execution mode as a **peer to Actions mode**: the same dispatch script, pipeline, gates, and label state machine — invoked by an **interactive Claude Code session on the developer's machine** instead of by a workflow. Three tiers that do not overlap: *the skill narrates, the harness orchestrates, the phases work.*
+
+```
+Developer types /sp-work 42
+      │
+      ▼
+INTERACTIVE session (orchestrator)     — runs one command, parses one JSON line, narrates
+      │  AGENT_EXECUTION_MODE=orchestrator sandbox-pal-dispatch.sh implement <repo> 42
+      ▼
+sandbox-pal-dispatch.sh (harness)      — lock → worktree → phases → gates → PR
+      │  claude -p ...
+      ▼
+HEADLESS phase sessions                — triage · implement · test-fix · review · retry · cleanup
+```
+
+**Why it exists**: a phase run as a child process of the operator's machine inherits the whole environment — user `CLAUDE.md`, memory files, installed skills, authenticated `gh` and MCP state, warm toolchain — with nothing to provision or keep in sync. Every one of those is a standing synchronization problem on a runner.
+
+**The contract**: in orchestrator mode, human-readable output goes to stderr and the log; **the final line of stdout is a compact JSON result** — `{event, repo, issue, outcome, exit_code, pr_url, started, finished}`, where `outcome` is the last agent label the run set (or `success`/`error`/`lock-refused`). This is what keeps the orchestrator tier thin: the skills contain no logic, only "run this, read `outcome`, say this."
+
+**The four skills** (`.claude/skills/`): `/sp-work <issue>` picks the right event from the issue's agent labels and runs the pipeline; `/sp-status <issue>` is the read-only liveness view; `/sp-revise <pr>` dispatches revision after human PR feedback; `/sp-post-merge <pr>` dispatches cleanup after a merge. Two rules are encoded in the skill text because the mode fails without them: *the orchestrating session never implements anything itself* (work done there bypasses the adversarial review and the phase envelope), and *a killed/failed notification about a dispatch is unverified until `status`, the last-dispatch record, and the work branch agree* (see Dispatch Liveness).
+
+**The plan-review gate is preserved**: `/sp-work` stops at `agent:plan-review` and hands the plan to the operator exactly as Actions mode does — the gate and the mode are orthogonal.
+
+**When Actions mode is still the right answer**: nobody has to be present (label from a phone, come back to a PR); a shared runner serves a team; chat-ops via `repository_dispatch`; a permanent log URL per run. Orchestrator mode serves one developer wanting a fast, attended loop on a machine that already has everything.
+
 ## Dispatch Liveness
 
 A caller that starts a long dispatch has to answer "is it still going?" — and background-task monitors are not reliable: a run reported `killed` can be alive and go on to open a PR. Three independent signals answer it (`scripts/lib/liveness.sh`, #94):
