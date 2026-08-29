@@ -166,6 +166,7 @@ run_adversarial_plan_review() {
     prompt=$(load_prompt "adversarial-plan" "${AGENT_PROMPT_ADVERSARIAL_PLAN}")
 
     local result
+    set_heartbeat "adversarial-plan"
     result=$(run_claude "$prompt" "$AGENT_ALLOWED_TOOLS_TRIAGE" "$AGENT_MODEL_ADVERSARIAL_PLAN")
     log_permission_denials "$result" "adversarial-plan"
 
@@ -304,6 +305,7 @@ run_test_gate() {
 
         local prompt result
         prompt=$(load_prompt "test-fix" "${AGENT_PROMPT_TEST_FIX}")
+        set_heartbeat "test-fix-${attempt}"
         result=$(run_claude "$prompt" "$impl_tools" "$AGENT_MODEL_TEST_FIX")
         log_permission_denials "$result" "test-fix"
         log "Test-fix session output: $(parse_claude_output "$result" | head -c 300)"
@@ -358,6 +360,7 @@ run_post_impl_review() {
     prompt=$(load_prompt "post-impl-review" "${AGENT_PROMPT_POST_IMPL_REVIEW}")
 
     local result
+    set_heartbeat "post-impl-review"
     result=$(run_claude "$prompt" "$AGENT_ALLOWED_TOOLS_TRIAGE" "$AGENT_MODEL_POST_IMPL_REVIEW")
     log_permission_denials "$result" "post-impl-review"
 
@@ -431,6 +434,7 @@ run_post_impl_retry_session() {
     prompt=$(load_prompt "post-impl-retry" "${AGENT_PROMPT_POST_IMPL_RETRY}")
 
     local result
+    set_heartbeat "post-impl-retry"
     result=$(run_claude "$prompt" "$impl_tools" "$AGENT_MODEL_POST_IMPL_RETRY")
     log_permission_denials "$result" "post-impl-retry"
 
@@ -518,6 +522,7 @@ run_post_impl_review_loop() {
     _ledger_init
     local retries=0
     while true; do
+        set_heartbeat "review-pass-$((retries + 1))"
         if ! run_post_impl_review; then
             return 1
         fi
@@ -537,6 +542,7 @@ run_post_impl_review_loop() {
         fi
 
         retries=$((retries + 1))
+        set_heartbeat "retry-${retries}"
         if ! run_post_impl_retry_session "$impl_tools"; then
             return 1
         fi

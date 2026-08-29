@@ -300,6 +300,16 @@ schedule (cron) or manual dispatch
   --> clean up old gists, workflow runs, log files
 ```
 
+## Dispatch Liveness
+
+A caller that starts a long dispatch has to answer "is it still going?" — and background-task monitors are not reliable: a run reported `killed` can be alive and go on to open a PR. Three independent signals answer it (`scripts/lib/liveness.sh`, #94):
+
+1. **The lock** (`$AGENT_LOCK_DIR/<repo>-<number>.lock`) carries pid, host, event, start time, and **current phase**, heartbeat-updated as the pipeline advances — including once per review-loop pass, which is where a long dispatch actually spends its time. One dispatch per issue: a held lock is refused with the holder named; a same-host lock whose pid is dead is reclaimed by the next dispatch; a lock from another host is never reclaimed.
+2. **The `status` event** (`sandbox-pal-dispatch.sh status <repo> <number>`) is read-only. It reports the lock as live (`stale: false`, with phase and timestamps) or dead (`stale: true`), plus the last-dispatch record. It deliberately mutates nothing: it does not clean up a dead lock, and it never writes the last-dispatch record of the run being asked about. Its final line of stdout is a compact JSON object; everything before it is for humans.
+3. **The last-dispatch record** (`$AGENT_LOCK_DIR/<repo>-<number>-last-dispatch.json`) is written before the process exits on **every** outcome including failure — a failure is exactly when the caller is least likely to still hold the pipe. The outcome is the last agent label the dispatch set (e.g. `agent:pr-open`, `agent:failed`), plus the exit code and start/finish times.
+
+**The rule for callers**: a `killed` or `failed` notification about a dispatch is **unverified until checked**. Run `status` first (usually the whole answer), then read the last-dispatch record, then check whether the work branch gained commits. Never describe the work as lost, or advise discarding a branch, on the strength of a notification alone.
+
 ## Key Components
 
 ### Dispatch Script (`scripts/sandbox-pal-dispatch.sh`)
