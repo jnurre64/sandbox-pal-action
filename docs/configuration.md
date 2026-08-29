@@ -82,6 +82,18 @@ Maximum number of bot comments allowed per hour on a single issue. If the limit 
 AGENT_CIRCUIT_BREAKER_LIMIT=8
 ```
 
+### AGENT_ADD_DIRS
+
+Space-separated list of extra directories phases may access without prompting, passed to `claude -p` as `--add-dir` flags. Path gating is separate from tool allow rules: a command matching an allow rule is still denied when it touches a path outside the working directory, so sibling repos, scratch areas, and package caches need to be listed here even when the account can already read them.
+
+| Key | Default | Type |
+|-----|---------|------|
+| `AGENT_ADD_DIRS` | *(empty)* | space-separated directory paths |
+
+```bash
+AGENT_ADD_DIRS="$HOME/repos/shared-assets $HOME/.cache/packages"
+```
+
 ### AGENT_MEMORY_FILE
 
 Path to a shared Claude memory file. If set and the file exists, its contents are appended to the system prompt for every `claude -p` invocation via `--append-system-prompt`. This lets the agent benefit from context accumulated during interactive Claude Code sessions.

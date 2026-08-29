@@ -35,6 +35,10 @@ setup_worktree() {
         git -C "$REPO_DIR" worktree add "$WORKTREE_DIR" -b "$BRANCH_NAME" origin/main
     fi
 
+    # Dispatch-scoped scratch artefacts must not outlive a dispatch: a
+    # reused worktree would otherwise report the previous run's denials.
+    rm -f "${WORKTREE_DIR}/.agent-data/permission-denials.log"
+
     run_worktree_setup
 }
 

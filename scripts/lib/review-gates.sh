@@ -167,6 +167,7 @@ run_adversarial_plan_review() {
 
     local result
     result=$(run_claude "$prompt" "$AGENT_ALLOWED_TOOLS_TRIAGE" "$AGENT_MODEL_ADVERSARIAL_PLAN")
+    log_permission_denials "$result" "adversarial-plan"
 
     local claude_output
     claude_output=$(parse_claude_output "$result")
@@ -304,6 +305,7 @@ run_test_gate() {
         local prompt result
         prompt=$(load_prompt "test-fix" "${AGENT_PROMPT_TEST_FIX}")
         result=$(run_claude "$prompt" "$impl_tools" "$AGENT_MODEL_TEST_FIX")
+        log_permission_denials "$result" "test-fix"
         log "Test-fix session output: $(parse_claude_output "$result" | head -c 300)"
 
         local after_sha
@@ -322,6 +324,7 @@ run_test_gate() {
 Tests failed after implementation (${stop_reason}). Setting \`agent:failed\`.
 
 **Your work is safe:** the implementation commits are pushed to the \`${BRANCH_NAME}\` branch. Re-applying \`agent:plan-approved\` resumes from that branch instead of starting over.
+$(denials_report_section)
 
 <details><summary>Test output (last 100 lines)</summary>
 
@@ -356,6 +359,7 @@ run_post_impl_review() {
 
     local result
     result=$(run_claude "$prompt" "$AGENT_ALLOWED_TOOLS_TRIAGE" "$AGENT_MODEL_POST_IMPL_REVIEW")
+    log_permission_denials "$result" "post-impl-review"
 
     local claude_output
     claude_output=$(parse_claude_output "$result")
@@ -428,6 +432,7 @@ run_post_impl_retry_session() {
 
     local result
     result=$(run_claude "$prompt" "$impl_tools" "$AGENT_MODEL_POST_IMPL_RETRY")
+    log_permission_denials "$result" "post-impl-retry"
 
     local claude_output
     claude_output=$(parse_claude_output "$result")

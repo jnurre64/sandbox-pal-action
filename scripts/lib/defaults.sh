@@ -21,6 +21,10 @@ AGENT_CIRCUIT_BREAKER_LIMIT="${AGENT_CIRCUIT_BREAKER_LIMIT:-8}"
 # Shared Claude memory file (optional)
 AGENT_MEMORY_FILE="${AGENT_MEMORY_FILE:-}"
 
+# Extra directories phases may access unprompted, space-separated
+# (--add-dir; path gating is separate from tool allow rules)
+AGENT_ADD_DIRS="${AGENT_ADD_DIRS:-}"
+
 # Pre-test setup command (optional — runs before test command, e.g., npm install, godot --headless --import)
 AGENT_TEST_SETUP_COMMAND="${AGENT_TEST_SETUP_COMMAND:-}"
 

@@ -238,6 +238,80 @@ MOCK
 }
 
 # ═══════════════════════════════════════════════════════════════
+# permission_denials surfacing (#93)
+# ═══════════════════════════════════════════════════════════════
+
+DENIALS_ENVELOPE='{"result":"done","permission_denials":[{"tool_name":"Bash","tool_input":{"command":"git checkout -b x"}},{"tool_name":"Edit","tool_input":{"file_path":"/etc/hosts"}}]}'
+
+@test "extract_permission_denials: renders one line per denial with tool and target" {
+    _source_common
+    run extract_permission_denials "$DENIALS_ENVELOPE"
+    assert_line "Bash: git checkout -b x"
+    assert_line "Edit: /etc/hosts"
+}
+
+@test "extract_permission_denials: empty for an envelope without denials" {
+    _source_common
+    run extract_permission_denials '{"result":"done"}'
+    assert_output ""
+}
+
+@test "log_permission_denials: appends denials to the dispatch denials file with a phase tag" {
+    _source_common
+    export WORKTREE_DIR="$TEST_TEMP_DIR"
+    log_permission_denials "$DENIALS_ENVELOPE" "implement"
+
+    grep -q "\[implement\] Bash: git checkout -b x" "${TEST_TEMP_DIR}/.agent-data/permission-denials.log"
+    grep -q "\[implement\] Edit: /etc/hosts" "${TEST_TEMP_DIR}/.agent-data/permission-denials.log"
+}
+
+@test "log_permission_denials: no file created when there are no denials" {
+    _source_common
+    export WORKTREE_DIR="$TEST_TEMP_DIR"
+    log_permission_denials '{"result":"done"}' "implement"
+    [ ! -f "${TEST_TEMP_DIR}/.agent-data/permission-denials.log" ]
+}
+
+@test "denials_report_section: renders the accumulated denials for comments and PR bodies" {
+    _source_common
+    export WORKTREE_DIR="$TEST_TEMP_DIR"
+    log_permission_denials "$DENIALS_ENVELOPE" "implement"
+    run denials_report_section
+    assert_output --partial "Permission Denials"
+    assert_output --partial "Bash: git checkout -b x"
+}
+
+@test "denials_report_section: empty when no denials were recorded" {
+    _source_common
+    export WORKTREE_DIR="$TEST_TEMP_DIR"
+    run denials_report_section
+    assert_output ""
+}
+
+@test "run_claude: passes --add-dir for each AGENT_ADD_DIRS entry" {
+    _source_common
+    export WORKTREE_DIR="$TEST_TEMP_DIR"
+    export AGENT_ADD_DIRS="/tmp/sibling /tmp/cache"
+    mkdir -p "${TEST_TEMP_DIR}/bin"
+    cat > "${TEST_TEMP_DIR}/bin/claude" <<'MOCK'
+#!/bin/bash
+echo "$@" > "${TEST_TEMP_DIR:-/tmp}/claude_args"
+echo '{"result":"ok"}'
+MOCK
+    chmod +x "${TEST_TEMP_DIR}/bin/claude"
+    export PATH="${TEST_TEMP_DIR}/bin:${PATH}"
+
+    run run_claude "test prompt"
+    grep -q -- "--add-dir /tmp/sibling" "${TEST_TEMP_DIR}/claude_args"
+    grep -q -- "--add-dir /tmp/cache" "${TEST_TEMP_DIR}/claude_args"
+}
+
+@test "dispatch: denials are logged after phases in both dispatch and review-gates" {
+    grep -q "log_permission_denials" "${SCRIPTS_DIR}/sandbox-pal-dispatch.sh"
+    grep -q "log_permission_denials" "${SCRIPTS_DIR}/lib/review-gates.sh"
+}
+
+# ═══════════════════════════════════════════════════════════════
 # classify_claude_result tests (#90)
 # ═══════════════════════════════════════════════════════════════
 

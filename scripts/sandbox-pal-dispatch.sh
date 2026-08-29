@@ -167,6 +167,7 @@ handle_new_issue() {
 
     local result
     result=$(run_claude "$prompt" "$AGENT_ALLOWED_TOOLS_TRIAGE" "$AGENT_MODEL_TRIAGE")
+    log_permission_denials "$result" "triage"
 
     local claude_output
     claude_output=$(parse_claude_output "$result")
@@ -311,6 +312,7 @@ handle_issue_reply() {
 
     local result
     result=$(run_claude "$prompt" "$AGENT_ALLOWED_TOOLS_TRIAGE" "$AGENT_MODEL_TRIAGE")
+    log_permission_denials "$result" "reply"
     local claude_output
     claude_output=$(parse_claude_output "$result")
 
@@ -456,6 +458,7 @@ handle_implement() {
 
     local result
     result=$(run_claude "$prompt" "$impl_tools" "$AGENT_MODEL_IMPLEMENT")
+    log_permission_denials "$result" "implement"
 
     log "Raw claude output length: ${#result}"
     local claude_output
@@ -473,7 +476,8 @@ handle_implement() {
 
 The implementation session hit an API error: ${claude_output}
 
-No later phase can recover this — re-dispatch (re-apply the trigger label) once the API issue is resolved. Any commits made before the error are pushed to the \`${BRANCH_NAME}\` branch." 2>/dev/null || true
+No later phase can recover this — re-dispatch (re-apply the trigger label) once the API issue is resolved. Any commits made before the error are pushed to the \`${BRANCH_NAME}\` branch.
+$(denials_report_section)" 2>/dev/null || true
         cleanup_worktree
         return
     fi
@@ -539,6 +543,7 @@ handle_direct_implement() {
 
     local result
     result=$(run_claude "$prompt" "$AGENT_ALLOWED_TOOLS_TRIAGE" "$AGENT_MODEL_TRIAGE")
+    log_permission_denials "$result" "validate"
 
     local claude_output
     claude_output=$(parse_claude_output "$result")
@@ -704,6 +709,7 @@ handle_pr_review() {
 
     local result
     result=$(run_claude "$prompt" "$pr_tools" "$AGENT_MODEL_REVIEW")
+    log_permission_denials "$result" "pr-review"
 
     log "PR review raw output length: ${#result}"
     local claude_output
@@ -832,6 +838,7 @@ handle_post_merge() {
 
     local result
     result=$(run_claude "$prompt" "$AGENT_ALLOWED_TOOLS_CLEANUP" "$AGENT_MODEL_CLEANUP")
+    log_permission_denials "$result" "cleanup"
     local claude_output
     claude_output=$(parse_claude_output "$result")
     log "Cleanup output: ${claude_output:0:500}"
