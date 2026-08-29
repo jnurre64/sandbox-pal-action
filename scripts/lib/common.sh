@@ -93,15 +93,49 @@ check_circuit_breaker() {
 }
 
 # ─── Shared project memory ──────────────────────────────────────
+# Resolve AGENT_MEMORY_DIR to an absolute path (workspace-relative
+# supported), or empty when unset or missing.
+_resolve_memory_dir() {
+    local dir="${AGENT_MEMORY_DIR:-}"
+    if [ -z "$dir" ]; then
+        echo ""
+        return 0
+    fi
+    if [ ! -d "$dir" ] && [ -d "${WORKTREE_DIR:-}/$dir" ]; then
+        dir="$WORKTREE_DIR/$dir"
+    fi
+    if [ -d "$dir" ]; then
+        (cd "$dir" && pwd)
+    else
+        echo ""
+    fi
+}
+
+# A memory index alone is a table of contents for a book the agent
+# cannot open — AGENT_MEMORY_DIR makes the pointed-at files readable
+# too (#97). The index is still injected via --append-system-prompt;
+# memory stays read-only either way.
 load_shared_memory() {
+    local mem_dir
+    mem_dir=$(_resolve_memory_dir)
     local mem_file="$AGENT_MEMORY_FILE"
+    # A memory directory's index is its MEMORY.md unless
+    # AGENT_MEMORY_FILE names a different one
+    if [ -z "$mem_file" ] && [ -n "$mem_dir" ] && [ -f "${mem_dir}/MEMORY.md" ]; then
+        mem_file="${mem_dir}/MEMORY.md"
+    fi
     # Support workspace-relative paths (for committed memory files)
     if [ -n "$mem_file" ] && [ ! -f "$mem_file" ] && [ -f "${WORKTREE_DIR:-}/$mem_file" ]; then
         mem_file="$WORKTREE_DIR/$mem_file"
     fi
     if [ -n "$mem_file" ] && [ -f "$mem_file" ]; then
+        local dir_note=""
+        if [ -n "$mem_dir" ]; then
+            dir_note="
+The index below points at files in the memory directory ${mem_dir}/ — when a pointer is relevant to your task, Read that file for the full memory. The directory is read-only to you."
+        fi
         echo "# Shared Project Memory (from interactive sessions)
-The following memory was accumulated from working on this project. Use it for context but do NOT attempt to update memory files — only interactive sessions manage memory.
+The following memory was accumulated from working on this project. Use it for context but do NOT attempt to update memory files — only interactive sessions manage memory.${dir_note}
 
 $(cat "$mem_file")"
     else
@@ -322,6 +356,13 @@ run_claude() {
         for add_dir in $AGENT_ADD_DIRS; do
             claude_args+=(--add-dir "$add_dir")
         done
+    fi
+    # The memory directory is usually out-of-tree; without --add-dir the
+    # Read of a pointed-at memory file would be path-gated (#97).
+    local memory_dir
+    memory_dir=$(_resolve_memory_dir)
+    if [ -n "$memory_dir" ]; then
+        claude_args+=(--add-dir "$memory_dir")
     fi
     if [ -n "$memory" ]; then
         claude_args+=(--append-system-prompt "$memory")

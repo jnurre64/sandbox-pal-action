@@ -508,6 +508,91 @@ MOCK
     assert_output --partial "Shared Project Memory"
 }
 
+@test "AGENT_MEMORY_DIR: injects the index and names the directory for reads (#97)" {
+    _source_common
+    mkdir -p "${TEST_TEMP_DIR}/memory"
+    echo "- [Ledger lesson](ledger.md) — stamp it" > "${TEST_TEMP_DIR}/memory/MEMORY.md"
+    echo "the actual memory content" > "${TEST_TEMP_DIR}/memory/ledger.md"
+    export AGENT_MEMORY_FILE=""
+    export AGENT_MEMORY_DIR="${TEST_TEMP_DIR}/memory"
+
+    run load_shared_memory
+    assert_output --partial "Ledger lesson"
+    assert_output --partial "${TEST_TEMP_DIR}/memory"
+    assert_output --partial "Read"
+    assert_output --partial "do NOT attempt to update"
+}
+
+@test "AGENT_MEMORY_DIR: AGENT_MEMORY_FILE stays the index when both are set" {
+    _source_common
+    mkdir -p "${TEST_TEMP_DIR}/memory"
+    echo "- [pointer](x.md)" > "${TEST_TEMP_DIR}/memory/MEMORY.md"
+    echo "custom index body" > "${TEST_TEMP_DIR}/custom-index.md"
+    export AGENT_MEMORY_FILE="${TEST_TEMP_DIR}/custom-index.md"
+    export AGENT_MEMORY_DIR="${TEST_TEMP_DIR}/memory"
+
+    run load_shared_memory
+    assert_output --partial "custom index body"
+    assert_output --partial "${TEST_TEMP_DIR}/memory"
+}
+
+@test "AGENT_MEMORY_DIR: resolves workspace-relative directories against WORKTREE_DIR" {
+    _source_common
+    export WORKTREE_DIR="$TEST_TEMP_DIR"
+    mkdir -p "${TEST_TEMP_DIR}/claude-work/memory"
+    echo "- [committed](c.md)" > "${TEST_TEMP_DIR}/claude-work/memory/MEMORY.md"
+    export AGENT_MEMORY_FILE=""
+    export AGENT_MEMORY_DIR="claude-work/memory"
+
+    run load_shared_memory
+    assert_output --partial "committed"
+}
+
+@test "AGENT_MEMORY_DIR: missing directory falls back to AGENT_MEMORY_FILE behaviour" {
+    _source_common
+    local mem_file="${TEST_TEMP_DIR}/mem.md"
+    echo "file-only memory" > "$mem_file"
+    export AGENT_MEMORY_FILE="$mem_file"
+    export AGENT_MEMORY_DIR="${TEST_TEMP_DIR}/does-not-exist"
+
+    run load_shared_memory
+    assert_output --partial "file-only memory"
+    refute_output --partial "does-not-exist"
+}
+
+@test "AGENT_MEMORY_FILE alone: output carries no memory-directory instructions" {
+    _source_common
+    local mem_file="${TEST_TEMP_DIR}/mem.md"
+    echo "just the file" > "$mem_file"
+    export AGENT_MEMORY_FILE="$mem_file"
+    export AGENT_MEMORY_DIR=""
+
+    run load_shared_memory
+    assert_output --partial "just the file"
+    refute_output --partial "memory directory"
+}
+
+@test "run_claude: passes --add-dir for AGENT_MEMORY_DIR so out-of-tree reads are not path-gated" {
+    _source_common
+    export WORKTREE_DIR="$TEST_TEMP_DIR"
+    mkdir -p "${TEST_TEMP_DIR}/memory"
+    echo "- [p](p.md)" > "${TEST_TEMP_DIR}/memory/MEMORY.md"
+    export AGENT_MEMORY_FILE=""
+    export AGENT_MEMORY_DIR="${TEST_TEMP_DIR}/memory"
+    mkdir -p "${TEST_TEMP_DIR}/bin"
+    cat > "${TEST_TEMP_DIR}/bin/claude" <<'MOCK'
+#!/bin/bash
+printf '%s\n' "$@" > "${TEST_TEMP_DIR:-/tmp}/claude_args"
+echo '{"result":"ok"}'
+MOCK
+    chmod +x "${TEST_TEMP_DIR}/bin/claude"
+    export PATH="${TEST_TEMP_DIR}/bin:${PATH}"
+
+    run run_claude "prompt"
+    grep -q -- "--add-dir" "${TEST_TEMP_DIR}/claude_args"
+    grep -q "${TEST_TEMP_DIR}/memory" "${TEST_TEMP_DIR}/claude_args"
+}
+
 @test "load_shared_memory: relative path not in worktree returns empty" {
     export AGENT_MEMORY_FILE="claude-work/nonexistent.md"
     export WORKTREE_DIR="${TEST_TEMP_DIR}/empty-worktree"

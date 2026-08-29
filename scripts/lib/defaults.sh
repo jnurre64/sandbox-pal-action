@@ -21,6 +21,10 @@ AGENT_CIRCUIT_BREAKER_LIMIT="${AGENT_CIRCUIT_BREAKER_LIMIT:-8}"
 # Shared Claude memory file (optional)
 AGENT_MEMORY_FILE="${AGENT_MEMORY_FILE:-}"
 
+# Shared Claude memory directory (optional): index + the files its
+# pointers name; phases can Read them, read-only (#97)
+AGENT_MEMORY_DIR="${AGENT_MEMORY_DIR:-}"
+
 # Extra directories phases may access unprompted, space-separated
 # (--add-dir; path gating is separate from tool allow rules)
 AGENT_ADD_DIRS="${AGENT_ADD_DIRS:-}"

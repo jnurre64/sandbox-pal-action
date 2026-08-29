@@ -208,6 +208,8 @@ This is automatic: if your repo has no `.claude/rules/` directory, staging is a 
 
 `AGENT_MEMORY_FILE` points to a markdown file containing project knowledge that agents should have as context. When set, its contents are injected into every agent invocation via `--append-system-prompt`.
 
+If your memory is a **directory** — an index whose lines point at sibling files, like `~/.claude/projects/<slug>/memory/` — use `AGENT_MEMORY_DIR` instead (or as well): the index is injected the same way, and the phase can additionally `Read` the file a pointer names. Injecting only the index gives the agent a list of things it knows it cannot access, which invites reasoning about facts it cannot read. Memory stays read-only in both forms. See the configuration guide.
+
 This gives the agent access to patterns, conventions, and hard-won lessons that were discovered during interactive development but are not written in CLAUDE.md.
 
 ### Two Approaches
