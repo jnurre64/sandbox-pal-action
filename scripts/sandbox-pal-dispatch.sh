@@ -456,6 +456,22 @@ handle_implement() {
     claude_output=$(parse_claude_output "$result")
     log "Implementation output: ${claude_output:0:500}"
 
+    # An API error is fail-fast: no later phase can recover it, so stop
+    # here instead of burning the test gate and review loop on it.
+    if [ "$(classify_claude_result "$result")" = "fail_fast" ]; then
+        log "Implementation phase: API error (fail-fast) — skipping gates"
+        preserve_branch || true
+        set_label "agent:failed"
+        gh issue comment "$NUMBER" --repo "$REPO" \
+            --body "## Agent Implementation Failed
+
+The implementation session hit an API error: ${claude_output}
+
+No later phase can recover this — re-dispatch (re-apply the trigger label) once the API issue is resolved. Any commits made before the error are pushed to the \`${BRANCH_NAME}\` branch." 2>/dev/null || true
+        cleanup_worktree
+        return
+    fi
+
     # handle_post_implementation returns non-zero on controlled failures
     # (test gate fail, Gate B halt, no commits made). These are already
     # reported to the issue and labeled agent:failed — we just need to

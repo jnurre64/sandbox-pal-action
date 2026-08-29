@@ -151,6 +151,58 @@ _source_common() {
     assert_output "plain text output"
 }
 
+@test "REGRESSION v1.2.0: parse_claude_output reports API error when is_error is true despite subtype success" {
+    _source_common
+    run parse_claude_output '{"is_error":true,"subtype":"success"}'
+    refute_output --partial "Agent stopped: success"
+    assert_output --partial "API error"
+}
+
+@test "parse_claude_output: is_error envelope includes the result detail when present" {
+    _source_common
+    run parse_claude_output '{"is_error":true,"subtype":"success","result":"API Error: 529 overloaded"}'
+    assert_output --partial "API error"
+    assert_output --partial "529 overloaded"
+}
+
+@test "parse_claude_output: never interpolates a non-error subtype as a cause" {
+    _source_common
+    run parse_claude_output '{"subtype":"success"}'
+    refute_output --partial "Agent stopped: success"
+}
+
+# ═══════════════════════════════════════════════════════════════
+# classify_claude_result tests (#90)
+# ═══════════════════════════════════════════════════════════════
+
+@test "classify_claude_result: is_error true is fail_fast even with subtype success" {
+    _source_common
+    run classify_claude_result '{"is_error":true,"subtype":"success"}'
+    assert_output "fail_fast"
+}
+
+@test "classify_claude_result: a turn cap is recoverable" {
+    _source_common
+    run classify_claude_result '{"is_error":false,"subtype":"error_max_turns"}'
+    assert_output "recoverable"
+}
+
+@test "classify_claude_result: synthetic timeout envelope is recoverable" {
+    _source_common
+    run classify_claude_result '{"result":"Claude timed out or errored (exit code 124)","error":true}'
+    assert_output "recoverable"
+}
+
+@test "classify_claude_result: success envelope is ok" {
+    _source_common
+    run classify_claude_result '{"is_error":false,"subtype":"success","result":"done"}'
+    assert_output "ok"
+}
+
+@test "dispatch: implement handler classifies the envelope before the post-implementation gates" {
+    grep -q "classify_claude_result" "${SCRIPTS_DIR}/sandbox-pal-dispatch.sh"
+}
+
 # ═══════════════════════════════════════════════════════════════
 # preserve_branch — issue #73
 # ═══════════════════════════════════════════════════════════════

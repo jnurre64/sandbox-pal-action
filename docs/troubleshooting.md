@@ -106,6 +106,22 @@ Labels are case-sensitive. Ensure the label you added matches exactly what the w
 
 ---
 
+## Agent Posts "hit an API error" Comment
+
+**Symptom**: The issue is labeled `agent:failed` and a comment says a phase "hit an API error" (for example an exhausted model quota or a 5xx from the API).
+
+### Cause
+
+The Claude CLI reported the session as an API error (`is_error: true` in its output envelope). This is classified as **fail-fast**: no later phase can recover it, so the dispatch stops immediately rather than running the test gate or review loop against a phase that never finished.
+
+### Resolution
+
+Any commits made before the error are pushed to the work branch, so nothing is lost. Wait out the quota/outage (or switch the phase's model override, e.g. `AGENT_MODEL_IMPLEMENT`), then re-dispatch by re-applying the trigger label — the preserved branch turns the re-dispatch into a resume.
+
+Note the contrast with turn/budget caps (`error_max_turns`): those are **recoverable** and the pipeline's fix-up phases handle them without stopping.
+
+---
+
 ## Agent Posts "Halted" Comment
 
 > Automatically detected by `/troubleshoot <number>` — pattern: **Circuit breaker**.

@@ -4,7 +4,7 @@
 #           check_circuit_breaker,
 #           load_shared_memory, detect_label_tools, get_implementation_tools,
 #           load_prompt, extract_plan_branch, run_claude, parse_claude_output,
-#           preserve_branch, handle_post_implementation
+#           classify_claude_result, preserve_branch, handle_post_implementation
 
 # ─── Logging ─────────────────────────────────────────────────────
 log() {
@@ -235,18 +235,60 @@ run_claude() {
 
 # ─── Parse Claude JSON output ────────────────────────────────────
 # Extracts the text result from claude's --output-format json response.
+# `is_error` is authoritative and `subtype` is not a cause: an API-error
+# envelope carries is_error:true together with subtype:"success", so the
+# error check must come first and a non-error_* subtype is never
+# interpolated as a reason.
 parse_claude_output() {
     local result="$1"
+    if [ "$(echo "$result" | jq -r '.is_error // false' 2>/dev/null)" = "true" ]; then
+        local detail
+        detail=$(echo "$result" | jq -r \
+            '[.terminal_reason, .api_error_status, (.result // .result_text)]
+             | map(select(. != null and . != "") | tostring) | join(" — ")' 2>/dev/null)
+        echo "Agent phase failed: API error${detail:+ — ${detail}}"
+        return 0
+    fi
     local claude_output
     claude_output=$(echo "$result" | jq -r '.result // .result_text // empty' 2>/dev/null)
     if [ -z "$claude_output" ]; then
         claude_output=$(echo "$result" | jq -r '.subtype // empty' 2>/dev/null)
-        [ -n "$claude_output" ] && claude_output="Agent stopped: $claude_output"
+        case "$claude_output" in
+            error_*) claude_output="Agent stopped: $claude_output" ;;
+            *) claude_output="" ;;
+        esac
     fi
     if [ -z "$claude_output" ]; then
         claude_output="$result"
     fi
     echo "$claude_output"
+}
+
+# ─── Classify how a phase ended ──────────────────────────────────
+# fail_fast:   an API error — no later phase can recover it, so the
+#              pipeline should stop rather than burn a fix-up phase.
+# recoverable: a turn/budget cap or timeout — exactly what the fix-up
+#              phases exist for.
+# ok:          a normal ending.
+classify_claude_result() {
+    local result="$1"
+    if [ "$(echo "$result" | jq -r '.is_error // false' 2>/dev/null)" = "true" ]; then
+        echo "fail_fast"
+        return 0
+    fi
+    local subtype
+    subtype=$(echo "$result" | jq -r '.subtype // empty' 2>/dev/null || echo "")
+    case "$subtype" in
+        error_*) echo "recoverable" ;;
+        *)
+            # run_claude's synthetic timeout envelope carries .error, not .is_error
+            if [ "$(echo "$result" | jq -r '.error // false' 2>/dev/null)" = "true" ]; then
+                echo "recoverable"
+            else
+                echo "ok"
+            fi
+            ;;
+    esac
 }
 
 # ─── Preserve implementation work on the remote ──────────────────

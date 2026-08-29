@@ -361,6 +361,15 @@ run_post_impl_review() {
     claude_output=$(parse_claude_output "$result")
     log "Post-impl review result: ${claude_output:0:500}"
 
+    if [ "$(classify_claude_result "$result")" = "fail_fast" ]; then
+        log "Post-implementation review: API error (fail-fast)"
+        preserve_branch || true
+        set_label "agent:failed"
+        gh issue comment "$NUMBER" --repo "$REPO" \
+            --body "Agent post-implementation review hit an API error (${claude_output}). No later phase can recover this — re-dispatch once the API issue is resolved. The implementation commits are pushed to the \`${BRANCH_NAME}\` branch." 2>/dev/null || true
+        return 1
+    fi
+
     local json_block action
     json_block=$(_extract_review_json "$claude_output")
     set +e
@@ -423,6 +432,15 @@ run_post_impl_retry_session() {
     local claude_output
     claude_output=$(parse_claude_output "$result")
     log "Retry output: ${claude_output:0:500}"
+
+    if [ "$(classify_claude_result "$result")" = "fail_fast" ]; then
+        log "Review-loop retry session: API error (fail-fast)"
+        preserve_branch || true
+        set_label "agent:failed"
+        gh issue comment "$NUMBER" --repo "$REPO" \
+            --body "Agent review-loop retry session hit an API error (${claude_output}). No later phase can recover this — re-dispatch once the API issue is resolved. The work so far is pushed to the \`${BRANCH_NAME}\` branch." 2>/dev/null || true
+        return 1
+    fi
 
     # Re-run tests if configured (a retry must never ship a red suite)
     if [ -n "$AGENT_TEST_COMMAND" ]; then
