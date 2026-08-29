@@ -74,6 +74,7 @@ Do NOT commit files containing tokens, API keys, webhook URLs, or other secrets 
 
 ## Important Rules
 - You MUST make at least one commit.
+- You cannot write anything under .claude/ (writes there are silently blocked). To update an agent-facing rules file, edit its staged copy under .agent-data/rules/ instead — the harness copies changed staged files back to .claude/rules/ and commits them for you. Do NOT commit the staged copies yourself.
 - Never modify .github/workflows/ files.
 - Never modify CI/CD configuration or security-sensitive files.
 - If the task is too large for a single PR, describe what you would split it into and stop.

@@ -133,6 +133,8 @@ source "${SCRIPT_DIR}/lib/data-fetch.sh"
 source "${SCRIPT_DIR}/lib/notify.sh"
 # shellcheck source=lib/review-gates.sh
 source "${SCRIPT_DIR}/lib/review-gates.sh"
+# shellcheck source=lib/rules-staging.sh
+source "${SCRIPT_DIR}/lib/rules-staging.sh"
 
 # ═══════════════════════════════════════════════════════════════
 # EVENT: New issue labeled "agent" → Triage + Plan (no implementation)
@@ -448,6 +450,10 @@ handle_implement() {
     local impl_tools
     impl_tools=$(get_implementation_tools)
 
+    # A phase cannot write .claude/** (built-in path guard) — stage the
+    # rules files somewhere it can (#92).
+    stage_rules_files
+
     local result
     result=$(run_claude "$prompt" "$impl_tools" "$AGENT_MODEL_IMPLEMENT")
 
@@ -694,6 +700,8 @@ handle_pr_review() {
     local pr_tools
     pr_tools=$(get_implementation_tools)
 
+    stage_rules_files
+
     local result
     result=$(run_claude "$prompt" "$pr_tools" "$AGENT_MODEL_REVIEW")
 
@@ -701,6 +709,8 @@ handle_pr_review() {
     local claude_output
     claude_output=$(parse_claude_output "$result")
     log "PR review output: ${claude_output:0:500}"
+
+    apply_rules_files
 
     # Push if new commits
     local new_commits
@@ -816,11 +826,17 @@ handle_post_merge() {
     local prompt
     prompt=$(load_prompt "cleanup" "$AGENT_PROMPT_CLEANUP")
 
+    # The cleanup phase does documentation work and is exactly the phase
+    # the .claude/** write guard bites silently (#92) — stage first.
+    stage_rules_files
+
     local result
     result=$(run_claude "$prompt" "$AGENT_ALLOWED_TOOLS_CLEANUP" "$AGENT_MODEL_CLEANUP")
     local claude_output
     claude_output=$(parse_claude_output "$result")
     log "Cleanup output: ${claude_output:0:500}"
+
+    apply_rules_files
 
     # Follow-up issues from the session's structured output
     local json_block fu_count i=0

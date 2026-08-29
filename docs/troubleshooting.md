@@ -106,6 +106,22 @@ Labels are case-sensitive. Ensure the label you added matches exactly what the w
 
 ---
 
+## Agent Reports Success but a `.claude/` File Was Never Written
+
+**Symptom**: A phase was asked to update a file under `.claude/` (rules, skills, settings) and reported success, but the file is unchanged. No error appears anywhere.
+
+### Cause
+
+`.claude/**` is refused to a headless phase by a **built-in, path-based guard in Claude Code** — not by this project's allow list. `Edit` is denied on `.claude/` paths even when allowed bare on everything else, `sed -i` via Bash is denied the same way, and adding `Edit(.claude/**)` to the allow list cannot help. The phase quietly writes the material somewhere else or drops it, and reports success.
+
+The only thing that lifts the guard is `--permission-mode bypassPermissions`, which drops **every** deny rule with it — never do this.
+
+### Resolution
+
+The dispatch script stages `.claude/rules/*.md` into `.agent-data/rules/` before each write phase and copies changed files back afterwards (committing them itself) — see "Agent-Maintained Rules Files" in `docs/customization.md`. If you point an agent at any *other* path under `.claude/`, expect a silent no-op: keep agent-editable files out of `.claude/`, or extend the staging convention.
+
+---
+
 ## Agent Posts "hit an API error" Comment
 
 **Symptom**: The issue is labeled `agent:failed` and a comment says a phase "hit an API error" (for example an exhausted model quota or a 5xx from the API).

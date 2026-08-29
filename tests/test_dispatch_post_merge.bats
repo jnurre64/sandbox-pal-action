@@ -13,6 +13,7 @@ _source_dispatch_functions() {
     source "${LIB_DIR}/worktree.sh"
     source "${LIB_DIR}/notify.sh"
     source "${LIB_DIR}/review-gates.sh"
+    source "${LIB_DIR}/rules-staging.sh"
     # shellcheck disable=SC1090
     source <(sed -n '/^handle_post_merge()/,/^}/p' "${SCRIPTS_DIR}/sandbox-pal-dispatch.sh")
 }
