@@ -173,7 +173,7 @@ The standard (autonomous) flow reuses the plan-phase worktree for implementation
 Before a PR is created, `handle_post_implementation()` runs a capped, ledger-driven review loop instead of a single adversarial pass:
 
 1. A fresh review session checks the diff against the issue/plan and reports findings.
-2. Findings are merged into a ledger at `.agent-data/review-ledger.json` (committed to the work branch after every pass, so the history survives across retries).
+2. Findings are merged into a ledger at `.agent-data/review-ledger.json` (committed to the work branch after every pass, so the history survives across retries). The ledger is stamped with the issue number it belongs to: because it rides the branch, a branch cut after a merge inherits the previous PR's ledger, so on init a ledger stamped with a different issue — or not stamped at all — is discarded as a stale leftover, not merged as history (#89).
 3. If no blocking findings remain open, the loop exits clean and the PR opens as `agent:pr-open`.
 4. Otherwise, if the retry count is under the cap (`AGENT_POST_IMPL_REVIEW_MAX_RETRIES`, default 3), a fix session addresses the open findings, dispositions them in the ledger, and the loop re-reviews.
 5. If the cap is reached with findings still open, the loop stops and the PR opens anyway -- labeled `agent:review-unresolved` **in addition to** `agent:pr-open` -- with the outstanding findings summarized at the top of the PR body.
