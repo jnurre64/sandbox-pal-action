@@ -21,6 +21,24 @@ log() {
     fi
 }
 
+# ─── Config provenance ───────────────────────────────────────────
+# Printed once, before the first phase — the top of the run is the only
+# place where the printed values are guaranteed to be the values used,
+# since a later checkout can replace config files on disk but not this
+# run's in-memory values (#99). Runs for status too, so an operator can
+# ask what the harness WOULD use without paying for a dispatch.
+log_config_provenance() {
+    local defaults_src="(none)" overrides_src="(none)"
+    [ -n "${AGENT_DEFAULTS:-}" ] && defaults_src="$AGENT_DEFAULTS"
+    if [ -n "${AGENT_CONFIG:-}" ]; then
+        overrides_src="$AGENT_CONFIG"
+    elif [ -n "${SCRIPT_DIR:-}" ] && [ -f "${SCRIPT_DIR}/../config.env" ]; then
+        overrides_src="${SCRIPT_DIR}/../config.env"
+    fi
+    log "Config: defaults=${defaults_src} overrides=${overrides_src} mode=${AGENT_EXECUTION_MODE:-actions}"
+    log "Models: default=${AGENT_MODEL:-cli-default} triage=${AGENT_MODEL_TRIAGE:-} implement=${AGENT_MODEL_IMPLEMENT:-} review=${AGENT_MODEL_REVIEW:-} cleanup=${AGENT_MODEL_CLEANUP:-} adversarial-plan=${AGENT_MODEL_ADVERSARIAL_PLAN:-} test-fix=${AGENT_MODEL_TEST_FIX:-} post-impl-review=${AGENT_MODEL_POST_IMPL_REVIEW:-} post-impl-retry=${AGENT_MODEL_POST_IMPL_RETRY:-}"
+}
+
 # ─── Label state machine ────────────────────────────────────────
 ALL_AGENT_LABELS=(
     agent
