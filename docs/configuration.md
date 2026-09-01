@@ -70,6 +70,30 @@ Timeout in seconds before the dispatch script kills a stuck `claude -p` process.
 AGENT_TIMEOUT=3600   # 1 hour
 ```
 
+### AGENT_MODEL
+
+The Claude model for agent sessions, plus per-workflow overrides. Everything empty (the default) runs the CLI default model — currently Opus — for every step.
+
+| Key | Default | Type |
+|-----|---------|------|
+| `AGENT_MODEL` | *(empty, CLI default)* | model name |
+| `AGENT_MODEL_TRIAGE` / `_IMPLEMENT` / `_REVIEW` / `_ADVERSARIAL_PLAN` / `_POST_IMPL_REVIEW` / `_POST_IMPL_RETRY` / `_TEST_FIX` / `_CLEANUP` | *(empty, falls back to `AGENT_MODEL`)* | model name |
+
+**Model-tier guidance.** The all-defaults configuration is the recommended baseline — Opus-tier models handle planning, implementation, and adversarial review well. Pinning a frontier-tier model (e.g. `claude-fable-5`, roughly 2× Opus pricing) across several pipeline steps multiplies cost per issue with little quality gain when a human or a stronger orchestrator session already gates plans and merges: in one deployment, three frontier sessions per issue consumed the bulk of the model budget while duplicating the orchestrator's own plan review. This mirrors Anthropic's multi-agent guidance — put the strongest model where judgment density is highest (orchestration, plan gating, synthesis) and run volume work on the default tier.
+
+If you escalate a single slot, `AGENT_MODEL_ADVERSARIAL_PLAN` is the highest-leverage pin: the plan review is read-mostly (cheap in tokens) and catches flaws before the expensive implement/review cycle, similar to the API's advisor-tool pattern (a cheaper executor consulting a stronger model for plan-level judgment). Cheap/fast models (`haiku`) fit `AGENT_MODEL_CLEANUP` and other bookkeeping steps.
+
+```bash
+# Recommended baseline — CLI default everywhere
+# (all AGENT_MODEL_* unset)
+
+# Escalate only the plan review, keep everything else on the default
+AGENT_MODEL_ADVERSARIAL_PLAN="claude-fable-5"
+
+# Bookkeeping on a cheap model
+AGENT_MODEL_CLEANUP="haiku"
+```
+
 ### AGENT_CIRCUIT_BREAKER_LIMIT
 
 Maximum number of bot comments allowed per hour on a single issue. If the limit is exceeded, the agent halts with `agent:failed` and posts a warning. This prevents infinite loops.
