@@ -33,8 +33,11 @@ within the same document. External references and unknown drafts are rejected;
 `format` remains an annotation. To retain legacy text parsing for a custom
 prompt, explicitly set that phase's `AGENT_JSON_SCHEMA_<PHASE>=""`.
 
-Authentication, quota, configuration, schema and unclassified failures stop
-recovery. Rate limits, turn/budget caps and timeouts remain recoverable during
+Authentication, quota (billing), usage-limit (a closed subscription window —
+session, weekly or per-model), configuration, schema and unclassified failures
+stop recovery; each failed phase records `error.detail` (subtype, terminal
+reason, API status, exit code, the first line of the redacted error text) and the
+failure comment repeats it in brackets. Rate limits, turn/budget caps and timeouts remain recoverable during
 implementation, but require both a configured test command and independent
 post-implementation review. Reviews never approve from partial failed output.
 Worker cancellation is reported separately and stops advancement. This adapter

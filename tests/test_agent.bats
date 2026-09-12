@@ -5,9 +5,11 @@ _source_agent() {
     source "${LIB_DIR}/common.sh"
     export FIXTURE='{"subtype":"success","result":"done"}'
     export FIXTURE_EXIT=0
+    export FIXTURE_STDERR=''
     engine_claude() {
         printf 'called\n' >> "${TEST_TEMP_DIR}/worker_calls"
         printf '%s' "$FIXTURE"
+        [ -z "$FIXTURE_STDERR" ] || printf '%s\n' "$FIXTURE_STDERR" >&2
         return "$FIXTURE_EXIT"
     }
 }
@@ -67,7 +69,7 @@ _source_agent() {
 
 @test "agent: auth and quota stop, rate limits and turn caps are recoverable" {
     _source_agent
-    for detail in '401 unauthorized' 'credit balance depleted' 'session limit reached'; do
+    for detail in '401 unauthorized' 'credit balance depleted' 'billing account suspended'; do
         FIXTURE=$(jq -cn --arg text "$detail" '{is_error:true,subtype:"success",result:$text}')
         run run_agent prompt
         run classify_agent_result "$output"
@@ -78,6 +80,73 @@ _source_agent() {
         run classify_agent_result "$output"
         assert_output recoverable
     done
+}
+
+@test "REGRESSION v1.2.1: a usage limit is its own kind, stops the phase, and keeps the reset hint" {
+    _source_agent
+    for detail in 'Usage limit reached · resets 4:50pm (America/Chicago)' 'session limit reached' "You've hit your limit" 'Opus limit reached'; do
+        FIXTURE=$(jq -cn --arg text "$detail" '{is_error:true,subtype:"success",result:$text}')
+        run run_agent prompt
+        echo "$output" | jq -e '.status == "failed" and .error.kind == "usage_limit" and .structured_output == null'
+        run classify_agent_result "$output"
+        assert_output fail_fast
+    done
+    FIXTURE='{"is_error":true,"subtype":"success","api_error_status":429,"result":"Usage limit reached · resets 4:50pm"}'
+    run run_agent prompt
+    echo "$output" | jq -e '.error.kind == "usage_limit"'
+    run parse_agent_output "$output"
+    assert_output --partial 'usage limit'
+    assert_output --partial 'resets 4:50pm'
+    refute_output --partial 'quota exhausted'
+}
+
+@test "REGRESSION v1.2.1: billing stays terminal and a 429 is a rate limit even when it mentions quota" {
+    _source_agent
+    for detail in 'credit balance too low' 'billing account suspended' 'insufficient_quota' 'quota exceeded'; do
+        FIXTURE=$(jq -cn --arg text "$detail" '{is_error:true,subtype:"success",result:$text}')
+        run run_agent prompt
+        echo "$output" | jq -e '.status == "failed" and .error.kind == "quota"'
+        run classify_agent_result "$output"
+        assert_output fail_fast
+    done
+    FIXTURE='{"is_error":true,"subtype":"success","api_error_status":429,"result":"429 quota_or_rate: rate limit, retry shortly"}'
+    run run_agent prompt
+    echo "$output" | jq -e '.status == "failed" and .error.kind == "rate_limit"'
+    run classify_agent_result "$output"
+    assert_output recoverable
+    # A cap the harness set is a cap, whatever the text beside it says.
+    FIXTURE='{"subtype":"error_max_budget_usd","result":"Budget limit reached; usage limit for this phase"}'
+    run run_agent prompt
+    echo "$output" | jq -e '.status == "failed" and .error.kind == "limit"'
+    run classify_agent_result "$output"
+    assert_output recoverable
+}
+
+@test "REGRESSION v1.2.1: every failure carries a redacted, bounded detail that reaches the failure message" {
+    _source_agent
+    export WORKER_TEST_SECRET='hunter2hunter2'
+    FIXTURE=$(jq -cn --arg s "$WORKER_TEST_SECRET" '{is_error:true,subtype:"error_during_execution",terminal_reason:"api_error",api_error_status:529,result:("overloaded, then " + $s)}')
+    run run_agent prompt
+    echo "$output" | jq -e '.status == "failed" and .error.kind == "unknown"'
+    echo "$output" | jq -e '.error.detail | test("subtype=error_during_execution") and test("terminal_reason=api_error") and test("api_error_status=529") and test("overloaded") and (test("hunter2") | not)'
+    run parse_agent_output "$output"
+    assert_output --partial 'Agent phase failed: API error or worker failure'
+    assert_output --partial 'terminal_reason=api_error'
+    refute_output --partial 'hunter2'
+    # Long error text is cut, not dropped, and never runs away in a comment.
+    FIXTURE=$(jq -cn --arg s "$(head -c 2000 /dev/zero | tr '\0' x)" '{is_error:true,result:$s}')
+    run run_agent prompt
+    echo "$output" | jq -e '(.error.detail | length) < 400 and (.error.detail | test("x{300}"))'
+    # A success carries no error object at all, exactly as before.
+    FIXTURE='{"subtype":"success","result":"done"}'
+    run run_agent prompt
+    echo "$output" | jq -e '.status == "success" and .error == null'
+    # Stderr-only failures keep their text as the detail.
+    FIXTURE=''
+    FIXTURE_EXIT=1
+    FIXTURE_STDERR='fatal: could not reach the API'
+    run run_agent prompt
+    echo "$output" | jq -e '.status == "failed" and (.error.detail | test("could not reach the API"))'
 }
 
 @test "agent: recovered denial does not fail a successful phase" {

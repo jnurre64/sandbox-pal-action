@@ -154,7 +154,13 @@ The Claude CLI reported the session as an API error (`is_error: true` in its out
 
 ### Resolution
 
-Any commits made before the error are pushed to the work branch, so nothing is lost. Wait out the quota/outage (or switch the phase's model override, e.g. `AGENT_MODEL_IMPLEMENT`), then re-dispatch by re-applying the trigger label — the preserved branch turns the re-dispatch into a resume.
+The failure comment names the cause and, in brackets, what the CLI actually said (`subtype`, `terminal_reason`, `api_error_status`, the first line of the error text). Three causes look alike and are told apart there:
+
+- **`API error: usage limit reached`** — a subscription usage window closed (the CLI says `Usage limit reached · resets <time>`, or names the session, weekly, Opus/Sonnet/Fable limit). Nothing about the issue failed. Wait for the reset time in the brackets, then re-dispatch; runners that share one login all hit it at once, which is the tell.
+- **`API error: quota exhausted`** — billing: `credit balance too low`, a suspended billing account, `insufficient_quota`. Top up or fix the account first.
+- **`API error: rate limited`** — a 429; recoverable, the fix-up phases retry it.
+
+Any commits made before the error are pushed to the work branch, so nothing is lost. Wait out the window/outage (or switch the phase's model override, e.g. `AGENT_MODEL_IMPLEMENT`), then re-dispatch by re-applying the trigger label — the preserved branch turns the re-dispatch into a resume.
 
 Note the contrast with turn/budget caps (`error_max_turns`): those are **recoverable** and the pipeline's fix-up phases handle them without stopping.
 
