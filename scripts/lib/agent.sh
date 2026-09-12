@@ -98,11 +98,19 @@ agent_succeeded() {
     printf '%s' "$1" | jq -e '.version == 1 and .status == "success"' >/dev/null 2>&1
 }
 
+# A failure names its cause and, in brackets, the evidence the adapter kept
+# (subtype, terminal reason, API status, the first line of the error text —
+# already redacted and bounded), so the log line and the issue comment carry
+# enough to diagnose the stop without the run's stdout.
 parse_agent_output() {
     printf '%s' "$1" | jq -r 'if .status == "success" then .result_text
-        else "Agent phase failed: " + (.error.message // "unknown failure") end'
+        else "Agent phase failed: " + (.error.message // "unknown failure")
+            + (if (.error.detail // "") != "" then " [" + .error.detail + "]" else "" end) end'
 }
 
+# fail_fast covers auth, quota (billing), usage_limit (a closed subscription window —
+# retrying now would only burn the fix-up phases against the same wall), permission,
+# configuration, schema and unknown; recoverable is what the fix-up phases exist for.
 classify_agent_result() {
     printf '%s' "$1" | jq -r 'if .version != 1 then "fail_fast"
         elif .status == "success" then "ok"

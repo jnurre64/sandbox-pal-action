@@ -9,6 +9,13 @@ import re
 import sys
 
 
+# The Claude CLI's wording for a subscription usage window that has closed — the 5-hour
+# session limit, the weekly limit, and the per-model (Opus/Sonnet/Fable) limits. Matched
+# case-insensitively against the whole envelope; see normalize().
+USAGE_LIMIT_WORDS = ("usage limit", "session limit", "weekly limit", "opus limit", "sonnet limit",
+                     "fable limit", "hit your limit", "usage_limit")
+
+
 def reject_constant(value):
     raise ValueError("Non-JSON constant")
 
@@ -48,7 +55,24 @@ def normalize(raw, phase, code, schema_text, stderr=""):
                   usage=dict(input_tokens=None, output_tokens=None, cached_input_tokens=None), cost_usd=None)
 
     def fail(kind, message, status="failed"):
-        result.update(status=status, error=dict(kind=kind, message=message), structured_output=None)
+        result.update(status=status, error=dict(kind=kind, message=message, detail=detail_line()), structured_output=None)
+
+    def detail_line():
+        """The evidence a failed phase leaves behind — redacted by scrub()/redact_secrets,
+        bounded so it fits a log line or an issue comment, empty when nothing was said."""
+        parts = []
+        for label, value in (("subtype", data.get("subtype")), ("terminal_reason", data.get("terminal_reason")),
+                             ("api_error_status", data.get("api_error_status"))):
+            if value not in (None, ""):
+                parts.append(f"{label}={value}")
+        if code:
+            parts.append(f"exit={code}")
+        for value in (data.get("errors"), data.get("error"), data.get("result"), stderr):
+            text = " ".join(str(value).split()) if value not in (None, "", [], {}) else ""
+            if text:
+                parts.append(text[:300] + ("…" if len(text) > 300 else ""))
+                break
+        return " · ".join(parts)
 
     try:
         data = scrub(loads(raw))
@@ -78,16 +102,23 @@ def normalize(raw, phase, code, schema_text, stderr=""):
     semantic_error = data.get("is_error") is True or subtype.startswith("error_") or bool(data.get("error"))
     if semantic_error or code:
         kind, message = "unknown", "API error or worker failure"
+        # Order matters. A subscription usage window ("Usage limit reached · resets 4:50pm",
+        # session/weekly/per-model limits) resets on its own and is named before billing so it
+        # is never reported as an exhausted quota; a 429 is named before "quota" because the
+        # CLI's own rate-limit wording can carry that substring.
         if any(word in detail for word in ("unauthorized", "authentication", "invalid api key", "401", "not logged in")):
             kind, message = "auth", "API error: authentication failed"
-        elif any(word in detail for word in ("quota", "credit balance", "billing", "session limit")):
-            kind, message = "quota", "API error: quota exhausted"
+        elif subtype in ("error_max_turns", "error_max_turns_reached", "error_max_budget_usd"):
+            # The subtype is authoritative for a cap the harness itself set, whatever the text says.
+            kind, message = "limit", "Worker turn or budget limit reached"
+        elif any(word in detail for word in USAGE_LIMIT_WORDS):
+            kind, message = "usage_limit", "API error: usage limit reached (the window resets on its own; re-dispatch after it does)"
         elif "429" in detail or "rate limit" in detail:
             kind, message = "rate_limit", "API error: rate limited"
+        elif any(word in detail for word in ("credit balance", "billing", "insufficient_quota", "quota")):
+            kind, message = "quota", "API error: quota exhausted"
         elif any(word in detail for word in ("permission denied", "not permitted", "refused")):
             kind, message = "permission", "Worker permission refusal"
-        elif subtype in ("error_max_turns", "error_max_turns_reached", "error_max_budget_usd"):
-            kind, message = "limit", "Worker turn or budget limit reached"
         elif code in (126, 127) or "configuration" in detail:
             kind, message = "configuration", "Worker configuration or executable unavailable"
         fail(kind, message)
