@@ -191,6 +191,10 @@ AGENT_BUDGET_USD="${AGENT_BUDGET_USD:-}"          # limitless unless set
 AGENT_MCP_CONFIG="${AGENT_MCP_CONFIG:-}"          # path → --mcp-config + --strict-mcp-config
 AGENT_STRICT_MCP="${AGENT_STRICT_MCP:-}"          # "true" → --strict-mcp-config alone (no MCP servers)
 AGENT_SESSION_PERSISTENCE="${AGENT_SESSION_PERSISTENCE:-false}"  # "true" keeps resumable phase sessions
+# Headless controls (#136). An explicitly empty value is kept: it turns
+# the control off. AGENT_BG_WAIT_CEILING_MS_<PHASE> is read dynamically.
+AGENT_PERMISSION_PROMPTS="${AGENT_PERMISSION_PROMPTS-none}"       # none | host | "" (omit the flag)
+AGENT_BG_WAIT_CEILING_MS="${AGENT_BG_WAIT_CEILING_MS-600000}"     # ms; "" leaves the CLI's own ceiling
 
 # ─── Execution mode ──────────────────────────────────────────────
 # actions:      invoked by a GitHub Actions workflow (default)
