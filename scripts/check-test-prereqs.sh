@@ -35,7 +35,7 @@ check_tool() {
     local tool="$1"
     if command -v "$tool" &>/dev/null; then
         local version
-        version=$("$tool" --version 2>&1 | head -1)
+        version=$("$tool" --version 2>&1 | sed -n 1p)
         echo -e "  ${GREEN}✓${NC} ${tool} found: ${version}"
     else
         echo -e "  ${RED}✗${NC} ${tool} not found"
@@ -60,7 +60,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BATS_BIN="${SCRIPT_DIR}/../tests/bats/bin/bats"
 
 if [ -x "$BATS_BIN" ]; then
-    bats_version=$("$BATS_BIN" --version 2>&1 | head -1)
+    bats_version=$("$BATS_BIN" --version 2>&1 | sed -n 1p)
     echo -e "  ${GREEN}✓${NC} bats found: ${bats_version}"
 else
     echo -e "  ${RED}✗${NC} bats submodule not initialized — not found"
