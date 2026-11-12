@@ -36,6 +36,14 @@ log_config_provenance() {
         overrides_src="${SCRIPT_DIR}/../config.env"
     fi
     log "Config: defaults=${defaults_src} overrides=${overrides_src} mode=${AGENT_EXECUTION_MODE:-actions}"
+    local overwritten=""
+    if declare -F agent_config_overwrite_report >/dev/null; then
+        overwritten=$(agent_config_overwrite_report)
+    fi
+    if [ -n "$overwritten" ]; then
+        # shellcheck disable=SC2016 # The assignment form is shown literally.
+        log "WARN: config overwrote exported environment: ${overwritten}. The file's value is in use. To let the environment win, write the assignment as "'VAR="${VAR:-default}"'"."
+    fi
     log "Models: default=${AGENT_MODEL:-cli-default} triage=${AGENT_MODEL_TRIAGE:-} implement=${AGENT_MODEL_IMPLEMENT:-} review=${AGENT_MODEL_REVIEW:-} cleanup=${AGENT_MODEL_CLEANUP:-} adversarial-plan=${AGENT_MODEL_ADVERSARIAL_PLAN:-} test-fix=${AGENT_MODEL_TEST_FIX:-} post-impl-review=${AGENT_MODEL_POST_IMPL_REVIEW:-} post-impl-retry=${AGENT_MODEL_POST_IMPL_RETRY:-}"
 }
 
