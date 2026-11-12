@@ -119,3 +119,97 @@ MOCK
     assert_success
     ! grep -qE -- '--effort|--max-budget-usd|--permission-mode' "$TEST_TEMP_DIR/claude_args"
 }
+
+# ─── Permission prompts and background-wait ceiling (#136) ───────
+
+# A claude stub whose --help lists the flags in $1, and which records the
+# argv and the wait ceiling of the phase launch.
+_setup_probed_claude() {
+    source "${LIB_DIR}/common.sh"
+    export WORKTREE_DIR="$TEST_TEMP_DIR"
+    export MOCK_HELP_FLAGS="$1"
+    mkdir -p "${TEST_TEMP_DIR}/bin"
+    cat > "${TEST_TEMP_DIR}/bin/claude" <<'MOCK'
+#!/bin/bash
+if [ "${1:-}" = "--help" ]; then
+    printf '  %s <value>\n' $MOCK_HELP_FLAGS
+    exit 0
+fi
+printf '%s\n' "$@" > "${TEST_TEMP_DIR}/claude_args"
+printf '%s\n' "${CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS-unset}" > "${TEST_TEMP_DIR}/claude_bg_wait"
+echo '{"result":"ok"}'
+MOCK
+    chmod +x "${TEST_TEMP_DIR}/bin/claude"
+    export PATH="${TEST_TEMP_DIR}/bin:${PATH}"
+    unset CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS
+}
+
+@test "permission prompts: --permission-prompts none by default when the CLI has the flag" {
+    _setup_probed_claude "--permission-mode --permission-prompts"
+    run run_claude "prompt" "" "" "" "IMPLEMENT"
+    run grep -x -A1 -- "--permission-prompts" "${TEST_TEMP_DIR}/claude_args"
+    assert_line --index 1 "none"
+}
+
+@test "permission prompts: the flag is left out for a CLI that does not list it" {
+    _setup_probed_claude "--permission-mode --permission-prompt-tool"
+    run run_claude "prompt" "" "" "" "IMPLEMENT"
+    assert_success
+    [ -f "${TEST_TEMP_DIR}/claude_args" ]
+    ! grep -qx -- "--permission-prompts" "${TEST_TEMP_DIR}/claude_args"
+}
+
+@test "permission prompts: AGENT_PERMISSION_PROMPTS chooses the target, and empty leaves the flag out" {
+    _setup_probed_claude "--permission-prompts"
+    export AGENT_PERMISSION_PROMPTS="host"
+    run run_claude "prompt" "" "" "" "IMPLEMENT"
+    run grep -x -A1 -- "--permission-prompts" "${TEST_TEMP_DIR}/claude_args"
+    assert_line --index 1 "host"
+
+    export AGENT_PERMISSION_PROMPTS=""
+    run run_claude "prompt" "" "" "" "IMPLEMENT"
+    ! grep -qx -- "--permission-prompts" "${TEST_TEMP_DIR}/claude_args"
+}
+
+@test "permission prompts: an unknown target is a configuration failure before any launch" {
+    _setup_probed_claude "--permission-prompts"
+    export AGENT_PERMISSION_PROMPTS="anyone"
+    run run_claude "prompt" "" "" "" "IMPLEMENT"
+    assert_output --partial "unsupported permission prompt target"
+    [ ! -f "${TEST_TEMP_DIR}/claude_args" ]
+}
+
+@test "bg wait: the phase gets a ten-minute background-wait ceiling by default" {
+    _setup_probed_claude ""
+    run run_claude "prompt" "" "" "" "IMPLEMENT"
+    run cat "${TEST_TEMP_DIR}/claude_bg_wait"
+    assert_output "600000"
+}
+
+@test "bg wait: AGENT_BG_WAIT_CEILING_MS sets it and AGENT_BG_WAIT_CEILING_MS_<PHASE> wins for that phase" {
+    _setup_probed_claude ""
+    export AGENT_BG_WAIT_CEILING_MS="120000"
+    export AGENT_BG_WAIT_CEILING_MS_IMPLEMENT="900000"
+    run run_claude "prompt" "" "" "" "TRIAGE"
+    run cat "${TEST_TEMP_DIR}/claude_bg_wait"
+    assert_output "120000"
+    run run_claude "prompt" "" "" "" "IMPLEMENT"
+    run cat "${TEST_TEMP_DIR}/claude_bg_wait"
+    assert_output "900000"
+}
+
+@test "bg wait: an empty setting leaves the CLI's own ceiling alone" {
+    _setup_probed_claude ""
+    export AGENT_BG_WAIT_CEILING_MS=""
+    run run_claude "prompt" "" "" "" "IMPLEMENT"
+    run cat "${TEST_TEMP_DIR}/claude_bg_wait"
+    assert_output "unset"
+}
+
+@test "bg wait: a non-numeric ceiling is a configuration failure before any launch" {
+    _setup_probed_claude ""
+    export AGENT_BG_WAIT_CEILING_MS_IMPLEMENT="10m"
+    run run_claude "prompt" "" "" "" "IMPLEMENT"
+    assert_output --partial "background-wait ceiling must be a whole number of milliseconds"
+    [ ! -f "${TEST_TEMP_DIR}/claude_args" ]
+}
