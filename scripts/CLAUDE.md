@@ -14,7 +14,7 @@
 2. `config.env` (gitignored sensitive overrides)
 3. `lib/defaults.sh` (fills in anything still unset)
 
-Environment variables always take highest precedence.
+An exported environment variable survives a file only when the file assigns it as `VAR="${VAR:-default}"`. A plain `VAR=value` overwrites it. `lib/config-load.sh` records each exported `AGENT_*` variable a file overwrote, and startup logs them as a `WARN` (names only).
 
 ## Conventions
 
