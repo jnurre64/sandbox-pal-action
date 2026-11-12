@@ -707,7 +707,7 @@ handle_pr_review() {
     start_sha=$(git -C "$WORKTREE_DIR" rev-parse HEAD 2>/dev/null || echo "")
 
     local commit_history
-    commit_history=$(git -C "$WORKTREE_DIR" log --oneline origin/main..HEAD 2>/dev/null | head -30)
+    commit_history=$(branch_commit_lines 30 '%h %s')
 
     # Extract debug data from PR comments
     local data_dir="${WORKTREE_DIR}/.agent-data"
@@ -839,7 +839,7 @@ handle_post_merge() {
     ensure_repo
 
     local first_issue
-    first_issue=$(echo "$linked_issues" | head -n 1)
+    first_issue="${linked_issues%%$'\n'*}"
 
     # Delete the merged remote branch (best-effort)
     git -C "$REPO_DIR" push origin --delete "$branch" 2>/dev/null \
