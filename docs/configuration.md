@@ -234,6 +234,20 @@ and keep sensitive overrides in the existing ignored config or runner secrets.
 Both interactive clients and label workflows use this same loading path when
 invoking the same dispatcher/configuration.
 
+When a sourced file overwrites an exported `AGENT_*` variable with a different
+value, the dispatcher says so once at startup:
+
+```
+WARN: config overwrote exported environment: AGENT_BUDGET_USD_IMPLEMENT (config.defaults.env). The file's value is in use. …
+```
+
+The file's value stays in force; the warning only makes the lost override
+visible. It lists names and the file that changed each one, never values. To let
+the environment win for a variable, write its assignment in the
+environment-preserving form. `AGENT_PROFILE` is not reported, because profile
+selection reads the incoming value directly (see
+[Selection precedence](#named-dispatch-profiles)).
+
 ---
 
 ## Required Settings
@@ -304,6 +318,9 @@ Four independent controls on how each phase invokes the CLI. **Every one is opti
 | `AGENT_MCP_CONFIG` | *(empty)* | path → `--mcp-config <path> --strict-mcp-config`: phases get exactly these MCP servers |
 | `AGENT_STRICT_MCP` | *(empty)* | `true` → `--strict-mcp-config` alone: phases get **no** MCP servers |
 | `AGENT_SESSION_PERSISTENCE` | `false` | `true` keeps resumable phase sessions (default passes `--no-session-persistence`) |
+| `AGENT_PERMISSION_PROMPTS` | `none` | `--permission-prompts` target for Claude phases: `none`, `host`, or empty to omit the flag |
+| `AGENT_BG_WAIT_CEILING_MS_<PHASE>` | *(unset — uses the global)* | background-wait ceiling for that phase, in milliseconds |
+| `AGENT_BG_WAIT_CEILING_MS` | `600000` | exported to Claude phases as `CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS`; empty leaves the CLI's own ceiling |
 | `AGENT_PHASE_SCRUB_ENV` | *(empty)* | space-separated names of further variables to remove from every phase's environment |
 | `AGENT_PHASE_KEEP_ENV` | *(empty)* | space-separated names to leave in a phase's environment despite the built-in list |
 
@@ -312,6 +329,8 @@ Notes:
 - **Budget is deliberately limitless by default** — turns (`AGENT_MAX_TURNS`) and the timeout still bound every phase; a dollar cap is the operator's choice. Turns and dollars are not interchangeable bounds: a phase can be cheap and long or short and expensive. If you set caps, size generously for write phases — a revision that runs out mid-way (work committed, reply unfinished) is worse than one that never started.
 - Without `AGENT_MCP_CONFIG`/`AGENT_STRICT_MCP`, a phase run on a machine with user-level MCP servers silently inherits them. This matters most in orchestrator mode, where inheritance is otherwise the point: *inherit identity, memory and skills; gate the tool surface explicitly.*
 - A workable effort/permission spread from a reference implementation: `dontAsk` for read-only phases (triage, reviews, cleanup), `acceptEdits` for writers (implement, test-fix, retry, revision); effort `high` for triage/review, `xhigh` for implement/retry/revision.
+- **`AGENT_PERMISSION_PROMPTS=none`** tells the CLI that nobody will answer a permission prompt, so a call that would prompt is denied at once and listed in the envelope's `permission_denials` (see "Permission Denials" in the PR body and failure comments). The permission mode and the allow list still decide everything else. The dispatcher passes the flag only when the installed CLI's `--help` lists `--permission-prompts`, so an older CLI keeps working without it.
+- **`AGENT_BG_WAIT_CEILING_MS`** bounds how long `claude -p` waits for background work it started before returning its result. Without a bound below `AGENT_TIMEOUT`, a stuck background task holds the phase until the outer `timeout` kills the CLI, and the result envelope is lost with it. The default, ten minutes, is the CLI's own ceiling as of 2.1.322; setting it here keeps the bound the same across CLI versions. Raise it per phase (`AGENT_BG_WAIT_CEILING_MS_IMPLEMENT`) for a project whose phases legitimately wait longer on background work, and keep it under the phase timeout. Both settings apply to Claude phases only, and both are checked at preflight: an unknown prompt target or a non-numeric ceiling stops the dispatch before any phase runs.
 
 ### AGENT_JSON_SCHEMA_* (structured phase output)
 

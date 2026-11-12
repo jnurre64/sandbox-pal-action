@@ -17,7 +17,7 @@ echo ""
 
 for tool in "${REQUIRED_TOOLS[@]}"; do
     if command -v "$tool" &> /dev/null; then
-        version=$("$tool" --version 2>&1 | head -1)
+        version=$("$tool" --version 2>&1 | sed -n 1p)
         echo -e "  ${GREEN}✓${NC} $tool found: $version"
     else
         echo -e "  ${RED}✗${NC} $tool not found"

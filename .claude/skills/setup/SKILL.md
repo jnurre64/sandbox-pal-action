@@ -63,7 +63,7 @@ Create the `.sandbox-pal-dispatch/` directory in the user's target repo. Copy:
 **Important:** Configuration uses a layered approach:
 - `config.defaults.env` — **committed** to the repo. Contains non-sensitive project config (bot username, timeouts, tool permissions, test commands). This file MUST NOT contain secrets, tokens, or credentials.
 - `config.env` — **gitignored**, optional. Contains sensitive overrides (Discord tokens, webhook URLs, GitHub tokens). Values here override `config.defaults.env`.
-- Environment variables — highest precedence, override both files.
+- Environment variables — win over a file only where the file uses the `${VAR:-default}` form. A plain assignment in either file overwrites the environment, and the dispatcher logs a `WARN` naming each exported `AGENT_*` variable that was overwritten.
 
 **Critical: emit every assignment using the `${VAR:-default}` form.** The dispatch
 script sources `config.defaults.env` after the workflow's `env:` block has already
