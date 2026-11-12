@@ -36,6 +36,14 @@ log_config_provenance() {
         overrides_src="${SCRIPT_DIR}/../config.env"
     fi
     log "Config: defaults=${defaults_src} overrides=${overrides_src} mode=${AGENT_EXECUTION_MODE:-actions}"
+    local overwritten=""
+    if declare -F agent_config_overwrite_report >/dev/null; then
+        overwritten=$(agent_config_overwrite_report)
+    fi
+    if [ -n "$overwritten" ]; then
+        # shellcheck disable=SC2016 # The assignment form is shown literally.
+        log "WARN: config overwrote exported environment: ${overwritten}. The file's value is in use. To let the environment win, write the assignment as "'VAR="${VAR:-default}"'"."
+    fi
     log "Models: default=${AGENT_MODEL:-cli-default} triage=${AGENT_MODEL_TRIAGE:-} implement=${AGENT_MODEL_IMPLEMENT:-} review=${AGENT_MODEL_REVIEW:-} cleanup=${AGENT_MODEL_CLEANUP:-} adversarial-plan=${AGENT_MODEL_ADVERSARIAL_PLAN:-} test-fix=${AGENT_MODEL_TEST_FIX:-} post-impl-review=${AGENT_MODEL_POST_IMPL_REVIEW:-} post-impl-retry=${AGENT_MODEL_POST_IMPL_RETRY:-}"
 }
 
@@ -249,7 +257,7 @@ extract_plan_branch() {
     local plan="$1"
     local branch
     branch=$(printf '%s' "$plan" \
-        | grep -oE '<!-- agent-branch: [^ >]+ -->' | head -1 \
+        | grep -oE '<!-- agent-branch: [^ >]+ -->' | sed -n 1p \
         | sed -E 's/<!-- agent-branch: ([^ >]+) -->/\1/')
 
     [ -z "$branch" ] && return 0
@@ -428,6 +436,17 @@ classify_claude_result() {
     esac
 }
 
+# ─── Commits on the work branch ──────────────────────────────────
+# Up to $1 commits that are on the work branch and not on origin/main,
+# newest first, one per line in `git log` format $2. Empty when there are
+# none. The limit is `-n`, never `| head`: under `set -o pipefail` a
+# producer piped into head dies of SIGPIPE (exit 141) as soon as it has
+# more to write than head takes (#129).
+branch_commit_lines() {
+    local limit="$1" format="$2"
+    git -C "$WORKTREE_DIR" log --format="$format" -n "$limit" origin/main..HEAD 2>/dev/null || true
+}
+
 # ─── Preserve implementation work on the remote ──────────────────
 # Best-effort push of the work branch so a controlled failure never
 # strands finished commits in a worktree that the next dispatch's
@@ -495,7 +514,7 @@ handle_post_implementation() {
 
         # Build PR body with commit log as fallback for sparse Claude output
         local commit_log
-        commit_log=$(git -C "$WORKTREE_DIR" log --format="- %s" origin/main..HEAD 2>/dev/null | head -20)
+        commit_log=$(branch_commit_lines 20 '- %s')
 
         # Ledger summary for the PR body
         local ledger_summary="" unresolved_header=""

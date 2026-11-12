@@ -234,6 +234,20 @@ and keep sensitive overrides in the existing ignored config or runner secrets.
 Both interactive clients and label workflows use this same loading path when
 invoking the same dispatcher/configuration.
 
+When a sourced file overwrites an exported `AGENT_*` variable with a different
+value, the dispatcher says so once at startup:
+
+```
+WARN: config overwrote exported environment: AGENT_BUDGET_USD_IMPLEMENT (config.defaults.env). The file's value is in use. …
+```
+
+The file's value stays in force; the warning only makes the lost override
+visible. It lists names and the file that changed each one, never values. To let
+the environment win for a variable, write its assignment in the
+environment-preserving form. `AGENT_PROFILE` is not reported, because profile
+selection reads the incoming value directly (see
+[Selection precedence](#named-dispatch-profiles)).
+
 ---
 
 ## Required Settings

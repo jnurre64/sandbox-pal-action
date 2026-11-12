@@ -312,7 +312,9 @@ run_test_gate() {
         set_heartbeat "test-fix-${attempt}"
         result=$(run_agent "$prompt" "$impl_tools" "" "" "TEST_FIX")
         log_permission_denials "$result" "test-fix"
-        log "Test-fix session output: $(parse_agent_output "$result" | head -c 300)"
+        local fix_output
+        fix_output=$(parse_agent_output "$result" || true)
+        log "Test-fix session output: ${fix_output:0:300}"
         if [ "$(classify_agent_result "$result")" = "fail_fast" ]; then
             stop_reason="test-fix worker failed: $(parse_agent_output "$result")"
             break
