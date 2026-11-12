@@ -192,6 +192,12 @@ AGENT_MCP_CONFIG="${AGENT_MCP_CONFIG:-}"          # path → --mcp-config + --st
 AGENT_STRICT_MCP="${AGENT_STRICT_MCP:-}"          # "true" → --strict-mcp-config alone (no MCP servers)
 AGENT_SESSION_PERSISTENCE="${AGENT_SESSION_PERSISTENCE:-false}"  # "true" keeps resumable phase sessions
 
+# ─── Phase environment (#142) ────────────────────────────────────
+# Phases are launched without the dispatcher's credentials (the list is
+# AGENT_PHASE_CREDENTIAL_VARS in lib/agent.sh). Space-separated names.
+AGENT_PHASE_SCRUB_ENV="${AGENT_PHASE_SCRUB_ENV:-}"   # further variables to remove
+AGENT_PHASE_KEEP_ENV="${AGENT_PHASE_KEEP_ENV:-}"     # variables to leave in place
+
 # ─── Execution mode ──────────────────────────────────────────────
 # actions:      invoked by a GitHub Actions workflow (default)
 # orchestrator: invoked by an interactive Claude Code session; logs go

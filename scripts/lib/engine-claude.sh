@@ -79,6 +79,8 @@ engine_claude() (
     if [ -n "$schema_file" ]; then
         claude_args+=(--json-schema "$schema_file")
     fi
+    # Last step before launch: the phase gets no dispatcher credentials (#142).
+    agent_scrub_phase_env || return 1
     timeout "$invocation_timeout" claude "${claude_args[@]}"
 )
 
