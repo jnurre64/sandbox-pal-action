@@ -349,7 +349,20 @@ log_permission_denials() {
     local denials
     denials=$(extract_permission_denials "$result")
     [ -z "$denials" ] && return 0
-    log "WARN: ${phase}: permission denial(s) — each is an allow-list gap costing turns:"
+    # The label is the phase's log name (pr-review); settings use REVIEW.
+    local profile=none setting_phase="${phase^^}"
+    setting_phase="${setting_phase//-/_}"
+    setting_phase="${setting_phase#PR_}"
+    if declare -F agent_sandbox_profile >/dev/null && [[ "$setting_phase" =~ ^[A-Z_]+$ ]]; then
+        profile=$(agent_sandbox_profile "$setting_phase" 2>/dev/null) || profile=none
+    fi
+    if [ "$profile" = none ]; then
+        log "WARN: ${phase}: permission denial(s) — each is an allow-list gap costing turns:"
+    else
+        # A sandboxed phase has blanket shell access, so a denial is rare:
+        # a deny rule, a tool outside the list, or a protected path (#143).
+        log "WARN: ${phase}: permission denial(s) in a sandboxed phase — unexpected; check the deny rules and the tool list:"
+    fi
     local line
     while IFS= read -r line; do
         log "  denied: $line"
@@ -367,7 +380,7 @@ denials_report_section() {
     local denials_file="${WORKTREE_DIR}/.agent-data/permission-denials.log"
     [ -s "$denials_file" ] || return 0
     # shellcheck disable=SC2016  # literal markdown code fence, not an expansion
-    printf '\n### Permission Denials\n\nEach denial is an allow-list gap that cost the agent turns — fix it in config (see docs/customization.md):\n\n```\n%s\n```\n' \
+    printf '\n### Permission Denials\n\nEach denial cost the agent turns. Without a sandbox profile it is an allow-list gap to fix in config; in a sandboxed phase it is unexpected and worth a look (see docs/customization.md):\n\n```\n%s\n```\n' \
         "$(head -30 "$denials_file")"
 }
 

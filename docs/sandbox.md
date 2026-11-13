@@ -83,6 +83,21 @@ The dispatch log directory is write-denied even when it sits under the Claude di
 
 Package registries are not allowed by default. A phase that runs `npm install` or `pip install` needs its registry added, or the dependencies installed beforehand by `AGENT_TEST_SETUP_COMMAND`, which runs outside the sandbox.
 
+## Tool lists
+
+Without a sandbox, the `Bash(...)` prefix rules in `AGENT_ALLOWED_TOOLS_*` and `AGENT_EXTRA_TOOLS` are the only limit on shell commands. They grow long, still refuse ordinary shell (a variable, a redirect, a loop), and usually include an interpreter, which allows anything.
+
+Under `strict` the sandbox is the limit, so the dispatcher replaces every `Bash(...)` rule in a phase's list with one `Bash` rule:
+
+| Configured | Used under `strict` |
+|---|---|
+| `Read,Edit,Write,Grep,Glob,Bash(git add:*),Bash(git commit:*),Bash(npm test)` | `Read,Edit,Write,Grep,Glob,Bash` |
+| `Read,Grep,Glob` | `Read,Grep,Glob` (no shell is added) |
+
+Rules for other tools are kept. `AGENT_DISALLOWED_TOOLS` still applies. A read-only phase keeps a list without `Edit`, but note that with shell access "read-only" is a convention the prompt sets, not something the list enforces; the same was true of any list with an interpreter on it.
+
+Once a repo runs every phase under `strict`, the prefix rules in its config are unused and can be removed. `AGENT_SANDBOX_SHORT_TOOLS="false"` keeps the lists as written.
+
 ## What does not work inside
 
 - **Services on the host.** The sandbox has its own loopback interface. A server on the host's `localhost`, or on the machine's own LAN address, is unreachable even when allowlisted. A server the phase starts itself is reachable from inside the same phase, so a phase can build, serve and test its own branch.

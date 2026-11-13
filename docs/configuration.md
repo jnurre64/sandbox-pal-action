@@ -330,6 +330,7 @@ Four independent controls on how each phase invokes the CLI. **Every one is opti
 | `AGENT_SANDBOX_ALLOWED_DOMAINS` | *(empty)* | further hosts a sandboxed phase may reach, space- or comma-separated |
 | `AGENT_SANDBOX_DENY_READ` | *(empty)* | further paths hidden from a sandboxed phase |
 | `AGENT_SANDBOX_ALLOW_WRITE` | *(empty)* | further paths a sandboxed phase may write |
+| `AGENT_SANDBOX_SHORT_TOOLS` | `true` | under `strict`, replace a phase's `Bash(...)` prefix rules with one `Bash` rule; `false` keeps them as written |
 | `AGENT_SANDBOX_UNIX_SOCKETS` | `false` | `true` lets a sandboxed phase use Unix sockets (needed by Xvfb) |
 | `AGENT_PHASE_GH_TOKEN_FILE` | *(empty)* | file holding a GitHub token exported to every phase as `GH_TOKEN` (absolute, `~/…`, or relative to the config directory) |
 | `AGENT_PHASE_SCRUB_ENV` | *(empty)* | space-separated names of further variables to remove from every phase's environment |
