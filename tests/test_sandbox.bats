@@ -199,7 +199,7 @@ _git_dir() {
     assert_line '.claude/commands'
 }
 
-@test "REGRESSION v1.4.0: excludes: the operator's excludes are found under XDG_CONFIG_HOME" {
+@test "REGRESSION v1.3.1: excludes: the operator's excludes are found under XDG_CONFIG_HOME" {
     _setup
     export XDG_CONFIG_HOME="${TEST_TEMP_DIR}/xdg"
     mkdir -p "$XDG_CONFIG_HOME/git"

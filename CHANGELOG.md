@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.3.1] - 2026-11-13
+
 ### Added
 - Phase context as files (#135, closes the second half of #118). Before every phase the dispatcher writes the issue title, body and comments, the plan, the PR and review text, the review ledger, the test-gate output and the configured test commands to `.agent-data/context/` in the worktree, and an index of attached data files. A phase reads them with the Read tool, so it knows what it is working on even when it cannot run a shell command. The directory is rebuilt for each phase, cleared by `setup_worktree`, and excluded from `git add`. The file list is in `docs/configuration.md`.
 - Referenced issues and pull requests are pre-fetched (#135). An issue or pull request of the same repository named in the issue or review text (`#123` or its URL) is fetched by the dispatcher into `.agent-data/context/references/<number>.md`. `AGENT_CONTEXT_REFS_MAX` (default `10`) bounds how many; `0` turns it off.
