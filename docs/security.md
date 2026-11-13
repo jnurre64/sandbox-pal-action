@@ -13,7 +13,7 @@ Anyone who can create an issue or comment in your repository can influence the a
 - Introduce backdoors in generated code
 - Trigger excessive API calls or resource consumption
 
-**Mitigations**: Tool allowlists prevent the agent from accessing the network, pushing code, or running arbitrary commands. CLAUDE.md rules instruct the agent to never modify sensitive files. Branch protection ensures a human reviews all changes before merging. Issue content is passed via environment variables, not shell-interpolated.
+**Mitigations**: Tool allowlists narrow what the agent is asked to do, and a phase is launched without the dispatcher's credentials (see [Phase Environment](#phase-environment)), so a steered phase has no token to push or post with. The allowlist on its own is not a security boundary: Claude Code documents Bash permission rules as a convenience, not a sandbox. CLAUDE.md rules instruct the agent to never modify sensitive files. Branch protection ensures a human reviews all changes before merging. Issue content is passed via environment variables, not shell-interpolated.
 
 **Plan-comment branch marker**: An interactively-authored plan comment can carry a `<!-- agent-branch: ... -->` marker (`extract_plan_branch` in `scripts/lib/common.sh`) naming the pre-pushed branch the implement phase should build on. Plan comments are not author-filtered, so this marker is validated defense-in-depth: charset-restricted (`[A-Za-z0-9._/-]`), must be namespaced (contain at least one `/`, ruling out `main`/`master` and any other un-namespaced branch), must not equal `main` or `master` exactly, and no `/`-separated segment may start with `-` (which could otherwise be interpreted as an option by a downstream `git`/`gh` invocation). Residual risk: a malicious commenter can still redirect the implement phase to any *existing, non-protected, already-namespaced* branch in the repo (e.g. another open feature branch) — branch protection and PR review remain the backstop for what actually lands on `main`.
 
@@ -27,13 +27,13 @@ Without safeguards, the bot's own actions (comments, label changes) could re-tri
 
 The bot's PAT has write access to the repository. If exposed, an attacker could push arbitrary code, modify branches, or access private repository data.
 
-**Mitigations**: The PAT is stored as a GitHub Actions secret and injected via environment variable at runtime. It is never written to workflow files, committed to the repository, or logged. Fine-grained PATs scope access to specific repositories and permissions. The agent's tool restrictions prevent it from reading or exfiltrating environment variables.
+**Mitigations**: The PAT is stored as a GitHub Actions secret and injected via environment variable at runtime. It is never written to workflow files, committed to the repository, or logged. Fine-grained PATs scope access to specific repositories and permissions. The token is removed from the environment of every phase before the worker starts (see [Phase Environment](#phase-environment)); only the dispatch script, which does all GitHub reads and writes, holds it. Tool restrictions are not what keeps the token from a phase: allowed commands such as `cat` and `find`, or an interpreter added through `AGENT_EXTRA_TOOLS`, are enough to read an environment.
 
 ### Malicious Debug Data
 
 Users can attach gists, file uploads, and inline data to issues and PR comments. This data is pre-fetched and presented to Claude as local files. Malicious content could attempt prompt injection through data payloads.
 
-**Mitigations**: All user-submitted data is framed as "untrusted" in the agent prompt. Tool restrictions prevent the agent from making network requests (`curl`, `wget` are not in the allowlist), so even if prompt injection succeeds in the data-reading phase, the agent cannot exfiltrate information over the network. The agent can only use the tools explicitly listed in `--allowedTools`.
+**Mitigations**: All user-submitted data is framed as "untrusted" in the agent prompt. The phase holds no dispatcher credential to exfiltrate (see [Phase Environment](#phase-environment)). `curl` and `wget` are not in the allowlist, which removes the obvious route to the network, but an allowlist is not a network boundary; blocking egress needs a sandbox or host-level controls.
 
 ## Built-in Safety Mechanisms
 
@@ -111,12 +111,34 @@ If `AGENT_TEST_COMMAND` is configured, the dispatch script runs the test suite a
 
 The safety mechanisms above align with emerging industry frameworks for autonomous AI agents, including the [OWASP Top 10 for Agentic Applications](https://genai.owasp.org/resource/owasp-top-10-for-agentic-applications-for-2026/) (principle of least agency — only grant agents the minimum autonomy required for safe, bounded tasks) and the [NVIDIA AI Red Team's recommended controls](https://developer.nvidia.com/blog/securing-ai-agents-best-practices-from-nvidias-ai-red-team/) for autonomous agents (network egress restrictions, file write restrictions, approval architecture).
 
+### Phase Environment
+
+The dispatch script does every GitHub read and write and sends every notification itself, before and after a phase. No default prompt calls `gh`. A phase therefore needs none of the dispatcher's credentials, and both worker engines are launched with these variables removed:
+
+```
+GH_TOKEN, GITHUB_TOKEN, GH_ENTERPRISE_TOKEN, GITHUB_ENTERPRISE_TOKEN,
+AGENT_GIST_PAT,
+AGENT_NOTIFY_DISCORD_WEBHOOK, AGENT_NOTIFY_DISCORD_WEBHOOK_MAP,
+AGENT_NOTIFY_SLACK_WEBHOOK, AGENT_NOTIFY_SLACK_WEBHOOK_MAP,
+AGENT_DISCORD_BOT_TOKEN, AGENT_SLACK_BOT_TOKEN, AGENT_SLACK_APP_TOKEN,
+ACTIONS_RUNTIME_TOKEN, ACTIONS_ID_TOKEN_REQUEST_TOKEN
+```
+
+They are removed inside the engine's own subshell as the last step before the worker starts, so the dispatcher still has them when the phase returns. The model provider's own credential (an API key or a saved login) stays, because the worker cannot run without it.
+
+- `AGENT_PHASE_SCRUB_ENV` — space-separated names of further variables to remove, for a project whose environment carries other secrets (a deploy key, a registry password).
+- `AGENT_PHASE_KEEP_ENV` — space-separated names to leave in place, for a project whose custom prompts really do need one. Keeping `GH_TOKEN` gives every phase a token that can push and write issues; prefer moving that work into the dispatcher.
+
+Startup logs which of these variables were set and withheld, and which were kept, by name only.
+
+**Limits.** This removes credentials from the environment, not from the machine. A phase runs as the same OS user as the dispatcher, so a token on disk (a `gh` login, a git credential helper, a config file holding a secret) is still readable by it. Closing that gap needs a sandbox or a dedicated OS user for phases. Claude Code's `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB` is not set by the dispatcher: as of CLI 2.1.322 it requires bubblewrap on Linux and forces the default permission mode, which would change how every phase runs, and it leaves `GH_TOKEN`/`GITHUB_TOKEN` in place. It belongs with the sandbox work.
+
 ### Phase Output Redaction
 
 Everything a phase session outputs — the JSON envelope on stdout and the CLI's stderr log — is scrubbed by `redact_secrets` at the point of capture in `run_claude`, before it reaches any log line, saved file, parse, or issue/PR comment. Two match classes are covered:
 
 1. **Well-known token shapes**: `github_pat_…`, `gh[pousr]_…` (classic PATs, OAuth, server/user/refresh tokens), and the value following an `Authorization: token|bearer|basic` header.
-2. **The literal value of every credential-looking environment variable** in the dispatch process — names matching `TOKEN`, `SECRET`, `PASSWORD`, `API_KEY`/`APIKEY`, or `CREDENTIAL`. A phase inherits these (on a self-hosted runner that includes `AGENT_PAT`) and can read them, so their exact values are replaced wherever they appear.
+2. **The literal value of every credential-looking environment variable** in the dispatch process — names matching `TOKEN`, `SECRET`, `PASSWORD`, `API_KEY`/`APIKEY`, or `CREDENTIAL`. The dispatcher's own credentials are no longer passed to a phase (see [Phase Environment](#phase-environment)), but one kept with `AGENT_PHASE_KEEP_ENV`, an engine credential, or a secret read from disk can still surface, so the exact values are replaced wherever they appear.
 
 **Why it exists**: deny rules are the first line of defence, but a *denied* command is echoed verbatim to explain the denial — which is precisely where a credential surfaces. In a reference implementation of this pipeline, a phase typed a bot PAT into a denied `curl` and the harness echoed the denied command, token included, into the log and the transcript. The deny rule worked; the reporting path leaked.
 
@@ -126,7 +148,7 @@ Everything a phase session outputs — the JSON envelope on stdout and the CLI's
 - A secret transformed by the phase (base64-encoded, split across lines) will not match either class.
 - Secrets that exist only inside the phase's sandbox (fetched at runtime, never in the dispatch environment) are unknown to the filter.
 
-The first line of defence remains keeping phases off the network and out of credential stores via deny rules, which this project configures by default.
+The first line of defence is that a phase is not given the dispatcher's credentials at all. Deny rules, which this project configures by default, then narrow what a phase attempts; they are not a boundary on their own.
 
 ### Data Privacy
 

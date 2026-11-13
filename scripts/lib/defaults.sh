@@ -196,6 +196,12 @@ AGENT_SESSION_PERSISTENCE="${AGENT_SESSION_PERSISTENCE:-false}"  # "true" keeps 
 AGENT_PERMISSION_PROMPTS="${AGENT_PERMISSION_PROMPTS-none}"       # none | host | "" (omit the flag)
 AGENT_BG_WAIT_CEILING_MS="${AGENT_BG_WAIT_CEILING_MS-600000}"     # ms; "" leaves the CLI's own ceiling
 
+# ─── Phase environment (#142) ────────────────────────────────────
+# Phases are launched without the dispatcher's credentials (the list is
+# AGENT_PHASE_CREDENTIAL_VARS in lib/agent.sh). Space-separated names.
+AGENT_PHASE_SCRUB_ENV="${AGENT_PHASE_SCRUB_ENV:-}"   # further variables to remove
+AGENT_PHASE_KEEP_ENV="${AGENT_PHASE_KEEP_ENV:-}"     # variables to leave in place
+
 # ─── Execution mode ──────────────────────────────────────────────
 # actions:      invoked by a GitHub Actions workflow (default)
 # orchestrator: invoked by an interactive Claude Code session; logs go

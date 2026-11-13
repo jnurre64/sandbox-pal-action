@@ -321,8 +321,11 @@ Four independent controls on how each phase invokes the CLI. **Every one is opti
 | `AGENT_PERMISSION_PROMPTS` | `none` | `--permission-prompts` target for Claude phases: `none`, `host`, or empty to omit the flag |
 | `AGENT_BG_WAIT_CEILING_MS_<PHASE>` | *(unset — uses the global)* | background-wait ceiling for that phase, in milliseconds |
 | `AGENT_BG_WAIT_CEILING_MS` | `600000` | exported to Claude phases as `CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS`; empty leaves the CLI's own ceiling |
+| `AGENT_PHASE_SCRUB_ENV` | *(empty)* | space-separated names of further variables to remove from every phase's environment |
+| `AGENT_PHASE_KEEP_ENV` | *(empty)* | space-separated names to leave in a phase's environment despite the built-in list |
 
 Notes:
+- **Phases are launched without the dispatcher's credentials** — `GH_TOKEN`, `GITHUB_TOKEN`, `AGENT_GIST_PAT`, the notification webhooks and bot tokens, for both worker engines. The dispatcher keeps them and does all GitHub work itself. A custom prompt that calls `gh` inside a phase will find no token: move that step into the dispatcher's flow, or name the variable in `AGENT_PHASE_KEEP_ENV` and accept that every phase can then read it. The full list and the limits are in [security.md](security.md#phase-environment).
 - **Budget is deliberately limitless by default** — turns (`AGENT_MAX_TURNS`) and the timeout still bound every phase; a dollar cap is the operator's choice. Turns and dollars are not interchangeable bounds: a phase can be cheap and long or short and expensive. If you set caps, size generously for write phases — a revision that runs out mid-way (work committed, reply unfinished) is worse than one that never started.
 - Without `AGENT_MCP_CONFIG`/`AGENT_STRICT_MCP`, a phase run on a machine with user-level MCP servers silently inherits them. This matters most in orchestrator mode, where inheritance is otherwise the point: *inherit identity, memory and skills; gate the tool surface explicitly.*
 - A workable effort/permission spread from a reference implementation: `dontAsk` for read-only phases (triage, reviews, cleanup), `acceptEdits` for writers (implement, test-fix, retry, revision); effort `high` for triage/review, `xhigh` for implement/retry/revision.

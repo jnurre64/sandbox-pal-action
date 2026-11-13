@@ -44,6 +44,17 @@ log_config_provenance() {
         # shellcheck disable=SC2016 # The assignment form is shown literally.
         log "WARN: config overwrote exported environment: ${overwritten}. The file's value is in use. To let the environment win, write the assignment as "'VAR="${VAR:-default}"'"."
     fi
+    if declare -F agent_phase_scrub_names >/dev/null; then
+        local scrub_names name withheld=""
+        if scrub_names=$(agent_phase_scrub_names 2>/dev/null); then
+            for name in $scrub_names; do
+                [ -n "${!name:-}" ] && withheld+="${withheld:+ }${name}"
+            done
+            log "Phase environment: withheld from phases: ${withheld:-(none set)}${AGENT_PHASE_KEEP_ENV:+; kept by AGENT_PHASE_KEEP_ENV: ${AGENT_PHASE_KEEP_ENV}}"
+        else
+            log "WARN: AGENT_PHASE_SCRUB_ENV and AGENT_PHASE_KEEP_ENV must be space-separated lists of variable names; phases will fail until this is fixed"
+        fi
+    fi
     log "Models: default=${AGENT_MODEL:-cli-default} triage=${AGENT_MODEL_TRIAGE:-} implement=${AGENT_MODEL_IMPLEMENT:-} review=${AGENT_MODEL_REVIEW:-} cleanup=${AGENT_MODEL_CLEANUP:-} adversarial-plan=${AGENT_MODEL_ADVERSARIAL_PLAN:-} test-fix=${AGENT_MODEL_TEST_FIX:-} post-impl-review=${AGENT_MODEL_POST_IMPL_REVIEW:-} post-impl-retry=${AGENT_MODEL_POST_IMPL_RETRY:-}"
 }
 

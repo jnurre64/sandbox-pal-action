@@ -9,6 +9,55 @@ source "${AGENT_LIB_DIR}/agent-config.sh"
 
 # stdout is always one envelope, including preflight and process failures.
 # Keep the existing argument order while consumers migrate to the neutral API.
+# ─── Phase environment (#142) ────────────────────────────────────
+# The dispatcher does every GitHub read and write and sends every
+# notification itself, before and after a phase. A phase needs none of
+# these credentials, and a tool allow list does not stop a phase that has
+# been steered (by issue text, a pasted log, a dependency) from reading its
+# own environment. So they are removed before the worker is launched.
+# Engine credentials (the model provider's key or login) are not listed:
+# the worker cannot run without them.
+AGENT_PHASE_CREDENTIAL_VARS=(
+    GH_TOKEN GITHUB_TOKEN GH_ENTERPRISE_TOKEN GITHUB_ENTERPRISE_TOKEN
+    AGENT_GIST_PAT
+    AGENT_NOTIFY_DISCORD_WEBHOOK AGENT_NOTIFY_DISCORD_WEBHOOK_MAP
+    AGENT_NOTIFY_SLACK_WEBHOOK AGENT_NOTIFY_SLACK_WEBHOOK_MAP
+    AGENT_DISCORD_BOT_TOKEN AGENT_SLACK_BOT_TOKEN AGENT_SLACK_APP_TOKEN
+    ACTIONS_RUNTIME_TOKEN ACTIONS_ID_TOKEN_REQUEST_TOKEN
+)
+
+# Print the names a phase will not receive, one per line: the built-in
+# list plus AGENT_PHASE_SCRUB_ENV, minus AGENT_PHASE_KEEP_ENV. Fails on an
+# entry that is not a variable name.
+agent_phase_scrub_names() {
+    local name kept setting
+    for setting in AGENT_PHASE_SCRUB_ENV AGENT_PHASE_KEEP_ENV; do
+        for name in ${!setting:-}; do
+            if [[ ! "$name" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]]; then
+                echo "${setting} must be a space-separated list of variable names" >&2
+                return 1
+            fi
+        done
+    done
+    for name in "${AGENT_PHASE_CREDENTIAL_VARS[@]}" ${AGENT_PHASE_SCRUB_ENV:-}; do
+        for kept in ${AGENT_PHASE_KEEP_ENV:-}; do
+            [ "$name" = "$kept" ] && continue 2
+        done
+        printf '%s\n' "$name"
+    done
+}
+
+# Remove those variables from the current shell. Call it only inside the
+# engine's own subshell, as the last step before the worker is launched,
+# so the dispatcher's environment is untouched.
+agent_scrub_phase_env() {
+    local names name
+    names=$(agent_phase_scrub_names) || return 1
+    for name in $names; do
+        unset "$name"
+    done
+}
+
 run_agent() (
     set -euo pipefail
     local prompt="$1" allowed_tools="${2:-$AGENT_ALLOWED_TOOLS_IMPLEMENT}"
