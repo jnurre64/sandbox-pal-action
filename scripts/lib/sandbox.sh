@@ -3,6 +3,7 @@
 # Provides: agent_sandbox_profile, agent_sandbox_check,
 #           agent_sandbox_config, agent_sandbox_write_excludes,
 #           agent_sandbox_git_env, agent_sandbox_run, agent_sandbox_smoke,
+#           agent_sandbox_tool_list,
 #           agent_phase_token_check, agent_phase_token_export
 #
 # Permission rules decide what a phase is asked to do; they do not
@@ -170,6 +171,27 @@ agent_sandbox_run() {
     local config="$1"
     shift
     "$(_sandbox_srt)" -s "$config" -- "$@"
+}
+
+# ─── Tool lists under a sandbox (#143) ───────────────────────────
+# Outside a sandbox the Bash prefix rules are the only limit on shell
+# commands, so the lists grow long and still refuse ordinary shell
+# (variables, redirects, loops). Inside one the sandbox is the limit, so
+# every Bash(...) rule in list $1 collapses into a single `Bash` rule.
+# Rules for other tools are kept as written, and a list with no Bash
+# rule at all is not given shell access.
+agent_sandbox_tool_list() {
+    local rule out="" has_bash=false
+    while IFS= read -r rule; do
+        case "$rule" in
+            Bash|"Bash("*)
+                [ "$has_bash" = true ] && continue
+                has_bash=true
+                rule=Bash ;;
+        esac
+        out+="${out:+,}${rule}"
+    done < <(agent_split_tool_rules "$1")
+    printf '%s\n' "$out"
 }
 
 # Start the sandbox once with the phase's configuration and run nothing in
