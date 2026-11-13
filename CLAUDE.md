@@ -12,6 +12,7 @@ Run `/setup` to configure this toolkit for your project.
 - All settings and their defaults: see `docs/configuration.md`
 - Custom prompts, tools, and project-specific setup: see `docs/customization.md`
 - Threat model and safety mechanisms: see `docs/security.md`
+- Sandbox profile for phases (`AGENT_SANDBOX`): see `docs/sandbox.md`
 - Common issues and solutions: see `docs/troubleshooting.md`
 
 ## Architecture

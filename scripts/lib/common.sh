@@ -313,6 +313,15 @@ redact_secrets() {
                 ;;
         esac
     done < <(compgen -e)
+    # The phases' own token is not in this process's environment (#137).
+    if [ -n "${AGENT_PHASE_GH_TOKEN_FILE:-}" ] && declare -F _phase_token_path >/dev/null; then
+        var_name=$(_phase_token_path)
+        var_value=""
+        [ ! -r "$var_name" ] || var_value=$(tr -d '[:space:]' < "$var_name")
+        if [ "${#var_value}" -ge 8 ]; then
+            text="${text//"$var_value"/[REDACTED:PHASE_GH_TOKEN]}"
+        fi
+    fi
     printf '%s\n' "$text"
 }
 
