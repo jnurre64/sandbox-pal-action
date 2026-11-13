@@ -217,6 +217,7 @@ AGENT_SANDBOX_SRT="${AGENT_SANDBOX_SRT:-}"                         # path to srt
 AGENT_SANDBOX_ALLOWED_DOMAINS="${AGENT_SANDBOX_ALLOWED_DOMAINS:-}" # further hosts, space- or comma-separated
 AGENT_SANDBOX_DENY_READ="${AGENT_SANDBOX_DENY_READ:-}"             # further paths hidden from the phase
 AGENT_SANDBOX_ALLOW_WRITE="${AGENT_SANDBOX_ALLOW_WRITE:-}"         # further writable paths
+AGENT_SANDBOX_SHORT_TOOLS="${AGENT_SANDBOX_SHORT_TOOLS:-true}"     # false keeps the Bash prefix rules as written (#143)
 AGENT_SANDBOX_UNIX_SOCKETS="${AGENT_SANDBOX_UNIX_SOCKETS:-false}"  # true lets the phase use Unix sockets (display tests)
 # A file holding a GitHub token for phases, exported to them as GH_TOKEN.
 # Meant to be read-only; the dispatcher keeps every write.

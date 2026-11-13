@@ -227,9 +227,11 @@ AGENT_TEST_COMMAND="npm run lint && npm test"
 
 Deny rules beat allow rules, so the robust idiom is a **broad allow with narrow denies**: allow `Bash(git:*)` and put the hard limits — `git push`, `git merge`, `git add -A` — in `AGENT_DISALLOWED_TOOLS`. The alternative (enumerating every allowed verb) fails one denial at a time: every verb the allow list happens to miss (`checkout`, `rm`, `stash`, `rev-parse`) is a denied call that costs a turn, and denied calls compound — the phase does not know why it failed, retries a variant, and burns its turn cap on nothing.
 
+**Under a sandbox profile this section mostly stops applying.** When a phase runs with `AGENT_SANDBOX="strict"`, every `Bash(...)` rule in its list is replaced by a single `Bash` rule: the sandbox limits what a command can touch, so the list no longer has to. Variables, redirects, `cd dir && cmd`, loops and heredocs all run. Rules for other tools (`Read`, `Edit`, `WebSearch`, MCP tools) are kept as written, a list with no `Bash` rule is not given shell access, and `AGENT_DISALLOWED_TOOLS` still applies, so `Bash(git push:*)` there is still refused. You can then delete the long prefix lists from `AGENT_EXTRA_TOOLS`, and any "how to phrase a command so it is allowed" guidance you wrote for agents. Set `AGENT_SANDBOX_SHORT_TOOLS="false"` to keep the lists as written. See [sandbox.md](sandbox.md).
+
 Two tools make the gaps visible and fixable:
 
-- **Denial surfacing**: after every phase, the dispatch script extracts the envelope's `permission_denials`, logs each one, and accumulates them in `.agent-data/permission-denials.log`. Non-empty denials appear in the PR body and in failure comments. **Treat every entry as an allow-list gap to fix in config, not as noise.**
+- **Denial surfacing**: after every phase, the dispatch script extracts the envelope's `permission_denials`, logs each one, and accumulates them in `.agent-data/permission-denials.log`. Non-empty denials appear in the PR body and in failure comments. **Treat every entry as an allow-list gap to fix in config, not as noise.** In a sandboxed phase a denial should be rare (a deny rule, a tool outside the list, a protected path) and is logged as unexpected.
 - **`AGENT_ADD_DIRS`**: path gating is separate from tool rules. A command matching an allow rule is still denied when it touches a path outside the working directory — sibling repos, scratch areas, and package caches need `--add-dir` (see the configuration guide).
 
 ## Agent-Maintained Rules Files (`.claude/rules/`)

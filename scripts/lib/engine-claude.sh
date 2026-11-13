@@ -46,6 +46,9 @@ engine_claude() (
     # own settings happen to allow (#135). It is removed when this subshell
     # exits, however the phase ended.
     settings_file=$(mktemp "${AGENT_LOG_DIR}/claude-settings-${phase:-phase}-XXXXXX.json") || return 1
+    if [ "$sandbox" = strict ] && [ "${AGENT_SANDBOX_SHORT_TOOLS:-true}" != false ]; then
+        allowed_tools=$(agent_sandbox_tool_list "$allowed_tools") || return 1
+    fi
     if [ "$sandbox" = strict ]; then
         sandbox_config=$(mktemp "${AGENT_LOG_DIR}/sandbox-${phase:-phase}-XXXXXX.json") || return 1
         sandbox_excludes=$(mktemp "${AGENT_LOG_DIR}/sandbox-excludes-${phase:-phase}-XXXXXX") || return 1

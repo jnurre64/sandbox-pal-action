@@ -367,3 +367,123 @@ _git_dir() {
     run run_agent "prompt" "Read" "" "" "TRIAGE"
     ! grep -q 'tok_readonly_12345' "${TEST_TEMP_DIR}/claude_args" "${TEST_TEMP_DIR}/srt_args" "${TEST_TEMP_DIR}/srt_config.json"
 }
+
+# ─── Short tool lists under a sandbox (#143) ─────────────────────
+
+@test "tools: under strict, the Bash prefix rules collapse into one Bash rule" {
+    _setup
+    run agent_sandbox_tool_list "Read,Edit,Write,Grep,Glob,Bash(git add:*),Bash(git commit:*),Bash(ls:*),Bash(npm test)"
+    assert_success
+    assert_output "Read,Edit,Write,Grep,Glob,Bash"
+}
+
+@test "tools: rules for other tools are kept as written" {
+    _setup
+    run agent_sandbox_tool_list "Read,Bash(echo:*),WebSearch,mcp__docs__search,Read(~/notes/**),Bash(curl *a,b*)"
+    assert_output "Read,Bash,WebSearch,mcp__docs__search,Read(~/notes/**)"
+}
+
+@test "tools: a list with no shell access is not given one" {
+    _setup
+    run agent_sandbox_tool_list "Read,Grep,Glob"
+    assert_output "Read,Grep,Glob"
+}
+
+@test "tools: a list that already has the blanket rule keeps one copy" {
+    _setup
+    run agent_sandbox_tool_list "Read,Bash,Bash(ls:*)"
+    assert_output "Read,Bash"
+}
+
+@test "tools: a strict phase is launched with the short list" {
+    _setup
+    _mock_runtime
+    cat > "${TEST_TEMP_DIR}/bin/claude" <<'MOCK'
+#!/bin/bash
+while [ "$#" -gt 0 ]; do
+    [ "$1" = "--settings" ] && cp "$2" "${TEST_TEMP_DIR}/settings_seen.json"
+    shift
+done
+echo '{"result":"ok"}'
+MOCK
+    export AGENT_SANDBOX=strict
+    run run_agent "prompt" "Read,Edit,Bash(git add:*),Bash(python3:*),Bash(ls:*)" "" "" "IMPLEMENT"
+    assert_success
+    run jq -c '.permissions.allow' "${TEST_TEMP_DIR}/settings_seen.json"
+    assert_output '["Read","Edit","Bash"]'
+}
+
+@test "tools: the deny rules still apply under strict" {
+    _setup
+    _mock_runtime
+    cat > "${TEST_TEMP_DIR}/bin/claude" <<'MOCK'
+#!/bin/bash
+while [ "$#" -gt 0 ]; do
+    [ "$1" = "--settings" ] && cp "$2" "${TEST_TEMP_DIR}/settings_seen.json"
+    shift
+done
+echo '{"result":"ok"}'
+MOCK
+    export AGENT_SANDBOX=strict AGENT_DISALLOWED_TOOLS="mcp__github__*,Bash(git push:*)"
+    run run_agent "prompt" "Read,Bash(git add:*)" "" "" "IMPLEMENT"
+    run jq -c '.permissions.deny' "${TEST_TEMP_DIR}/settings_seen.json"
+    assert_output '["mcp__github__*","Bash(git push:*)"]'
+}
+
+@test "tools: an unsandboxed phase keeps its list exactly as configured" {
+    _setup
+    _mock_runtime
+    cat > "${TEST_TEMP_DIR}/bin/claude" <<'MOCK'
+#!/bin/bash
+while [ "$#" -gt 0 ]; do
+    [ "$1" = "--settings" ] && cp "$2" "${TEST_TEMP_DIR}/settings_seen.json"
+    shift
+done
+echo '{"result":"ok"}'
+MOCK
+    run run_agent "prompt" "Read,Bash(git add:*),Bash(ls:*)" "" "" "IMPLEMENT"
+    run jq -c '.permissions.allow' "${TEST_TEMP_DIR}/settings_seen.json"
+    assert_output '["Read","Bash(git add:*)","Bash(ls:*)"]'
+}
+
+@test "tools: AGENT_SANDBOX_SHORT_TOOLS=false keeps the long list under strict" {
+    _setup
+    _mock_runtime
+    cat > "${TEST_TEMP_DIR}/bin/claude" <<'MOCK'
+#!/bin/bash
+while [ "$#" -gt 0 ]; do
+    [ "$1" = "--settings" ] && cp "$2" "${TEST_TEMP_DIR}/settings_seen.json"
+    shift
+done
+echo '{"result":"ok"}'
+MOCK
+    export AGENT_SANDBOX=strict AGENT_SANDBOX_SHORT_TOOLS=false
+    run run_agent "prompt" "Read,Bash(git add:*),Bash(ls:*)" "" "" "IMPLEMENT"
+    run jq -c '.permissions.allow' "${TEST_TEMP_DIR}/settings_seen.json"
+    assert_output '["Read","Bash(git add:*)","Bash(ls:*)"]'
+}
+
+@test "denials: under strict a denial is reported as unexpected, not as an allow-list gap" {
+    _setup
+    export AGENT_SANDBOX=strict
+    run log_permission_denials '{"permission_denials":[{"tool_name":"WebFetch","tool_input":{"url":"https://example.com"}}]}' "IMPLEMENT"
+    assert_output --partial "sandboxed"
+    refute_output --partial "allow-list gap"
+}
+
+@test "denials: without a sandbox the allow-list wording is unchanged" {
+    _setup
+    run log_permission_denials '{"permission_denials":[{"tool_name":"Bash","tool_input":{"command":"ls"}}]}' "IMPLEMENT"
+    assert_output --partial "allow-list gap"
+}
+
+@test "denials: the phase's log name maps to its sandbox setting" {
+    _setup
+    export AGENT_SANDBOX_REVIEW=strict AGENT_SANDBOX_POST_IMPL_REVIEW=strict
+    run log_permission_denials '{"permission_denials":[{"tool_name":"WebFetch","tool_input":{}}]}' "pr-review"
+    assert_output --partial "sandboxed"
+    run log_permission_denials '{"permission_denials":[{"tool_name":"WebFetch","tool_input":{}}]}' "post-impl-review"
+    assert_output --partial "sandboxed"
+    run log_permission_denials '{"permission_denials":[{"tool_name":"WebFetch","tool_input":{}}]}' "triage"
+    assert_output --partial "allow-list gap"
+}
