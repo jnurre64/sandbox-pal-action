@@ -46,7 +46,8 @@ MOCK
     AGENT_ENGINE=claude
     run run_claude prompt Read '' '' IMPLEMENT
     echo "$output" | jq -e '.status == "success"'
-    cmp "$TEST_TEMP_DIR/original-args" "$TEST_TEMP_DIR/claude-args"
+    # The generated settings file has a new name on every run (#135).
+    cmp <(grep -v '/claude-settings-' "$TEST_TEMP_DIR/original-args") <(grep -v '/claude-settings-' "$TEST_TEMP_DIR/claude-args")
     [ "$(cat "$TEST_TEMP_DIR/claude-effort")" = max ]
     [ "$(cat "$TEST_TEMP_DIR/claude-timeout")" = 81 ]
 }

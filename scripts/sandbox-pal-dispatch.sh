@@ -161,6 +161,7 @@ handle_new_issue() {
     export AGENT_ISSUE_TITLE="$issue_title"
     export AGENT_ISSUE_BODY="$issue_body"
     export AGENT_COMMENTS="$comments"
+    fetch_referenced_context "${issue_body}"$'\n'"${comments}"
 
     mkdir -p "${WORKTREE_DIR}/.agent-data"
 
@@ -316,6 +317,7 @@ handle_issue_reply() {
     export AGENT_ISSUE_TITLE="$issue_title"
     export AGENT_ISSUE_BODY="$issue_body"
     export AGENT_COMMENTS="$comments"
+    fetch_referenced_context "${issue_body}"$'\n'"${comments}"
 
     local prompt
     prompt=$(load_prompt "reply" "$AGENT_PROMPT_REPLY")
@@ -451,6 +453,7 @@ handle_implement() {
     export AGENT_ISSUE_TITLE="$issue_title"
     export AGENT_ISSUE_BODY="$issue_body"
     export AGENT_COMMENTS="$comments"
+    fetch_referenced_context "${issue_body}"$'\n'"${comments}"
     export AGENT_ISSUE_NUMBER="$NUMBER"
     export AGENT_PLAN_CONTENT="$plan_content"
     export AGENT_DATA_COMMENT_FILE="${EXTRACTED_DATA_COMMENT_FILE:-}"
@@ -555,6 +558,7 @@ handle_direct_implement() {
     export AGENT_ISSUE_TITLE="$issue_title"
     export AGENT_ISSUE_BODY="$issue_body"
     export AGENT_COMMENTS="$comments"
+    fetch_referenced_context "${issue_body}"$'\n'"${comments}"
     export AGENT_DATA_COMMENT_FILE="${EXTRACTED_DATA_COMMENT_FILE:-}"
     export AGENT_GIST_FILES="${EXTRACTED_GIST_FILES:-}"
     export AGENT_DATA_ERRORS="${EXTRACTED_DATA_ERRORS:-}"
@@ -724,6 +728,7 @@ handle_pr_review() {
     export AGENT_ISSUE_TITLE="$issue_title"
     export AGENT_ISSUE_BODY="$issue_body"
     export AGENT_COMMIT_HISTORY="$commit_history"
+    fetch_referenced_context "${pr_body}"$'\n'"${reviews}"$'\n'"${review_comments}"$'\n'"${pr_comments}"$'\n'"${issue_body}"
     export AGENT_DATA_COMMENT_FILE="${EXTRACTED_DATA_COMMENT_FILE:-}"
     export AGENT_GIST_FILES="${EXTRACTED_GIST_FILES:-}"
     export AGENT_DATA_ERRORS="${EXTRACTED_DATA_ERRORS:-}"

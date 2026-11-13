@@ -283,7 +283,8 @@ MOCK
     run run_agent prompt Read '' '' IMPLEMENT
     assert_success
     jq -e '.engine == "claude" and .status == "success"' <<< "$output"
-    cmp "$TEST_TEMP_DIR/before-args" "$TEST_TEMP_DIR/claude-args"
+    # The generated settings file has a new name on every run (#135).
+    cmp <(grep -v '/claude-settings-' "$TEST_TEMP_DIR/before-args") <(grep -v '/claude-settings-' "$TEST_TEMP_DIR/claude-args")
     grep -qx 12 "$TEST_TEMP_DIR/claude-args"
     grep -qx 7 "$TEST_TEMP_DIR/claude-args"
 }

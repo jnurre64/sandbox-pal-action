@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- Phase context as files (#135, closes the second half of #118). Before every phase the dispatcher writes the issue title, body and comments, the plan, the PR and review text, the review ledger, the test-gate output and the configured test commands to `.agent-data/context/` in the worktree, and an index of attached data files. A phase reads them with the Read tool, so it knows what it is working on even when it cannot run a shell command. The directory is rebuilt for each phase, cleared by `setup_worktree`, and excluded from `git add`. The file list is in `docs/configuration.md`.
+- Referenced issues and pull requests are pre-fetched (#135). An issue or pull request of the same repository named in the issue or review text (`#123` or its URL) is fetched by the dispatcher into `.agent-data/context/references/<number>.md`. `AGENT_CONTEXT_REFS_MAX` (default `10`) bounds how many; `0` turns it off.
+- `AGENT_SETTING_SOURCES` (#135) passes `--setting-sources` to Claude phases. The default, `user,project,local`, is the CLI's own, so nothing changes on update. Set `project` to stop phases reading the operator's user settings (allow rules, hooks, plugins, user-level skills), which makes a phase behave the same on every machine. An empty value omits the flag.
+- `AGENT_SETTINGS_FILE` (#135): a settings JSON of your own that every phase's generated settings file is built on. Checked at preflight.
+
+### Changed
+- **Claude phases get their permission rules from a generated settings file (#135).** The allowed tools for the phase and `AGENT_DISALLOWED_TOOLS` are written as `permissions.allow` and `permissions.deny` in a file passed with `--settings`, created for one phase run and removed afterwards. `--allowedTools` and `--disallowedTools` are no longer passed. The rules themselves are unchanged. A tool list may be separated by commas or spaces; a separator inside parentheses stays part of its rule.
+- **The default prompts read context files, not environment variables (#135).** No shipped prompt says `echo "$AGENT_..."` any more, so the exact-match allow rules those commands needed can go. The `AGENT_*` context variables are still exported for custom prompts and are deprecated: move custom prompts to the files (`docs/customization.md` has the mapping). The test commands are read from `.agent-data/context/test-command.txt` and `test-setup-command.txt`.
+
 ## [1.3.0] - 2026-11-12
 
 ### Added

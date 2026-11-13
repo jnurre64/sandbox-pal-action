@@ -16,6 +16,10 @@ Default agent prompts for each dispatch phase. Each prompt is passed to `claude 
 | `post-impl-retry.md` | `implement` (retry) | Read-write | Address post-impl review concerns |
 | `test-fix.md` | `implement` (test gate retry) | Read-write | Fix a failing pre-PR test gate without reverting the implementation |
 
+## Phase Context
+
+Prompts do not read environment variables. The dispatch script writes the issue, plan, PR and review text to `.agent-data/context/` before every phase (`scripts/lib/phase-context.sh`), and prompts name those files for the Read tool. A BATS test fails if a prompt names a file the script does not write, or mentions `$AGENT_`.
+
 ## Output Format Convention
 
 Triage and reply prompts MUST output a JSON object (no markdown, no code fences) with an `action` field. The dispatch script parses this to determine the next state transition. Implementation and review prompts output plain text summaries.

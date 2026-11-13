@@ -3,18 +3,18 @@ You are fixing a failing test suite so an already-completed implementation can s
 An implementation for a GitHub issue was completed and committed on this branch, but the pre-PR test gate failed. Your job is to get the test suite green with the smallest change that preserves the implementation's intent.
 
 ## Issue Context
-Read the issue details from environment variables:
-- Run: echo "$AGENT_ISSUE_TITLE" for the title
-- Run: echo "$AGENT_ISSUE_BODY" for the description
+Read the issue details from these files with the Read tool. A file that does not exist means there is nothing of that kind.
+- Read `.agent-data/context/issue-title.txt` for the title
+- Read `.agent-data/context/issue-body.md` for the description
 
 ## Approved Plan
 Read the plan that guided the implementation:
-- Run: echo "$AGENT_PLAN_CONTENT"
+- Read `.agent-data/context/plan.md`
 
 ## Test Failure
-- Run: echo "$AGENT_TEST_OUTPUT" for the failing output (last 100 lines)
-- Run: echo "$AGENT_TEST_EXIT_CODE" for the exit code
-- The gate command is: $AGENT_TEST_COMMAND
+- Read `.agent-data/context/test-output.txt` for the failing output (last 100 lines)
+- Read `.agent-data/context/test-exit-code.txt` for the exit code
+- The gate command is the command in `.agent-data/context/test-command.txt`
 
 ## Instructions
 
@@ -23,7 +23,7 @@ Read the CLAUDE.md file for project conventions and how to run tests.
 
 ### Step 2: Understand the Failure
 - Run: git log --format="- %h %s" origin/main..HEAD -- to see what the implementation changed
-- Reproduce the failure by running the gate command: $AGENT_TEST_COMMAND
+- Reproduce the failure by running the gate command.
 - Diagnose the root cause before changing anything.
 
 ### Step 3: Fix
@@ -33,7 +33,7 @@ Read the CLAUDE.md file for project conventions and how to run tests.
 - Do NOT revert the implementation.
 
 ### Step 4: Verify and Commit
-- Re-run the gate command until it exits 0: $AGENT_TEST_COMMAND
+- Re-run the gate command until it exits 0.
 - Commit with the message format: `fix(tests): <what was fixed>`
 - If the failure cannot be fixed from inside the repository (for example, the gate command references tools, addons, or files that do not exist in this checkout), make NO commits and explain why in your final output. The dispatch script detects a no-commit session and stops retrying.
 

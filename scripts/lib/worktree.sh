@@ -40,7 +40,8 @@ setup_worktree() {
     # post its plan verbatim, or apply its staged rules edits (#99).
     rm -f "${WORKTREE_DIR}/.agent-data/permission-denials.log" \
           "${WORKTREE_DIR}/.agent-data/plan.md"
-    rm -rf "${WORKTREE_DIR}/.agent-data/rules"
+    rm -rf "${WORKTREE_DIR}/.agent-data/rules" \
+           "${WORKTREE_DIR}/.agent-data/context"
 
     run_worktree_setup
 }

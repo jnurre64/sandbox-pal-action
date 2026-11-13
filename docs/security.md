@@ -58,7 +58,7 @@ This catches loops that bypass actor filters (e.g., if a second workflow or exte
 
 ### Tool Allowlists
 
-Claude Code's `--allowedTools` flag restricts which tools the agent can use. The system uses phase-specific allowlists:
+Claude Code's permission allow rules restrict which tools the agent can use. The dispatch script writes them into the settings file each phase is launched with. The system uses phase-specific allowlists:
 
 **Triage/Reply (read-only)**:
 ```
@@ -78,7 +78,7 @@ Notable exclusions from all phases:
 - `curl`, `wget` -- no network access
 - `rm -rf` -- no destructive filesystem operations
 
-Additionally, `--disallowedTools` blocks `mcp__github__*` by default to prevent the agent from using MCP GitHub tools that could conflict with the script's own `gh` CLI operations.
+Additionally, a deny rule blocks `mcp__github__*` by default to prevent the agent from using MCP GitHub tools that could conflict with the script's own `gh` CLI operations.
 
 ### Timeouts
 
@@ -99,9 +99,15 @@ concurrency:
 
 Groups are workflow-specific (e.g., `sandbox-pal-triage-96`, `sandbox-pal-implement-96`) so that label changes during a run don't cause other workflows to compete in the same group. `cancel-in-progress: false` means concurrent jobs for the same workflow and issue are queued, not cancelled.
 
-### Environment Variable Injection
+### Issue Text Is Data, Never Code
 
-Issue titles, bodies, and comments are passed to Claude via environment variables (`AGENT_ISSUE_TITLE`, `AGENT_ISSUE_BODY`, `AGENT_COMMENTS`, etc.), never interpolated into shell commands or prompt strings. This prevents shell injection from crafted issue content.
+Issue titles, bodies, comments, review text and referenced issues are written to files under `.agent-data/context/` in the worktree, which the agent reads with the Read tool. They are never interpolated into shell commands or prompt strings, which prevents shell injection from crafted issue content. (The same values are still exported as `AGENT_*` environment variables for older custom prompts.)
+
+This does not stop the text from trying to steer the agent: it is untrusted input the model reads. What a steered phase can reach is limited by the phase environment and settings below, not by how the text is delivered.
+
+### Pipeline-Owned Settings
+
+Each Claude phase is launched with a settings file the dispatch script generates for that run, holding the phase's permission rules, and with `--setting-sources`. With `AGENT_SETTING_SOURCES="project"` a phase does not read the operator's user settings, so hooks, plugins and allow rules that one person added on their machine are not silently part of every unattended run. The default still reads them, to leave existing installs unchanged. Note that `claude -p` loads a project's own hooks and `.mcp.json` without a trust dialog: what a phase loads from the repository is whatever is committed there.
 
 ### Pre-PR Test Gate
 
@@ -195,11 +201,11 @@ Review this checklist periodically and after any changes to the agent system.
 - [ ] Actor filter (`github.actor != 'your-bot'`) is present on every caller workflow
 - [ ] Comment/review user login filter is present on reply and review caller workflows
 - [ ] Circuit breaker limit is set appropriately (default: 8 comments/hour)
-- [ ] `--allowedTools` restricts agent capabilities in both triage and implementation modes
-- [ ] `--disallowedTools` blocks MCP GitHub tools (or other tools that could bypass restrictions)
+- [ ] Allow rules (`AGENT_ALLOWED_TOOLS_*`) restrict agent capabilities in both triage and implementation modes
+- [ ] Deny rules (`AGENT_DISALLOWED_TOOLS`) block MCP GitHub tools (or other tools that could bypass restrictions)
 - [ ] `git push` is handled only by the dispatch script, never by Claude directly
 - [ ] `CLAUDE.md` instructs the agent to never modify `.github/workflows/`, CI/CD, or security files
-- [ ] Issue content is passed via environment variables (not shell-interpolated in prompts)
+- [ ] Issue content is passed as files under `.agent-data/context/` (not shell-interpolated in prompts)
 
 ### Workflow Safety
 

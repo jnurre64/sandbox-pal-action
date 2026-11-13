@@ -107,58 +107,42 @@ You only need to override the prompts you want to change. Unset variables use th
 
 ---
 
-## Prompt Environment Variables
+## Prompt Context Files
 
-Your custom prompts can reference these environment variables. The dispatch script exports them before invoking `claude -p`. Prompts should instruct Claude to read them via `echo "$VARIABLE_NAME"`.
+Before every phase the dispatch script writes the issue, plan, PR and review text into `.agent-data/context/` in the worktree. Custom prompts should tell the agent to read those files with the Read tool. The full list, per phase, is in [configuration.md](configuration.md#phase-context-files). The most used:
 
-### Available in All Phases
+| File | Description |
+|------|-------------|
+| `.agent-data/context/issue-title.txt` | The GitHub issue title |
+| `.agent-data/context/issue-body.md` | The full issue body (markdown) |
+| `.agent-data/context/comments.md` | The last 20 comments on the issue, formatted as `[author] body` |
+| `.agent-data/context/plan.md` | The full text of the approved plan comment (implement phase) |
+| `.agent-data/context/test-command.txt` | The configured test command (absent when none is set) |
+| `.agent-data/context/attached-data.md` | Index of downloaded data files and download errors (absent when nothing was attached) |
+| `.agent-data/context/references/` | Issues and pull requests the issue text refers to, one file per number |
 
-| Variable | Description |
-|----------|-------------|
-| `$AGENT_ISSUE_TITLE` | The GitHub issue title |
-| `$AGENT_ISSUE_BODY` | The full issue body (markdown) |
-| `$AGENT_COMMENTS` | The last 20 comments on the issue, formatted as `[author] body` |
-| `$AGENT_TEST_COMMAND` | The configured test command (may be empty) |
+A file is absent when its value is empty, so say so in the prompt ("a file that does not exist means there is nothing of that kind").
 
-### Implement Phase Only
-
-| Variable | Description |
-|----------|-------------|
-| `$AGENT_ISSUE_NUMBER` | The issue number |
-| `$AGENT_PLAN_CONTENT` | The full text of the approved plan comment |
-| `$AGENT_DATA_COMMENT_FILE` | Path to a file containing the latest data/debug comment, or empty |
-| `$AGENT_GIST_FILES` | Space-separated paths to downloaded gist/attachment files, or empty |
-| `$AGENT_DATA_ERRORS` | Path to a file listing any download failures, or empty |
-
-### Review Phase Only
-
-| Variable | Description |
-|----------|-------------|
-| `$AGENT_PR_TITLE` | The PR title |
-| `$AGENT_PR_BODY` | The PR body/description |
-| `$AGENT_REVIEWS` | Review submissions, formatted as `[author] (state): body` |
-| `$AGENT_REVIEW_COMMENTS` | Inline code comments, formatted as `[author] on file:line: body` |
-| `$AGENT_PR_COMMENTS` | PR conversation comments, formatted as `[author]: body` |
-| `$AGENT_COMMIT_HISTORY` | Output of `git log --oneline origin/main..HEAD` on the PR branch |
-| `$AGENT_DATA_COMMENT_FILE` | Path to a file containing the latest data/debug comment, or empty |
-| `$AGENT_GIST_FILES` | Space-separated paths to downloaded gist/attachment files, or empty |
-| `$AGENT_DATA_ERRORS` | Path to a file listing any download failures, or empty |
-
-### Example: Using Variables in a Custom Prompt
+### Example: Using Context Files in a Custom Prompt
 
 ```markdown
 You are implementing changes for a GitHub issue.
 
-Read the issue context:
-- Run: echo "$AGENT_ISSUE_TITLE"
-- Run: echo "$AGENT_ISSUE_BODY"
-- Run: echo "$AGENT_PLAN_CONTENT"
+Read the issue context with the Read tool:
+- `.agent-data/context/issue-title.txt`
+- `.agent-data/context/issue-body.md`
+- `.agent-data/context/plan.md`
 
 Follow these project-specific rules:
 1. All commits must be signed.
 2. Run `make lint` before committing.
-3. Run `$AGENT_TEST_COMMAND` after all changes.
+3. Run the command in `.agent-data/context/test-command.txt` after all changes.
 ```
+
+### Migrating a prompt that uses `echo "$AGENT_..."`
+
+Earlier versions passed this text only as environment variables, and prompts read it with `echo "$AGENT_ISSUE_TITLE"`. That needed a shell command and an allow rule matching it exactly, and a phase that could not run the command did not know which issue it was working on. The variables are still exported for now and will be removed in a later release. Replace each `Run: echo "$AGENT_X"` line with a `Read` of the matching file.
+
 
 ---
 
@@ -187,7 +171,7 @@ AGENT_EXTRA_TOOLS="Bash(npm:*),Bash(npx:*),Bash(node:*),Bash(eslint:*)"
 
 ### Tool Format
 
-Tools use Claude Code's `--allowedTools` syntax:
+Tools use Claude Code's permission rule syntax:
 - `Bash(command:*)` — allows `command` with any arguments
 - `Bash(command arg:*)` — allows `command arg` followed by anything
 - `Read`, `Edit`, `Write`, `Grep`, `Glob` — Claude Code built-in tools
