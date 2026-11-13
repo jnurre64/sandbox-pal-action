@@ -8,6 +8,8 @@ source "${AGENT_LIB_DIR}/engine-codex.sh"
 source "${AGENT_LIB_DIR}/agent-config.sh"
 # shellcheck disable=SC1091
 source "${AGENT_LIB_DIR}/phase-context.sh"
+# shellcheck disable=SC1091
+source "${AGENT_LIB_DIR}/sandbox.sh"
 
 # stdout is always one envelope, including preflight and process failures.
 # Keep the existing argument order while consumers migrate to the neutral API.
@@ -118,6 +120,12 @@ run_agent() (
         else
             agent_failure "$phase" transport 'Unable to invoke or normalize Codex worker' codex
         fi
+        return
+    fi
+    # Fail closed: a sandbox that was asked for and cannot start is a
+    # configuration error, reported before the worker is launched (#137).
+    if [ "$(jq -r '.policy.sandbox // "none"' <<< "$resolved")" = strict ] && ! error=$(agent_sandbox_smoke 2>&1); then
+        agent_failure "$phase" configuration "The strict sandbox could not start: $(redact_secrets <<< "$error" | sed -n 1p)"
         return
     fi
     # Unique restricted capture files; never reuse a phase's previous output.

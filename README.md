@@ -153,6 +153,7 @@ The system adapts to any project through your CLAUDE.md (coding conventions), cu
 | [Bot Account](docs/bot-account.md) | Creating and configuring the bot GitHub account |
 | [Runners](docs/runners.md) | Self-hosted runner setup |
 | [Security](docs/security.md) | Threat model, safety mechanisms, security checklist |
+| [Sandbox](docs/sandbox.md) | Running phases under the `strict` sandbox profile: setup, what it allows, limits |
 | [Testing](docs/testing.md) | BATS test suite — 52 tests, regression coverage, writing new tests |
 | [Troubleshooting](docs/troubleshooting.md) | Common issues and solutions — use `/troubleshoot` for automated diagnostics |
 | [Versioning](docs/versioning.md) | SemVer policy, release process, changelog conventions |

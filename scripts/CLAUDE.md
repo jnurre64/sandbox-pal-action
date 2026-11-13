@@ -22,4 +22,5 @@ An exported environment variable survives a file only when the file assigns it a
 - Must pass `shellcheck` with zero warnings
 - Functions use globals `REPO`, `NUMBER`, `EVENT_TYPE`, `WORKTREE_DIR`, `BRANCH_NAME` set by the entry point
 - Issue content reaches a phase as files under `.agent-data/context/` (`lib/phase-context.sh`), written before every launch; it is never shell-interpolated. The matching `AGENT_*` exports are kept for older custom prompts
+- `AGENT_SANDBOX=strict` wraps the Claude launch in the sandbox runtime (`lib/sandbox.sh`); the canary in `tests/test_sandbox_canary.bats` runs only where `srt` is installed
 - Claude phases get their permission rules from a generated `--settings` file (`engine_claude_settings`), not from `--allowedTools`
