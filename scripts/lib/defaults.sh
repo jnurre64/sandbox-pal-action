@@ -208,6 +208,21 @@ AGENT_SETTINGS_FILE="${AGENT_SETTINGS_FILE:-}"     # a repo's own base settings 
 # .agent-data/context/references/. 0 turns it off.
 AGENT_CONTEXT_REFS_MAX="${AGENT_CONTEXT_REFS_MAX:-10}"
 
+# ─── Sandbox profile (#137) ──────────────────────────────────────
+# none (default): phases run as before. strict: the whole Claude phase
+# runs under the sandbox runtime (srt). AGENT_SANDBOX_<PHASE> overrides
+# per phase and is read dynamically. See docs/sandbox.md.
+AGENT_SANDBOX="${AGENT_SANDBOX:-none}"
+AGENT_SANDBOX_SRT="${AGENT_SANDBOX_SRT:-}"                         # path to srt when it is not on PATH
+AGENT_SANDBOX_ALLOWED_DOMAINS="${AGENT_SANDBOX_ALLOWED_DOMAINS:-}" # further hosts, space- or comma-separated
+AGENT_SANDBOX_DENY_READ="${AGENT_SANDBOX_DENY_READ:-}"             # further paths hidden from the phase
+AGENT_SANDBOX_ALLOW_WRITE="${AGENT_SANDBOX_ALLOW_WRITE:-}"         # further writable paths
+AGENT_SANDBOX_SHORT_TOOLS="${AGENT_SANDBOX_SHORT_TOOLS:-true}"     # false keeps the Bash prefix rules as written (#143)
+AGENT_SANDBOX_UNIX_SOCKETS="${AGENT_SANDBOX_UNIX_SOCKETS:-false}"  # true lets the phase use Unix sockets (display tests)
+# A file holding a GitHub token for phases, exported to them as GH_TOKEN.
+# Meant to be read-only; the dispatcher keeps every write.
+AGENT_PHASE_GH_TOKEN_FILE="${AGENT_PHASE_GH_TOKEN_FILE:-}"
+
 # ─── Phase environment (#142) ────────────────────────────────────
 # Phases are launched without the dispatcher's credentials (the list is
 # AGENT_PHASE_CREDENTIAL_VARS in lib/agent.sh). Space-separated names.

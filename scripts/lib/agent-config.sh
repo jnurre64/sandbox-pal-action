@@ -180,6 +180,11 @@ agent_resolve_config() {
     resolved=$(agent_resolve_phase "$phase" "${2:-}") || return 1
     engine=$(jq -r .engine <<< "$resolved")
     settings=$(agent_phase_settings "$engine" "$phase") || return 1
+    if [ "$engine" = codex ] && [ "$(agent_sandbox_profile "$phase")" != none ]; then
+        echo "${phase}: the strict sandbox profile wraps Claude phases only; use the Codex engine's own sandbox setting" >&2
+        return 1
+    fi
+    agent_phase_token_check || return 1
     case "$engine" in
         claude) policy=$(engine_claude_policy "$phase" "$settings") || return 1 ;;
         codex) policy=$(engine_codex_policy "$phase" "$settings") || return 1 ;;

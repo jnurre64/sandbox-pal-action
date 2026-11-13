@@ -78,3 +78,24 @@ load 'helpers/test_helper'
     assert_failure
     assert_output --partial "bats"
 }
+
+# ═══════════════════════════════════════════════════════════════
+# check-prereqs.sh — optional sandbox profile (#137)
+# ═══════════════════════════════════════════════════════════════
+
+@test "check-prereqs: a missing sandbox runtime is reported as optional, not as a failure" {
+    run env AGENT_SANDBOX_SRT="${TEST_TEMP_DIR}/nowhere/srt" bash "${SCRIPTS_DIR}/check-prereqs.sh"
+    assert_output --partial "sandbox profile (optional) unavailable"
+    refute_output --partial "Missing required tools: srt"
+}
+
+@test "check-prereqs: a sandbox runtime that cannot start is a warning with its first error line" {
+    mkdir -p "${TEST_TEMP_DIR}/bin"
+    printf '#!/bin/bash\necho "bwrap: loopback: Failed RTM_NEWADDR: Operation not permitted" >&2\nexit 1\n' > "${TEST_TEMP_DIR}/bin/srt"
+    local tool
+    for tool in bwrap socat rg; do printf '#!/bin/bash\nexit 0\n' > "${TEST_TEMP_DIR}/bin/${tool}"; done
+    chmod +x "${TEST_TEMP_DIR}/bin/"*
+    run env PATH="${TEST_TEMP_DIR}/bin:${PATH}" AGENT_SANDBOX_SRT= bash "${SCRIPTS_DIR}/check-prereqs.sh"
+    assert_output --partial "sandbox runtime is installed but cannot start"
+    assert_output --partial "RTM_NEWADDR"
+}

@@ -324,6 +324,15 @@ Four independent controls on how each phase invokes the CLI. **Every one is opti
 | `AGENT_SETTING_SOURCES` | `user,project,local` | `--setting-sources` for Claude phases: which settings layers are read besides the pipeline's own file. Empty omits the flag |
 | `AGENT_SETTINGS_FILE` | *(empty)* | a settings JSON of your own that each phase's generated settings file is built on (absolute, or relative to the config directory) |
 | `AGENT_CONTEXT_REFS_MAX` | `10` | how many issues and pull requests referenced by the issue text are pre-fetched into `.agent-data/context/references/`; `0` turns it off |
+| `AGENT_SANDBOX` | `none` | sandbox profile for Claude phases: `none` or `strict` (the whole phase under the sandbox runtime). See [sandbox.md](sandbox.md) |
+| `AGENT_SANDBOX_<PHASE>` | *(unset — uses the global)* | profile for that phase |
+| `AGENT_SANDBOX_SRT` | *(empty — `srt` on `PATH`)* | path to the sandbox runtime |
+| `AGENT_SANDBOX_ALLOWED_DOMAINS` | *(empty)* | further hosts a sandboxed phase may reach, space- or comma-separated |
+| `AGENT_SANDBOX_DENY_READ` | *(empty)* | further paths hidden from a sandboxed phase |
+| `AGENT_SANDBOX_ALLOW_WRITE` | *(empty)* | further paths a sandboxed phase may write |
+| `AGENT_SANDBOX_SHORT_TOOLS` | `true` | under `strict`, replace a phase's `Bash(...)` prefix rules with one `Bash` rule; `false` keeps them as written |
+| `AGENT_SANDBOX_UNIX_SOCKETS` | `false` | `true` lets a sandboxed phase use Unix sockets (needed by Xvfb) |
+| `AGENT_PHASE_GH_TOKEN_FILE` | *(empty)* | file holding a GitHub token exported to every phase as `GH_TOKEN` (absolute, `~/…`, or relative to the config directory) |
 | `AGENT_PHASE_SCRUB_ENV` | *(empty)* | space-separated names of further variables to remove from every phase's environment |
 | `AGENT_PHASE_KEEP_ENV` | *(empty)* | space-separated names to leave in a phase's environment despite the built-in list |
 

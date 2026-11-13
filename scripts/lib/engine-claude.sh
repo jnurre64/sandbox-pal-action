@@ -16,6 +16,8 @@ engine_claude() (
     fi
     local budget effort permission_mode turns invocation_timeout effort_env
     local permission_prompts bg_wait_ceiling_ms setting_sources settings_base settings_file
+    local sandbox sandbox_config="" sandbox_excludes=""
+    sandbox=$(jq -r '.sandbox // "none"' <<< "$policy")
     setting_sources=$(jq -r .setting_sources <<< "$policy")
     settings_base=$(jq -r .settings_file <<< "$policy")
     permission_prompts=$(jq -r .permission_prompts <<< "$policy")
@@ -44,8 +46,15 @@ engine_claude() (
     # own settings happen to allow (#135). It is removed when this subshell
     # exits, however the phase ended.
     settings_file=$(mktemp "${AGENT_LOG_DIR}/claude-settings-${phase:-phase}-XXXXXX.json") || return 1
-    # shellcheck disable=SC2064  # Expand the path now: it is local to this call.
-    trap "rm -f '${settings_file}'" EXIT
+    if [ "$sandbox" = strict ] && [ "${AGENT_SANDBOX_SHORT_TOOLS:-true}" != false ]; then
+        allowed_tools=$(agent_sandbox_tool_list "$allowed_tools") || return 1
+    fi
+    if [ "$sandbox" = strict ]; then
+        sandbox_config=$(mktemp "${AGENT_LOG_DIR}/sandbox-${phase:-phase}-XXXXXX.json") || return 1
+        sandbox_excludes=$(mktemp "${AGENT_LOG_DIR}/sandbox-excludes-${phase:-phase}-XXXXXX") || return 1
+    fi
+    # shellcheck disable=SC2064  # Expand the paths now: they are local to this call.
+    trap "rm -f '${settings_file}' '${sandbox_config}' '${sandbox_excludes}'" EXIT
     engine_claude_settings "$settings_base" "$allowed_tools" "${AGENT_DISALLOWED_TOOLS:-}" > "$settings_file" || return 1
 
     cd "$WORKTREE_DIR" || return 1
@@ -110,6 +119,17 @@ engine_claude() (
     fi
     # Last step before launch: the phase gets no dispatcher credentials (#142).
     agent_scrub_phase_env || return 1
+    # Its own GitHub token, when one is configured: read-only by intent.
+    agent_phase_token_export || return 1
+    if [ "$sandbox" = strict ]; then
+        # The whole worker runs inside the sandbox: its shell commands, its
+        # file tools, its hooks and its MCP servers (#137).
+        agent_sandbox_config > "$sandbox_config" || return 1
+        agent_sandbox_write_excludes "$sandbox_excludes" || return 1
+        agent_sandbox_git_env "$sandbox_excludes"
+        timeout "$invocation_timeout" "$(_sandbox_srt)" -s "$sandbox_config" -- claude "${claude_args[@]}"
+        return
+    fi
     timeout "$invocation_timeout" claude "${claude_args[@]}"
 )
 
@@ -223,12 +243,22 @@ engine_claude_policy() {
             echo "${phase}: AGENT_SETTINGS_FILE must name a readable file holding a JSON object" >&2; return 1
         fi
     fi
+    # Sandbox profile and the phase's own token (#137). A profile that is
+    # asked for and cannot run stops the dispatch here.
+    local sandbox sandbox_error
+    sandbox=$(agent_sandbox_profile "$phase") || return 1
+    if [ "$sandbox" = strict ] && ! sandbox_error=$(agent_sandbox_check 2>&1); then
+        echo "${phase}: ${sandbox_error}" >&2; return 1
+    fi
+    if ! sandbox_error=$(agent_phase_token_check 2>&1); then
+        echo "${phase}: ${sandbox_error}" >&2; return 1
+    fi
     jq -c --arg effort_env "$effort_env" --argjson set_effort_env "$set_effort_env" \
         --arg permission_prompts "$permission_prompts" --arg bg_wait_ceiling_ms "$bg_wait_ceiling_ms" \
-        --arg setting_sources "$setting_sources" --arg settings_file "$settings_file" \
+        --arg setting_sources "$setting_sources" --arg settings_file "$settings_file" --arg sandbox "$sandbox" \
         '. + {effort_env:$effort_env,set_effort_env:$set_effort_env,
               permission_prompts:$permission_prompts,bg_wait_ceiling_ms:$bg_wait_ceiling_ms,
-              setting_sources:$setting_sources,settings_file:$settings_file}' <<< "$settings"
+              setting_sources:$setting_sources,settings_file:$settings_file,sandbox:$sandbox}' <<< "$settings"
 }
 
 engine_claude_check_policy() {
