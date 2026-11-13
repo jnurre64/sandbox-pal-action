@@ -18,6 +18,8 @@ _setup() {
     unset AGENT_SANDBOX AGENT_SANDBOX_TRIAGE AGENT_SANDBOX_IMPLEMENT AGENT_SANDBOX_SRT CLAUDE_CONFIG_DIR
     unset AGENT_SANDBOX_ALLOWED_DOMAINS AGENT_SANDBOX_DENY_READ AGENT_SANDBOX_ALLOW_WRITE
     unset AGENT_SANDBOX_UNIX_SOCKETS AGENT_PHASE_GH_TOKEN_FILE AGENT_CONFIG GIT_CONFIG_COUNT
+    # HOME is the test's own; a runner's XDG or git settings must not point elsewhere.
+    unset XDG_CONFIG_HOME GIT_CONFIG_GLOBAL
     export PATH="${TEST_TEMP_DIR}/bin:${PATH}"
 }
 
@@ -195,6 +197,27 @@ _git_dir() {
     assert_line '.bashrc'
     assert_line '.mcp.json'
     assert_line '.claude/commands'
+}
+
+@test "REGRESSION v1.4.0: excludes: the operator's excludes are found under XDG_CONFIG_HOME" {
+    _setup
+    export XDG_CONFIG_HOME="${TEST_TEMP_DIR}/xdg"
+    mkdir -p "$XDG_CONFIG_HOME/git"
+    echo '*.orig' > "$XDG_CONFIG_HOME/git/ignore"
+    agent_sandbox_write_excludes "${TEST_TEMP_DIR}/excludes"
+    run cat "${TEST_TEMP_DIR}/excludes"
+    assert_line '*.orig'
+    assert_line '.bashrc'
+}
+
+@test "excludes: a configured core.excludesFile is used, with ~ expanded" {
+    _setup
+    echo '*.bak' > "$HOME/my-ignore"
+    git config --global core.excludesFile '~/my-ignore'
+    agent_sandbox_write_excludes "${TEST_TEMP_DIR}/excludes"
+    run cat "${TEST_TEMP_DIR}/excludes"
+    assert_line '*.bak'
+    assert_line '.bashrc'
 }
 
 @test "excludes: they reach git through the environment and add to what is there" {
