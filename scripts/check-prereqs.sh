@@ -43,6 +43,26 @@ if command -v gh &> /dev/null; then
     fi
 fi
 
+# Sandbox profile (optional): what AGENT_SANDBOX="strict" needs.
+SRT_BIN="${AGENT_SANDBOX_SRT:-srt}"
+SANDBOX_MISSING=()
+for tool in "$SRT_BIN" bwrap socat rg; do
+    command -v "$tool" &> /dev/null || SANDBOX_MISSING+=("${tool##*/}")
+done
+if [ ${#SANDBOX_MISSING[@]} -ne 0 ]; then
+    echo -e "  ${YELLOW}-${NC} sandbox profile (optional) unavailable, missing: ${SANDBOX_MISSING[*]}"
+    echo "      Needed only for AGENT_SANDBOX=\"strict\". See docs/sandbox.md."
+elif sandbox_error=$("$SRT_BIN" -s <(echo '{"network":{"allowedDomains":[],"deniedDomains":[]},"filesystem":{"denyRead":[],"allowWrite":[],"denyWrite":[]}}') -- true 2>&1); then
+    echo -e "  ${GREEN}✓${NC} sandbox profile available: $("$SRT_BIN" --version 2>&1 | sed -n 1p)"
+else
+    echo -e "  ${YELLOW}!${NC} sandbox runtime is installed but cannot start: $(sed -n 1p <<< "$sandbox_error")"
+    if [ "$(sysctl -n kernel.apparmor_restrict_unprivileged_userns 2>/dev/null || echo 0)" = "1" ]; then
+        echo "      This kernel restricts unprivileged user namespaces through AppArmor."
+        echo "      bubblewrap needs an AppArmor profile that allows them: see docs/sandbox.md."
+    fi
+    WARNINGS+=("sandbox runtime cannot start")
+fi
+
 # Check if config.env exists
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CONFIG_FILE="${SCRIPT_DIR}/../config.env"

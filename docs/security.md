@@ -137,7 +137,34 @@ They are removed inside the engine's own subshell as the last step before the wo
 
 Startup logs which of these variables were set and withheld, and which were kept, by name only.
 
-**Limits.** This removes credentials from the environment, not from the machine. A phase runs as the same OS user as the dispatcher, so a token on disk (a `gh` login, a git credential helper, a config file holding a secret) is still readable by it. Closing that gap needs a sandbox or a dedicated OS user for phases. Claude Code's `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB` is not set by the dispatcher: as of CLI 2.1.322 it requires bubblewrap on Linux and forces the default permission mode, which would change how every phase runs, and it leaves `GH_TOKEN`/`GITHUB_TOKEN` in place. It belongs with the sandbox work.
+**Limits.** This removes credentials from the environment, not from the machine. A phase runs as the same OS user as the dispatcher, so a token on disk (a `gh` login, a git credential helper, a config file holding a secret) is still readable by it. The `strict` sandbox profile closes it for the credential stores it hides: see [Sandbox Profile](#sandbox-profile) and [sandbox.md](sandbox.md). Claude Code's `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB` is not set by the dispatcher: as of CLI 2.1.322 it requires bubblewrap on Linux and forces the default permission mode, which would change how every phase runs, and it leaves `GH_TOKEN`/`GITHUB_TOKEN` in place. The `strict` profile does not set it either: the whole phase is already inside the sandbox.
+
+### Sandbox Profile
+
+With `AGENT_SANDBOX="strict"` a Claude phase runs under Anthropic's sandbox runtime (`srt`, which uses bubblewrap on Linux). The whole process is inside: shell commands, the model's own file tools, hooks and MCP servers. It is off by default; [sandbox.md](sandbox.md) has the setup and the full lists.
+
+What it enforces, checked by a canary test against the real runtime:
+
+- **Writes** go only to the worktree, the clone's `.git` (which a worktree needs), the temp directory and the Claude config directory. The clone's `.git/hooks` and `.git/config` are write-denied, and so are the Claude settings, skills, plugins, commands, agents and hooks, because those decide what a later unsandboxed session runs.
+- **Credential stores are absent**: SSH and GPG keys, the `gh` login, cloud CLI credentials, `.netrc`, package-registry tokens, `.env` files in the worktree, the install's `config.env`, and whatever `AGENT_SANDBOX_DENY_READ` names.
+- **The network** reaches the model provider, GitHub, and the hosts in `AGENT_SANDBOX_ALLOWED_DOMAINS`. Everything else is refused, including services on the host's own loopback and LAN addresses.
+- **It fails closed.** A profile that is asked for and cannot start is a configuration error and no phase runs.
+
+What it does not do. State these limits plainly when describing the setup to others:
+
+- **An allowed host is a way out.** A steered phase can send what it can read to any host on the allowlist, GitHub included, for example by pushing to a repository of the attacker's with a token the attacker supplied in the issue text. The allowlist narrows where data can go; it does not make a leak impossible. What limits the damage is how little a phase can read: no dispatcher token, hidden credential stores, and a phase token that is read-only.
+- **The model provider's login is readable.** The worker cannot run without it. A phase can read the Claude login and send it to an allowed host.
+- **Other files in the home directory are readable** unless you list them. The profile hides known credential stores, not everything. Put directories of tokens in `AGENT_SANDBOX_DENY_READ`.
+- **`AGENT_SANDBOX_UNIX_SOCKETS=true` removes the socket filter**, so any Unix socket the process can see is reachable (a Docker socket, an SSH agent). Use it only where a display server is needed.
+- **The runtime is a beta research preview** and is not a substitute for a VM or container when the code being run is hostile by assumption.
+- **Phases still run as the dispatcher's OS user.** A dedicated user for phases is a separate, stronger boundary and is not provided here.
+- **Codex phases are not wrapped.** Asking for `strict` on a Codex phase is refused; use that engine's own sandbox setting.
+
+### The Phase's GitHub Token
+
+No phase receives the dispatcher's token. Under `strict` a phase cannot read a stored `gh` login either, so without anything else it cannot look at another issue or pull request. `AGENT_PHASE_GH_TOKEN_FILE` names a file holding a token that is exported to each phase as `GH_TOKEN`.
+
+Make it a fine-grained token with read-only access (Contents, Issues, Pull requests, Actions) to the repositories the pipeline works on. The dispatcher keeps doing every write. The dispatcher cannot check a token's permissions: a write-capable token in this file gives every phase write access. The value is read at launch, never placed in configuration, hidden from the sandboxed phase as a file, and redacted from phase output.
 
 ### Phase Output Redaction
 
@@ -205,6 +232,8 @@ Review this checklist periodically and after any changes to the agent system.
 - [ ] Deny rules (`AGENT_DISALLOWED_TOOLS`) block MCP GitHub tools (or other tools that could bypass restrictions)
 - [ ] `git push` is handled only by the dispatch script, never by Claude directly
 - [ ] `CLAUDE.md` instructs the agent to never modify `.github/workflows/`, CI/CD, or security files
+- [ ] Phases run under `AGENT_SANDBOX="strict"`, or you have decided they need not, and directories holding tokens are in `AGENT_SANDBOX_DENY_READ`
+- [ ] `AGENT_PHASE_GH_TOKEN_FILE`, if set, holds a read-only token
 - [ ] Issue content is passed as files under `.agent-data/context/` (not shell-interpolated in prompts)
 
 ### Workflow Safety

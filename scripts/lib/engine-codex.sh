@@ -101,5 +101,6 @@ Worker instruction updates: do not edit AGENTS.md or CLAUDE.md. Include proposed
         worktree:$worktree,capture_root:$capture,add_dirs:($dirs|[splits("\\s+")|select(length>0)])}')
     # Last step before launch: the phase gets no dispatcher credentials (#142).
     agent_scrub_phase_env || return 1
+    agent_phase_token_export || return 1
     printf '%s' "$request" | python3 "${AGENT_LIB_DIR}/codex-worker.py" run
 )
