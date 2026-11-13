@@ -191,7 +191,7 @@ issues.labeled "agent"
   --> ensure_repo (clone if needed)
   --> setup_worktree (agent/issue-N branch)
   --> fetch issue title, body, comments via gh CLI
-  --> pass issue content via environment variables
+  --> write issue content to .agent-data/context/ (read with the Read tool)
   --> run claude -p with triage prompt (read-only tools)
   --> parse response:
       ask_questions -> post comment, set agent:needs-info
@@ -390,8 +390,8 @@ Issue/PR comment
   +--> find latest data comment body
          --> .agent-data/latest-data-comment.md
 
-File paths passed to Claude via environment variables:
-  AGENT_DATA_COMMENT_FILE, AGENT_GIST_FILES, AGENT_DATA_ERRORS
+File paths listed for Claude in .agent-data/context/attached-data.md:
+  the latest data comment, each downloaded file, the download-errors file
 ```
 
 Claude reads these local files with the `Read` tool during its analysis. The `.agent-data/` directory is cleaned up when the worktree is removed. If downloads fail, errors are recorded and Claude is instructed to report what it could not access.
@@ -404,12 +404,12 @@ Data from comments and gists is framed as "untrusted user-submitted data" in the
 |-----------|-------------|
 | **Actor filter** | `github.actor != 'your-bot'` in workflow conditions prevents the bot's own actions from re-triggering workflows |
 | **Circuit breaker** | Max bot comments per hour per issue (default: 8). Exceeding the limit sets `agent:failed` and halts |
-| **Tool allowlists** | `--allowedTools` restricts what Claude can do. Triage gets read-only tools. Implementation gets read-write but no push, no sudo, no network |
-| **Tool denylists** | `--disallowedTools` blocks specific tools (default: `mcp__github__*` to avoid conflicts with gh CLI) |
+| **Tool allowlists** | The phase's allow rules (in its generated `--settings` file) restrict what Claude can do. Triage gets read-only tools. Implementation gets read-write but no push, no sudo, no network |
+| **Tool denylists** | Deny rules in the same file block specific tools (default: `mcp__github__*` to avoid conflicts with gh CLI) |
 | **Timeout** | Configurable timeout on `claude -p` (default: 3600s). Workflow-level `timeout-minutes` as a backstop |
 | **Concurrency groups** | One job at a time per issue/PR number. Jobs queue (not cancel) to prevent race conditions |
 | **CLAUDE.md rules** | The repository's `CLAUDE.md` instructs the agent to never modify workflows, CI/CD, or security files |
-| **Env var injection** | Issue content is passed via environment variables, never shell-interpolated into prompts |
+| **Issue text as data** | Issue content is written to files under `.agent-data/context/`, never shell-interpolated into prompts |
 | **Branch protection** | (Recommended) Require PR approval before merging to main. The bot cannot approve its own PRs |
 | **Pre-PR test gate** | (Optional) Configured via `AGENT_TEST_COMMAND`. Tests must pass before a PR is created |
 

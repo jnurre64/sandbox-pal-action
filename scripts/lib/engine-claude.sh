@@ -15,7 +15,9 @@ engine_claude() (
         policy=$(engine_claude_policy "$phase" "$settings") || return 1
     fi
     local budget effort permission_mode turns invocation_timeout effort_env
-    local permission_prompts bg_wait_ceiling_ms
+    local permission_prompts bg_wait_ceiling_ms setting_sources settings_base settings_file
+    setting_sources=$(jq -r .setting_sources <<< "$policy")
+    settings_base=$(jq -r .settings_file <<< "$policy")
     permission_prompts=$(jq -r .permission_prompts <<< "$policy")
     bg_wait_ceiling_ms=$(jq -r .bg_wait_ceiling_ms <<< "$policy")
     budget=$(jq -r .budget_usd <<< "$policy")
@@ -37,14 +39,26 @@ engine_claude() (
     fi
     memory=$(load_shared_memory)
 
+    # The phase's permission rules travel in a settings file the pipeline
+    # writes for this one run, so they do not depend on what the operator's
+    # own settings happen to allow (#135). It is removed when this subshell
+    # exits, however the phase ended.
+    settings_file=$(mktemp "${AGENT_LOG_DIR}/claude-settings-${phase:-phase}-XXXXXX.json") || return 1
+    # shellcheck disable=SC2064  # Expand the path now: it is local to this call.
+    trap "rm -f '${settings_file}'" EXIT
+    engine_claude_settings "$settings_base" "$allowed_tools" "${AGENT_DISALLOWED_TOOLS:-}" > "$settings_file" || return 1
+
     cd "$WORKTREE_DIR" || return 1
     local claude_args=(
         -p "$prompt"
-        --allowedTools "$allowed_tools"
-        --disallowedTools "$AGENT_DISALLOWED_TOOLS"
+        --settings "$settings_file"
         --max-turns "$turns"
         --output-format json
     )
+    # Which settings layers the phase reads besides that file. Naming all
+    # three is the CLI's own default; `project` leaves out the operator's
+    # user settings (their rules, hooks, plugins and user-level skills).
+    [ -z "$setting_sources" ] || claude_args+=(--setting-sources "$setting_sources")
     local effective_model="$model_override"
     if [ -n "$effective_model" ]; then
         claude_args+=(--model "$effective_model")
@@ -99,6 +113,46 @@ engine_claude() (
     timeout "$invocation_timeout" claude "${claude_args[@]}"
 )
 
+# Print one permission rule per line from a tool list as the AGENT_*_TOOLS
+# settings write it: separated by commas or spaces. A separator inside
+# parentheses belongs to the rule, e.g. Bash(git add:*) or Bash(curl *a,b*).
+agent_split_tool_rules() {
+    local list="$1" rule="" char depth=0 i
+    for ((i = 0; i < ${#list}; i++)); do
+        char="${list:i:1}"
+        case "$char" in
+            '(') depth=$((depth + 1)) ;;
+            ')') [ "$depth" -eq 0 ] || depth=$((depth - 1)) ;;
+            ','|' '|$'\t'|$'\n')
+                if [ "$depth" -eq 0 ]; then
+                    [ -z "$rule" ] || printf '%s\n' "$rule"
+                    rule=""
+                    continue
+                fi ;;
+        esac
+        rule+="$char"
+    done
+    [ -z "$rule" ] || printf '%s\n' "$rule"
+}
+
+# Print the settings JSON for one phase: the repo's own base file ($1, may
+# be empty) with the phase's allowed ($2) and disallowed ($3) tools added
+# to its permission rules.
+engine_claude_settings() {
+    local base_file="$1" allow deny base='{}'
+    allow=$(agent_split_tool_rules "$2" | jq -Rn '[inputs | select(length > 0)]') || return 1
+    deny=$(agent_split_tool_rules "$3" | jq -Rn '[inputs | select(length > 0)]') || return 1
+    if [ -n "$base_file" ]; then
+        base=$(jq -c 'if type == "object" then . else error("not an object") end' "$base_file" 2>/dev/null) || {
+            echo 'AGENT_SETTINGS_FILE must be a JSON object' >&2; return 1
+        }
+    fi
+    jq --argjson allow "$allow" --argjson deny "$deny" '
+        .permissions = ((.permissions // {})
+            | .allow = ((.allow // []) + $allow)
+            | .deny = ((.deny // []) + $deny))' <<< "$base"
+}
+
 # Whether the installed CLI lists flag $1 in its help, so a newer flag is
 # not passed to a CLI that would reject it. The help is captured whole,
 # never piped into `grep -q` (pipefail and SIGPIPE, #129).
@@ -149,10 +203,32 @@ engine_claude_policy() {
     if [[ ! "$bg_wait_ceiling_ms" =~ ^[0-9]*$ ]]; then
         echo "${phase}: background-wait ceiling must be a whole number of milliseconds" >&2; return 1
     fi
+    # Settings layers and the repo's base settings file (#135). Checked here
+    # so a mistake stops the dispatch before any phase is launched.
+    local setting_sources="${AGENT_SETTING_SOURCES-user,project,local}" setting_source
+    local settings_file="${AGENT_SETTINGS_FILE:-}"
+    for setting_source in ${setting_sources//,/ }; do
+        case "$setting_source" in user|project|local) ;; *)
+            echo "${phase}: AGENT_SETTING_SOURCES takes user, project and local, separated by commas" >&2; return 1 ;;
+        esac
+    done
+    if [[ "$setting_sources" =~ [[:space:]] ]] || [[ "$setting_sources" =~ (^,|,,|,$) ]]; then
+        echo "${phase}: AGENT_SETTING_SOURCES takes user, project and local, separated by commas" >&2; return 1
+    fi
+    if [ -n "$settings_file" ]; then
+        if [[ "$settings_file" != /* ]] && [ -n "${CONFIG_DIR:-}" ]; then
+            settings_file="${CONFIG_DIR}/${settings_file}"
+        fi
+        if ! engine_claude_settings "$settings_file" "" "" >/dev/null 2>&1; then
+            echo "${phase}: AGENT_SETTINGS_FILE must name a readable file holding a JSON object" >&2; return 1
+        fi
+    fi
     jq -c --arg effort_env "$effort_env" --argjson set_effort_env "$set_effort_env" \
         --arg permission_prompts "$permission_prompts" --arg bg_wait_ceiling_ms "$bg_wait_ceiling_ms" \
+        --arg setting_sources "$setting_sources" --arg settings_file "$settings_file" \
         '. + {effort_env:$effort_env,set_effort_env:$set_effort_env,
-              permission_prompts:$permission_prompts,bg_wait_ceiling_ms:$bg_wait_ceiling_ms}' <<< "$settings"
+              permission_prompts:$permission_prompts,bg_wait_ceiling_ms:$bg_wait_ceiling_ms,
+              setting_sources:$setting_sources,settings_file:$settings_file}' <<< "$settings"
 }
 
 engine_claude_check_policy() {

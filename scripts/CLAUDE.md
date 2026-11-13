@@ -21,4 +21,5 @@ An exported environment variable survives a file only when the file assigns it a
 - `set -euo pipefail` in all scripts
 - Must pass `shellcheck` with zero warnings
 - Functions use globals `REPO`, `NUMBER`, `EVENT_TYPE`, `WORKTREE_DIR`, `BRANCH_NAME` set by the entry point
-- Issue content is passed via environment variables (never shell-interpolated)
+- Issue content reaches a phase as files under `.agent-data/context/` (`lib/phase-context.sh`), written before every launch; it is never shell-interpolated. The matching `AGENT_*` exports are kept for older custom prompts
+- Claude phases get their permission rules from a generated `--settings` file (`engine_claude_settings`), not from `--allowedTools`

@@ -6,6 +6,8 @@ source "${AGENT_LIB_DIR}/engine-claude.sh"
 source "${AGENT_LIB_DIR}/engine-codex.sh"
 # shellcheck disable=SC1091
 source "${AGENT_LIB_DIR}/agent-config.sh"
+# shellcheck disable=SC1091
+source "${AGENT_LIB_DIR}/phase-context.sh"
 
 # stdout is always one envelope, including preflight and process failures.
 # Keep the existing argument order while consumers migrate to the neutral API.
@@ -103,6 +105,8 @@ run_agent() (
             return
         fi
     fi
+    # Both engines read the phase's context from files in the worktree (#135).
+    write_phase_context
     if [ "$engine" = codex ]; then
         local policy
         policy=$(jq -c '.policy // null' <<< "$resolved")

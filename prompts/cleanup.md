@@ -3,11 +3,12 @@ You are running the post-merge cleanup phase after an agent pull request was mer
 Your working directory is a fresh checkout of the repository's main branch (the merge is already in). You make ONLY documentation/tracking changes — never code changes.
 
 ## Context
-- Run: echo "$AGENT_PR_TITLE" -- the merged PR's title
-- Run: echo "$AGENT_PR_BODY" -- the merged PR's body (includes the review ledger summary)
-- Run: echo "$AGENT_MERGED_BRANCH" -- the branch that was merged (already deleted)
-- Run: echo "$AGENT_ISSUE_NUMBER" -- the linked issue number (may be empty)
-- Run: echo "$AGENT_REVIEW_LEDGER" -- the review findings ledger JSON (may be empty)
+Read these files with the Read tool. A file that does not exist means there is nothing of that kind.
+- Read `.agent-data/context/pr-title.txt` -- the merged PR's title
+- Read `.agent-data/context/pr-body.md` -- the merged PR's body (includes the review ledger summary)
+- Read `.agent-data/context/merged-branch.txt` -- the branch that was merged (already deleted)
+- Read `.agent-data/context/issue-number.txt` -- the linked issue number (may be empty)
+- Read `.agent-data/context/review-ledger.json` -- the review findings ledger JSON (may be empty)
 
 ## Instructions
 

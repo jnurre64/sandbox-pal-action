@@ -196,6 +196,18 @@ AGENT_SESSION_PERSISTENCE="${AGENT_SESSION_PERSISTENCE:-false}"  # "true" keeps 
 AGENT_PERMISSION_PROMPTS="${AGENT_PERMISSION_PROMPTS-none}"       # none | host | "" (omit the flag)
 AGENT_BG_WAIT_CEILING_MS="${AGENT_BG_WAIT_CEILING_MS-600000}"     # ms; "" leaves the CLI's own ceiling
 
+# ─── Phase settings and context (#135) ───────────────────────────
+# Each Claude phase is launched with a settings file the pipeline writes
+# for that run (its permission rules) and with --setting-sources.
+# Naming all three sources is the CLI's own default, so nothing changes
+# for an existing install; "project" leaves the operator's user settings
+# out. An explicitly empty value omits the flag.
+AGENT_SETTING_SOURCES="${AGENT_SETTING_SOURCES-user,project,local}"
+AGENT_SETTINGS_FILE="${AGENT_SETTINGS_FILE:-}"     # a repo's own base settings JSON (absolute, or relative to the config directory)
+# Issues and pull requests the issue text refers to are pre-fetched into
+# .agent-data/context/references/. 0 turns it off.
+AGENT_CONTEXT_REFS_MAX="${AGENT_CONTEXT_REFS_MAX:-10}"
+
 # ─── Phase environment (#142) ────────────────────────────────────
 # Phases are launched without the dispatcher's credentials (the list is
 # AGENT_PHASE_CREDENTIAL_VARS in lib/agent.sh). Space-separated names.

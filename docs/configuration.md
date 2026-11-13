@@ -321,11 +321,16 @@ Four independent controls on how each phase invokes the CLI. **Every one is opti
 | `AGENT_PERMISSION_PROMPTS` | `none` | `--permission-prompts` target for Claude phases: `none`, `host`, or empty to omit the flag |
 | `AGENT_BG_WAIT_CEILING_MS_<PHASE>` | *(unset — uses the global)* | background-wait ceiling for that phase, in milliseconds |
 | `AGENT_BG_WAIT_CEILING_MS` | `600000` | exported to Claude phases as `CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS`; empty leaves the CLI's own ceiling |
+| `AGENT_SETTING_SOURCES` | `user,project,local` | `--setting-sources` for Claude phases: which settings layers are read besides the pipeline's own file. Empty omits the flag |
+| `AGENT_SETTINGS_FILE` | *(empty)* | a settings JSON of your own that each phase's generated settings file is built on (absolute, or relative to the config directory) |
+| `AGENT_CONTEXT_REFS_MAX` | `10` | how many issues and pull requests referenced by the issue text are pre-fetched into `.agent-data/context/references/`; `0` turns it off |
 | `AGENT_PHASE_SCRUB_ENV` | *(empty)* | space-separated names of further variables to remove from every phase's environment |
 | `AGENT_PHASE_KEEP_ENV` | *(empty)* | space-separated names to leave in a phase's environment despite the built-in list |
 
 Notes:
 - **Phases are launched without the dispatcher's credentials** — `GH_TOKEN`, `GITHUB_TOKEN`, `AGENT_GIST_PAT`, the notification webhooks and bot tokens, for both worker engines. The dispatcher keeps them and does all GitHub work itself. A custom prompt that calls `gh` inside a phase will find no token: move that step into the dispatcher's flow, or name the variable in `AGENT_PHASE_KEEP_ENV` and accept that every phase can then read it. The full list and the limits are in [security.md](security.md#phase-environment).
+- **Each Claude phase runs on a settings file the pipeline writes** and passes with `--settings`. It holds the phase's allowed tools as `permissions.allow` and `AGENT_DISALLOWED_TOOLS` as `permissions.deny`; the rules are no longer passed as `--allowedTools` and `--disallowedTools`. The file is created for one phase run and removed afterwards. `AGENT_SETTINGS_FILE` names a JSON file of your own to build it on, for anything else a phase should have (hooks, `env`, `enabledPlugins`, further rules); the phase's rules are appended to whatever that file already lists.
+- **`AGENT_SETTING_SOURCES`** chooses the other settings layers a phase reads. The default, `user,project,local`, is what the CLI does when the flag is absent, so an existing install is unchanged. **`project` is the recommended value**: a phase then stops reading the operator's user settings, so its behaviour no longer depends on which rules, hooks and plugins one person's machine has collected. Checked against CLI 2.1.323 with `project`: plugins enabled in user settings and skills under the user's `~/.claude/skills` are not loaded; auto-memory, the project's `CLAUDE.md`, project skills and the login still are. If your phases rely on a user-level plugin or skill, enable it for them through `AGENT_SETTINGS_FILE` or the project's own `.claude/` before switching. Managed (policy) settings always apply.
 - **Budget is deliberately limitless by default** — turns (`AGENT_MAX_TURNS`) and the timeout still bound every phase; a dollar cap is the operator's choice. Turns and dollars are not interchangeable bounds: a phase can be cheap and long or short and expensive. If you set caps, size generously for write phases — a revision that runs out mid-way (work committed, reply unfinished) is worse than one that never started.
 - Without `AGENT_MCP_CONFIG`/`AGENT_STRICT_MCP`, a phase run on a machine with user-level MCP servers silently inherits them. This matters most in orchestrator mode, where inheritance is otherwise the point: *inherit identity, memory and skills; gate the tool surface explicitly.*
 - A workable effort/permission spread from a reference implementation: `dontAsk` for read-only phases (triage, reviews, cleanup), `acceptEdits` for writers (implement, test-fix, retry, revision); effort `high` for triage/review, `xhigh` for implement/retry/revision.
@@ -617,7 +622,7 @@ jobs:
 
 ## Tool Permissions
 
-Tool permissions control which Claude Code tools the agent can use during each phase. They are passed to `claude -p` via `--allowedTools` and `--disallowedTools`.
+Tool permissions control which Claude Code tools the agent can use during each phase. They are written as `permissions.allow` and `permissions.deny` rules in the settings file each phase is launched with (`claude -p --settings`).
 
 ### AGENT_ALLOWED_TOOLS_TRIAGE
 
@@ -752,14 +757,60 @@ jobs:
 
 ---
 
-## Environment Variables Set by the Dispatch Script
+## Phase Context Files
 
-The dispatch script exports these environment variables before invoking `claude -p`. Your prompts (both default and custom) can reference them:
+Before every phase the dispatch script writes what the phase needs to know into `.agent-data/context/` in the worktree. Prompts (default and custom) tell the agent to read these files with the Read tool. A value that is empty has no file. The directory is excluded from `git add` and is rebuilt for each phase.
 
-### Issue Context (triage, reply, implement phases)
+### Issue Context (triage, reply, validate, implement and the review gates)
 
-| Variable | Content |
-|----------|---------|
+| File | Content |
+|------|---------|
+| `issue-title.txt` | Issue title |
+| `issue-body.md` | Issue body (full markdown) |
+| `comments.md` | Last 20 issue comments, formatted as `[author] body` |
+| `issue-number.txt` | Issue number (implement and cleanup phases) |
+| `plan.md` | The approved plan comment body (implement phase), or the issue body (direct implement) |
+| `references/<number>.md` | One file per issue or pull request of this repository that the text refers to (`#123` or its URL): title, type, state and body. Bounded by `AGENT_CONTEXT_REFS_MAX` |
+
+### Attached Data (validate, implement and review phases)
+
+| File | Content |
+|------|---------|
+| `attached-data.md` | Index of what was downloaded: the path of the latest data comment, the paths of downloaded gist and attachment files, and the path of the download-errors file. Absent when nothing was attached |
+
+### PR Context (review phase)
+
+| File | Content |
+|------|---------|
+| `pr-title.txt` | PR title |
+| `pr-body.md` | PR body/description |
+| `reviews.md` | Review submissions, formatted as `[author] (state): body` |
+| `review-comments.md` | Inline code comments, formatted as `[author] on file:line: body` |
+| `pr-comments.md` | PR conversation comments, formatted as `[author]: body` |
+| `commit-history.txt` | `git log --oneline origin/main..HEAD` on the PR branch |
+
+### Gates and Cleanup
+
+| File | Content |
+|------|---------|
+| `review-ledger.json` | The review findings ledger (post-implementation review, retry and cleanup) |
+| `review-concerns.md` | The open blocking findings a retry session must address |
+| `test-output.txt` | The last 100 lines of a failing test gate (test-fix phase) |
+| `test-exit-code.txt` | That run's exit code |
+| `merged-branch.txt` | The merged branch (cleanup phase) |
+
+### Test Command
+
+| File | Content |
+|------|---------|
+| `test-command.txt` | The test command from config (`AGENT_TEST_COMMAND`) |
+| `test-setup-command.txt` | The setup command from config (`AGENT_TEST_SETUP_COMMAND`) |
+
+### Environment Variables (deprecated)
+
+The same values are still exported as `AGENT_*` environment variables (`AGENT_ISSUE_TITLE`, `AGENT_ISSUE_BODY`, `AGENT_COMMENTS`, `AGENT_PLAN_CONTENT`, `AGENT_PR_BODY` and the rest) for custom prompts written against them. They will be removed in a later release: reading one needs a shell command and an allow rule that matches it, which is the dependency the files remove. Move custom prompts to the files.
+
+----------|---------|
 | `$AGENT_ISSUE_TITLE` | Issue title |
 | `$AGENT_ISSUE_BODY` | Issue body (full markdown) |
 | `$AGENT_COMMENTS` | Last 20 issue comments, formatted as `[author] body` |

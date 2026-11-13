@@ -1,9 +1,10 @@
 You are reviewing a conversation on a GitHub issue for this repository.
 
-Read the issue details from environment variables:
-- Run: echo "$AGENT_ISSUE_TITLE" for the title
-- Run: echo "$AGENT_ISSUE_BODY" for the description
-- Run: echo "$AGENT_COMMENTS" for the conversation
+Read the issue details from these files with the Read tool. A file that does not exist means there is nothing of that kind.
+- Read `.agent-data/context/issue-title.txt` for the title
+- Read `.agent-data/context/issue-body.md` for the description
+- Read `.agent-data/context/comments.md` for the conversation
+- Issues and pull requests that text refers to (`#123`) are pre-fetched, one file per number, under `.agent-data/context/references/` when there are any. Read the ones that matter.
 
 ## Instructions
 You previously asked clarifying questions on this issue. A human has replied.
