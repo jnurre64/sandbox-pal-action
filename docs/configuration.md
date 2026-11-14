@@ -305,6 +305,15 @@ Maximum number of bot comments allowed per hour on a single issue. If the limit 
 AGENT_CIRCUIT_BREAKER_LIMIT=8
 ```
 
+### AGENT_CLAUDE_AUTH_REFRESH_RETRIES
+
+When several Claude CLI processes on one machine refresh the stored login at the same moment, one of them can fail at startup with "Failed to refresh OAuth token" before any session begins. The dispatcher recognises that exact failure and launches the same phase again after a wait. Revoked credentials, usage limits and every other error are not retried.
+
+| Key | Default | Type |
+|-----|---------|------|
+| `AGENT_CLAUDE_AUTH_REFRESH_RETRIES` | `2` | integer, `0` to `2` |
+| `AGENT_CLAUDE_AUTH_REFRESH_DELAY_SECONDS` | `60` | positive integer (seconds) |
+
 ### AGENT_DISPATCH_PAUSED
 
 A pause switch for the whole install. With any value other than `false`, every dispatch except `status` exits at once with outcome `paused` and exit code 0. It happens before the dispatch lock is taken: no label changes, nothing is posted, no worker starts. Set it in `config.env` to stop a machine's pipeline during maintenance, or in the environment for one command.

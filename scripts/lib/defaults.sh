@@ -21,6 +21,12 @@ AGENT_TIMEOUT="${AGENT_TIMEOUT:-3600}"
 # Circuit breaker: max bot comments per hour per issue
 AGENT_CIRCUIT_BREAKER_LIMIT="${AGENT_CIRCUIT_BREAKER_LIMIT:-8}"
 
+# Retry only the CLI's shared OAuth refresh-lock race, inside the same phase.
+# Not revoked credentials, usage limits, permission errors or model work.
+# 0 to 2 retries; the delay is in seconds.
+AGENT_CLAUDE_AUTH_REFRESH_RETRIES="${AGENT_CLAUDE_AUTH_REFRESH_RETRIES:-2}"
+AGENT_CLAUDE_AUTH_REFRESH_DELAY_SECONDS="${AGENT_CLAUDE_AUTH_REFRESH_DELAY_SECONDS:-60}"
+
 # Operator pause: any value other than false makes every dispatch except
 # `status` exit at once with outcome "paused", before the lock is taken.
 AGENT_DISPATCH_PAUSED="${AGENT_DISPATCH_PAUSED:-false}"
