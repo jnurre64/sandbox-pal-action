@@ -21,6 +21,10 @@ AGENT_TIMEOUT="${AGENT_TIMEOUT:-3600}"
 # Circuit breaker: max bot comments per hour per issue
 AGENT_CIRCUIT_BREAKER_LIMIT="${AGENT_CIRCUIT_BREAKER_LIMIT:-8}"
 
+# Operator pause: any value other than false makes every dispatch except
+# `status` exit at once with outcome "paused", before the lock is taken.
+AGENT_DISPATCH_PAUSED="${AGENT_DISPATCH_PAUSED:-false}"
+
 # Shared Claude memory file (optional)
 AGENT_MEMORY_FILE="${AGENT_MEMORY_FILE:-}"
 

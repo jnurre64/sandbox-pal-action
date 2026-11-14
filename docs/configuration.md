@@ -305,6 +305,14 @@ Maximum number of bot comments allowed per hour on a single issue. If the limit 
 AGENT_CIRCUIT_BREAKER_LIMIT=8
 ```
 
+### AGENT_DISPATCH_PAUSED
+
+A pause switch for the whole install. With any value other than `false`, every dispatch except `status` exits at once with outcome `paused` and exit code 0. It happens before the dispatch lock is taken: no label changes, nothing is posted, no worker starts. Set it in `config.env` to stop a machine's pipeline during maintenance, or in the environment for one command.
+
+| Key | Default | Type |
+|-----|---------|------|
+| `AGENT_DISPATCH_PAUSED` | `false` | `false`, or anything else to pause |
+
 ### Per-Phase Invocation Flags
 
 Four independent controls on how each phase invokes the CLI. **Every one is optional and defaults to current behaviour.** Phase suffixes match the model-override vars: `TRIAGE`, `REPLY`, `IMPLEMENT`, `VALIDATE`, `REVIEW` (PR revision), `CLEANUP`, `ADVERSARIAL_PLAN`, `TEST_FIX`, `POST_IMPL_REVIEW`, `POST_IMPL_RETRY`.

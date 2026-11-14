@@ -17,6 +17,7 @@ DISPATCH_OUTCOME=""
 DISPATCH_STARTED=""
 DISPATCH_PR_URL=""
 DISPATCH_LOCK_REFUSED=""
+DISPATCH_MUTEX_FD=""
 
 _lock_path() {
     echo "${AGENT_LOCK_DIR}/${REPO_NAME}-${NUMBER}.lock"
@@ -38,16 +39,31 @@ acquire_dispatch_lock() {
     local lock
     lock=$(_lock_path)
     mkdir -p "$AGENT_LOCK_DIR"
+    # Serialize the check-and-write below: two dispatches fired at the same
+    # moment could both see no live holder and both write the lock. The
+    # descriptor is held for the dispatch's lifetime and closes with the
+    # process. Where flock is not installed the pid check alone applies.
+    if command -v flock >/dev/null 2>&1; then
+        exec {DISPATCH_MUTEX_FD}>"${lock}.mutex"
+        if ! flock -n "$DISPATCH_MUTEX_FD"; then
+            log "Dispatch lock is being held by a live run — refusing. Lock: ${lock}"
+            exec {DISPATCH_MUTEX_FD}>&-
+            DISPATCH_MUTEX_FD=""
+            return 1
+        fi
+    fi
     if [ -f "$lock" ]; then
         local held_pid held_host
         held_pid=$(jq -r '.pid // empty' "$lock" 2>/dev/null)
         held_host=$(jq -r '.host // empty' "$lock" 2>/dev/null)
         if [ "$held_host" != "$(hostname)" ]; then
             log "Dispatch lock held by another host (${held_host:-unknown}, pid ${held_pid:-unknown}) — refusing. Lock: ${lock}"
+            _release_dispatch_mutex
             return 1
         fi
         if [ -n "$held_pid" ] && ps -p "$held_pid" >/dev/null 2>&1; then
             log "Dispatch lock held by a live run (pid ${held_pid}, phase $(jq -r '.phase // "?"' "$lock"), started $(jq -r '.started // "?"' "$lock")) — refusing. Lock: ${lock}"
+            _release_dispatch_mutex
             return 1
         fi
         log "Reclaiming stale dispatch lock (pid ${held_pid:-unknown} is dead). Lock: ${lock}"
@@ -84,8 +100,17 @@ release_dispatch_lock() {
     [ -f "$lock" ] || return 0
     if [ "$(jq -r '.pid // empty' "$lock" 2>/dev/null)" = "$$" ]; then
         rm -f "$lock"
+        _release_dispatch_mutex
     fi
     return 0
+}
+
+# Close the mutex descriptor taken in acquire_dispatch_lock, if any.
+_release_dispatch_mutex() {
+    if [ -n "${DISPATCH_MUTEX_FD:-}" ]; then
+        exec {DISPATCH_MUTEX_FD}>&-
+        DISPATCH_MUTEX_FD=""
+    fi
 }
 
 # The run's own outcome record, written before the process exits on

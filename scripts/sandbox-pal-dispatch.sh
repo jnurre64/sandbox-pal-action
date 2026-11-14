@@ -943,6 +943,16 @@ if [ "$EVENT_TYPE" = "status" ]; then
     exit 0
 fi
 
+# An operator pause wins over labels, retries and standing instructions: the
+# dispatch does nothing, changes no label and posts no failure. It runs
+# before the lock so a paused install never reclaims or writes one.
+if [ "${AGENT_DISPATCH_PAUSED:-false}" != "false" ]; then
+    # shellcheck disable=SC2034  # read by emit_orchestrator_result
+    DISPATCH_OUTCOME="paused"
+    log "Dispatch refused — AGENT_DISPATCH_PAUSED is set. Unset it (or set it to false) to resume."
+    exit 0
+fi
+
 # One dispatch per issue. A refused lock is a controlled no-op: the
 # holder is named in the log, and a stale lock was already reclaimed
 # inside acquire_dispatch_lock.

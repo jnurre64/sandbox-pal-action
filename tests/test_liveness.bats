@@ -152,3 +152,58 @@ _dead_pid() {
     grep -q "acquire_dispatch_lock" "${SCRIPTS_DIR}/sandbox-pal-dispatch.sh"
     grep -q "set_heartbeat" "${SCRIPTS_DIR}/lib/review-gates.sh"
 }
+
+@test "acquire_dispatch_lock: refuses while another process holds the lock's mutex" {
+    command -v flock >/dev/null || skip "flock not installed"
+    _source_liveness
+    mkdir -p "$AGENT_LOCK_DIR"
+    local lock="${AGENT_LOCK_DIR}/${REPO_NAME}-${NUMBER}.lock"
+    # Another dispatch is between its check and its write: it holds the mutex
+    # and has not written the lock file yet.
+    flock -n "${lock}.mutex" sleep 5 &
+    local holder=$!
+    local i
+    for i in 1 2 3 4 5 6 7 8 9 10; do [ -e "${lock}.mutex" ] && break; sleep 0.1; done
+    sleep 0.2
+
+    run acquire_dispatch_lock
+    kill "$holder" 2>/dev/null || true
+    assert_failure
+    assert_output --partial "refusing"
+    [ ! -f "$lock" ]
+}
+
+@test "acquire_dispatch_lock: the mutex is free again after release" {
+    command -v flock >/dev/null || skip "flock not installed"
+    _source_liveness
+    acquire_dispatch_lock
+    release_dispatch_lock
+    [ -z "$DISPATCH_MUTEX_FD" ]
+    flock -n "${AGENT_LOCK_DIR}/${REPO_NAME}-${NUMBER}.lock.mutex" true
+}
+
+@test "dispatch: AGENT_DISPATCH_PAUSED exits with outcome paused before the lock, GitHub or a worker" {
+    mkdir -p "$TEST_TEMP_DIR/install"
+    cp -R "$SCRIPTS_DIR" "$TEST_TEMP_DIR/install/scripts"
+    create_mock gh ''
+    create_mock claude 'unexpected worker'
+    run env HOME="$TEST_TEMP_DIR/home" AGENT_DISPATCH_PAUSED=true AGENT_EXECUTION_MODE=orchestrator \
+        bash "$TEST_TEMP_DIR/install/scripts/sandbox-pal-dispatch.sh" implement test-org/test-repo 99
+    assert_success
+    echo "${lines[${#lines[@]}-1]}" | jq -e '.outcome == "paused" and .exit_code == 0'
+    [ ! -f "$AGENT_LOG_DIR/locks/test-repo-99.lock" ]
+    [ ! -f "$AGENT_LOG_DIR/locks/test-repo-99-last-dispatch.json" ]
+    [ ! -f "$TEST_TEMP_DIR/mock_calls_claude" ]
+    [ ! -f "$TEST_TEMP_DIR/mock_calls_gh" ]
+}
+
+@test "dispatch: status still answers while paused" {
+    mkdir -p "$TEST_TEMP_DIR/install"
+    cp -R "$SCRIPTS_DIR" "$TEST_TEMP_DIR/install/scripts"
+    create_mock gh ''
+    run env HOME="$TEST_TEMP_DIR/home" AGENT_DISPATCH_PAUSED=true AGENT_EXECUTION_MODE=orchestrator \
+        bash "$TEST_TEMP_DIR/install/scripts/sandbox-pal-dispatch.sh" status test-org/test-repo 99
+    assert_success
+    echo "${lines[${#lines[@]}-1]}" | jq -e '.outcome != "paused"'
+    refute_output --partial "AGENT_DISPATCH_PAUSED"
+}
