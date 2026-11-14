@@ -842,3 +842,43 @@ _setup_test_gate() {
     assert_failure
     [ -f "${TEST_TEMP_DIR}/preserve_calls" ]
 }
+
+# ─── Failures that used to be warnings ───────────────────────────
+@test "test gate: a failing setup command fails the gate without running the suite or a fix session" {
+    _setup_test_gate
+    export AGENT_TEST_SETUP_COMMAND="echo setup-broke; false"
+    export AGENT_TEST_COMMAND="touch ${TEST_TEMP_DIR}/suite_ran"
+    engine_claude() { echo "session" >> "${TEST_TEMP_DIR}/claude_calls"; echo '{"result":"x"}'; }
+    run run_test_gate "Read,Edit" "Test issue"
+    assert_failure
+    assert_output --partial "the test setup command failed"
+    [ ! -f "${TEST_TEMP_DIR}/suite_ran" ]
+    [ ! -f "${TEST_TEMP_DIR}/claude_calls" ]
+    grep -q 'agent:failed' "${TEST_TEMP_DIR}/mock_calls_gh"
+}
+
+@test "ledger: a rejected ledger commit is a failure, and nothing to commit is not" {
+    _setup_test_gate
+    _ledger_init
+    _ledger_commit "first"
+    # Unchanged since the last commit: success, no new commit
+    local before
+    before=$(git -C "$WORKTREE_DIR" rev-parse HEAD)
+    _ledger_commit "again"
+    [ "$(git -C "$WORKTREE_DIR" rev-parse HEAD)" = "$before" ]
+    # A commit hook that rejects everything
+    printf '#!/bin/sh\nexit 1\n' > "$WORKTREE_DIR/.git/hooks/pre-commit"
+    chmod +x "$WORKTREE_DIR/.git/hooks/pre-commit"
+    _ledger_merge_review '{"findings":[{"severity":"blocking","description":"x","location":"a:1"}]}'
+    run _ledger_commit "rejected"
+    assert_failure
+}
+
+@test "ledger: gate_metadata_failure pushes the branch, tells the issue and sets agent:failed" {
+    _setup_test_gate
+    run gate_metadata_failure "The review ledger could not be committed"
+    assert_output --partial "ERROR: The review ledger could not be committed"
+    [ -f "${TEST_TEMP_DIR}/preserve_calls" ]
+    grep -q 'issue comment' "${TEST_TEMP_DIR}/mock_calls_gh"
+    grep -q 'agent:failed' "${TEST_TEMP_DIR}/mock_calls_gh"
+}

@@ -144,10 +144,27 @@ _ledger_outstanding_summary() {
 # review loop) — but a silent `|| true` made every failure invisible.
 _ledger_commit() {
     local msg="$1"
-    git -C "$WORKTREE_DIR" add -f "$LEDGER_FILE" 2>/dev/null \
-        || log "WARN: ledger add failed for ${LEDGER_FILE}"
-    git -C "$WORKTREE_DIR" commit -m "chore(agent): review ledger — ${msg}" -- "$LEDGER_FILE" 2>/dev/null \
-        || log "WARN: ledger commit failed (${msg})"
+    # Nothing to record is not a failure.
+    if git -C "$WORKTREE_DIR" ls-files --error-unmatch "$LEDGER_FILE" >/dev/null 2>&1 &&
+        git -C "$WORKTREE_DIR" diff --quiet HEAD -- "$LEDGER_FILE" 2>/dev/null; then
+        return 0
+    fi
+    git -C "$WORKTREE_DIR" add -f "$LEDGER_FILE" 2>/dev/null &&
+        git -C "$WORKTREE_DIR" commit -m "chore(agent): review ledger — ${msg}" -- "$LEDGER_FILE" 2>/dev/null
+}
+
+# A review ledger or rules commit that fails (a rejecting commit hook, a full
+# disk) must not let a PR go out without its review record. Stop the dispatch
+# visibly: the branch is pushed, the issue is told, the label says failed.
+gate_metadata_failure() {
+    local what="$1"
+    log "ERROR: ${what}; stopping before a PR is created or updated."
+    preserve_branch || true
+    gh issue comment "$NUMBER" --repo "$REPO" \
+        --body "## Agent stopped: could not record its work
+
+${what}. The pipeline stopped instead of publishing without it. Commits made so far are pushed to \`${BRANCH_NAME}\`. Check the repository's commit hooks and the machine's disk, then re-dispatch." 2>/dev/null || true
+    set_label "agent:failed"
 }
 
 # ─── Gate A: Adversarial Plan Review ────────────────────────────
@@ -276,7 +293,12 @@ run_test_gate() {
     while true; do
         if [ -n "${AGENT_TEST_SETUP_COMMAND:-}" ]; then
             log "Running test setup: $AGENT_TEST_SETUP_COMMAND"
-            (cd "$WORKTREE_DIR" && eval "$AGENT_TEST_SETUP_COMMAND") 2>&1 || log "WARN: Test setup command exited with non-zero (continuing)"
+            # A suite run on a checkout whose setup failed proves nothing,
+            # and a fix session cannot repair the machine: stop the gate.
+            if ! test_output=$(cd "$WORKTREE_DIR" && eval "$AGENT_TEST_SETUP_COMMAND" 2>&1); then
+                stop_reason="the test setup command failed"
+                break
+            fi
         fi
 
         log "Running pre-PR test gate (attempt $((attempt + 1)))..."
@@ -471,15 +493,20 @@ run_post_impl_retry_session() {
 
     # Re-run tests if configured (a retry must never ship a red suite)
     if [ -n "$AGENT_TEST_COMMAND" ]; then
+        local test_output="" test_exit=0
         if [ -n "${AGENT_TEST_SETUP_COMMAND:-}" ]; then
-            (cd "$WORKTREE_DIR" && eval "$AGENT_TEST_SETUP_COMMAND") 2>&1 || log "WARN: Test setup command exited with non-zero (continuing)"
+            # A failed setup counts as a failed suite: it cannot have passed.
+            test_output=$(cd "$WORKTREE_DIR" && eval "$AGENT_TEST_SETUP_COMMAND" 2>&1) || test_exit=1
+            [ "$test_exit" -eq 0 ] || test_output="Test setup command failed:
+${test_output}"
         fi
-        log "Review loop retry: re-running tests..."
-        local test_output test_exit
-        set +e
-        test_output=$(cd "$WORKTREE_DIR" && eval "$AGENT_TEST_COMMAND" 2>&1)
-        test_exit=$?
-        set -e
+        if [ "$test_exit" -eq 0 ]; then
+            log "Review loop retry: re-running tests..."
+            set +e
+            test_output=$(cd "$WORKTREE_DIR" && eval "$AGENT_TEST_COMMAND" 2>&1)
+            test_exit=$?
+            set -e
+        fi
         if [ "$test_exit" -ne 0 ]; then
             log "Review loop retry: tests failed after retry"
             preserve_branch || true
@@ -546,7 +573,10 @@ run_post_impl_review_loop() {
             return 1
         fi
         _ledger_merge_review "$POST_IMPL_REVIEW_JSON"
-        _ledger_commit "review pass $((retries + 1))"
+        if ! _ledger_commit "review pass $((retries + 1))"; then
+            gate_metadata_failure "The review ledger could not be committed"
+            return 1
+        fi
 
         local open
         open=$(_ledger_blocking_open_count)
@@ -566,6 +596,9 @@ run_post_impl_review_loop() {
             return 1
         fi
         _ledger_apply_dispositions "$RETRY_DISPOSITIONS_JSON"
-        _ledger_commit "retry ${retries} dispositions"
+        if ! _ledger_commit "retry ${retries} dispositions"; then
+            gate_metadata_failure "The review ledger could not be committed"
+            return 1
+        fi
     done
 }

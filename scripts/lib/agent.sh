@@ -134,17 +134,48 @@ run_agent() (
         agent_failure "$phase" configuration 'Cannot create worker capture file'
         return
     }
-    raw=$(engine_claude "$prompt" "$allowed_tools" "$model" "$schema_json" "$phase" "$(jq -c .policy <<< "$resolved")" 2>"$stderr_log") || exit_code=$?
-    error=$(redact_secrets < "$stderr_log")
-    printf '%s\n' "$error" > "$stderr_log"
-    # The normalizer scrubs decoded fields before schema validation and JSON
-    # serialization, so escaped credentials cannot evade capture redaction.
-    if normalized=$(printf '%s' "$raw" | python3 "${AGENT_LIB_DIR}/agent-result.py" normalize "$phase" "$exit_code" "$schema_json" "$stderr_log" 2>/dev/null); then
-        printf '%s\n' "$normalized"
-    else
-        agent_failure "$phase" transport 'Unable to normalize worker result'
+    local refresh_attempt=0
+    local refresh_retries="${AGENT_CLAUDE_AUTH_REFRESH_RETRIES:-2}"
+    local refresh_delay="${AGENT_CLAUDE_AUTH_REFRESH_DELAY_SECONDS:-60}"
+    if [[ ! "$refresh_retries" =~ ^[0-2]$ ]]; then
+        agent_failure "$phase" configuration 'AGENT_CLAUDE_AUTH_REFRESH_RETRIES must be an integer from 0 through 2'
+        return
     fi
+    if [[ ! "$refresh_delay" =~ ^[0-9]+$ ]] || [[ "$refresh_delay" =~ ^0+$ ]]; then
+        agent_failure "$phase" configuration 'AGENT_CLAUDE_AUTH_REFRESH_DELAY_SECONDS must be a positive integer'
+        return
+    fi
+    while :; do
+        : > "$stderr_log"
+        raw='' exit_code=0
+        raw=$(engine_claude "$prompt" "$allowed_tools" "$model" "$schema_json" "$phase" "$(jq -c .policy <<< "$resolved")" 2>"$stderr_log") || exit_code=$?
+        error=$(redact_secrets < "$stderr_log")
+        printf '%s\n' "$error" > "$stderr_log"
+        # The normalizer scrubs decoded fields before schema validation and JSON
+        # serialization, so escaped credentials cannot evade capture redaction.
+        if ! normalized=$(printf '%s' "$raw" | python3 "${AGENT_LIB_DIR}/agent-result.py" normalize "$phase" "$exit_code" "$schema_json" "$stderr_log" 2>/dev/null); then
+            agent_failure "$phase" transport 'Unable to normalize worker result'
+            return
+        fi
+        # The CLI lost a startup race for its shared OAuth refresh lock. No
+        # session started, so the same phase is launched again after a wait.
+        if jq -e '.error.kind == "auth_refresh_contention"' <<< "$normalized" >/dev/null 2>&1 \
+                && [ "$refresh_attempt" -lt "$refresh_retries" ]; then
+            refresh_attempt=$((refresh_attempt + 1))
+            printf 'Claude OAuth refresh contention; retrying the %s phase (%d/%d) after %ss.\n' \
+                "$phase" "$refresh_attempt" "$refresh_retries" "$refresh_delay" >&2
+            agent_claude_auth_refresh_wait "$refresh_delay"
+            continue
+        fi
+        printf '%s\n' "$normalized"
+        return
+    done
 )
+
+# A function so tests can replace the wait.
+agent_claude_auth_refresh_wait() {
+    sleep "$1"
+}
 
 agent_failure() {
     jq -cn --arg phase "$1" --arg kind "$2" --arg message "$3" --arg engine "${4:-claude}" '{

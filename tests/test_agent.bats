@@ -226,6 +226,7 @@ _source_handlers() {
     setup_worktree() { mkdir -p "$WORKTREE_DIR/.agent-data"; }
     run_worktree_setup() { mkdir -p "$WORKTREE_DIR/.agent-data"; }
     cleanup_worktree() { echo cleaned >> "$TEST_TEMP_DIR/cleaned"; }
+    retire_worktree() { :; }
     extract_debug_data() { :; }
     extract_plan_branch() { :; }
     stage_rules_files() { :; }
@@ -328,4 +329,65 @@ _source_handlers() {
     for file in scripts/lib/agent.sh scripts/lib/engine-claude.sh scripts/lib/engine-codex.sh scripts/lib/agent-result.py scripts/lib/codex-worker.py scripts/requirements-worker.txt; do
         [[ "$inventory" == *"$file"* ]]
     done
+}
+
+# ─── OAuth refresh-lock race: retried inside the same phase ─────────────────
+REFRESH_RACE='{"is_error":true,"subtype":"success","terminal_reason":"api_error","result":"Failed to refresh OAuth token: another Claude Code process is refreshing it or exited mid-refresh."}'
+
+_source_refresh_agent() {
+    _source_agent
+    agent_claude_auth_refresh_wait() { printf '%s\n' "$1" >> "${TEST_TEMP_DIR}/waits"; }
+    # Fail with the refresh race FAIL_TIMES times, then succeed.
+    engine_claude() {
+        local calls
+        printf 'called\n' >> "${TEST_TEMP_DIR}/worker_calls"
+        calls=$(wc -l < "${TEST_TEMP_DIR}/worker_calls")
+        if [ "$calls" -le "${FAIL_TIMES:-1}" ]; then printf '%s' "$REFRESH_RACE"; else printf '%s' '{"subtype":"success","result":"done"}'; fi
+    }
+}
+
+@test "agent: an OAuth refresh-lock race is retried in the same phase and then succeeds" {
+    _source_refresh_agent
+    FAIL_TIMES=1 run run_agent prompt
+    echo "${lines[${#lines[@]}-1]}" | jq -e '.status == "success"'
+    [ "$(wc -l < "${TEST_TEMP_DIR}/worker_calls")" -eq 2 ]
+    [ "$(cat "${TEST_TEMP_DIR}/waits")" = "60" ]
+}
+
+@test "agent: the refresh retry is bounded and then reports its own error kind, which stops the phase" {
+    _source_refresh_agent
+    FAIL_TIMES=9 run run_agent prompt
+    local result="${lines[${#lines[@]}-1]}"
+    echo "$result" | jq -e '.status == "failed" and .error.kind == "auth_refresh_contention"'
+    [ "$(wc -l < "${TEST_TEMP_DIR}/worker_calls")" -eq 3 ]
+    run classify_agent_result "$result"
+    assert_output fail_fast
+}
+
+@test "agent: AGENT_CLAUDE_AUTH_REFRESH_RETRIES=0 turns the retry off; invalid values are a configuration error" {
+    _source_refresh_agent
+    AGENT_CLAUDE_AUTH_REFRESH_RETRIES=0 FAIL_TIMES=1 run run_agent prompt
+    echo "${lines[${#lines[@]}-1]}" | jq -e '.error.kind == "auth_refresh_contention"'
+    [ "$(wc -l < "${TEST_TEMP_DIR}/worker_calls")" -eq 1 ]
+    rm -f "${TEST_TEMP_DIR}/worker_calls"
+    AGENT_CLAUDE_AUTH_REFRESH_RETRIES=5 run run_agent prompt
+    echo "$output" | jq -e '.error.kind == "configuration"'
+    AGENT_CLAUDE_AUTH_REFRESH_DELAY_SECONDS=0 run run_agent prompt
+    echo "$output" | jq -e '.error.kind == "configuration"'
+    [ ! -f "${TEST_TEMP_DIR}/worker_calls" ]
+}
+
+@test "agent: real auth failures and look-alike text are not retried" {
+    _source_agent
+    agent_claude_auth_refresh_wait() { printf 'waited\n' >> "${TEST_TEMP_DIR}/waits"; }
+    for FIXTURE in \
+        '{"is_error":true,"subtype":"error_auth","terminal_reason":"api_error","result":"Authentication failed: not logged in"}' \
+        '{"is_error":true,"subtype":"error_max_turns","terminal_reason":"max_turns","result":"Stopped after max turns. Earlier log: Failed to refresh OAuth token: another Claude Code process is refreshing it or exited mid-refresh."}' \
+        '{"is_error":true,"subtype":"success","terminal_reason":"api_error","result":"another Claude Code process is refreshing a cache"}'; do
+        rm -f "${TEST_TEMP_DIR}/worker_calls"
+        run run_agent prompt
+        echo "$output" | jq -e '.status == "failed" and .error.kind != "auth_refresh_contention"'
+        [ "$(wc -l < "${TEST_TEMP_DIR}/worker_calls")" -eq 1 ]
+    done
+    [ ! -f "${TEST_TEMP_DIR}/waits" ]
 }

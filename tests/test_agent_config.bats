@@ -228,3 +228,23 @@ MOCK
     [ ! -f "$TEST_TEMP_DIR/mock_calls_gh" ]
     [ ! -f "$AGENT_LOG_DIR/locks/test-repo-99-last-dispatch.json" ]
 }
+
+@test "reachable phases: a PR revision can reach TEST_FIX when its test gate is on" {
+    _source_config
+    AGENT_TEST_COMMAND="make test" run agent_reachable_phases pr_review
+    assert_line REVIEW
+    assert_line TEST_FIX
+    AGENT_TEST_COMMAND="make test" AGENT_REVISION_TEST_GATE=false run agent_reachable_phases pr_review
+    refute_line TEST_FIX
+    AGENT_TEST_COMMAND="" run agent_reachable_phases pr_review
+    refute_line TEST_FIX
+}
+
+@test "pr_review: the revision test gate runs before the push and reports on the linked issue" {
+    local body gate push
+    body=$(sed -n '/^handle_pr_review()/,/^}/p' "${SCRIPTS_DIR}/sandbox-pal-dispatch.sh")
+    gate=$(grep -n 'NUMBER="\$issue_num" run_test_gate' <<< "$body" | head -1 | cut -d: -f1)
+    push=$(grep -n 'push origin "\$branch"' <<< "$body" | head -1 | cut -d: -f1)
+    [ -n "$gate" ] && [ -n "$push" ] && [ "$gate" -lt "$push" ]
+    grep -q 'AGENT_REVISION_TEST_GATE' <<< "$body"
+}

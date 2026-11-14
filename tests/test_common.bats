@@ -836,6 +836,7 @@ MOCK
 # ═══════════════════════════════════════════════════════════════
 
 _setup_post_impl() {
+    source "${LIB_DIR}/rules-staging.sh"
     export WORKTREE_DIR="${TEST_TEMP_DIR}/wt"
     export REPO_DIR="${TEST_TEMP_DIR}/repo"
     export BRANCH_NAME="agent/issue-99"

@@ -106,7 +106,18 @@ def normalize(raw, phase, code, schema_text, stderr=""):
         # session/weekly/per-model limits) resets on its own and is named before billing so it
         # is never reported as an exhausted quota; a 429 is named before "quota" because the
         # CLI's own rate-limit wording can carry that substring.
-        if any(word in detail for word in ("unauthorized", "authentication", "invalid api key", "401", "not logged in")):
+        refresh_lock_signature = (
+            str(data.get("terminal_reason", "")).lower() == "api_error"
+            and "failed to refresh oauth token" in detail
+            and ("another claude code process is refreshing" in detail
+                 or "exited mid-refresh" in detail)
+        )
+        if refresh_lock_signature:
+            # Still logged in: the CLI lost a startup race for its shared refresh
+            # lock (several CLI processes on one machine). run_agent retries this
+            # pre-session failure, so it stays distinct from revoked credentials.
+            kind, message = "auth_refresh_contention", "Claude OAuth refresh is temporarily busy"
+        elif any(word in detail for word in ("unauthorized", "authentication", "invalid api key", "401", "not logged in")):
             kind, message = "auth", "API error: authentication failed"
         elif subtype in ("error_max_turns", "error_max_turns_reached", "error_max_budget_usd"):
             # The subtype is authoritative for a cap the harness itself set, whatever the text says.

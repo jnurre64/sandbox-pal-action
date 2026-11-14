@@ -20,7 +20,13 @@ agent_reachable_phases() {
                 implementation=true
             fi ;;
         implement) implementation=true ;;
-        pr_review) echo REVIEW ;;
+        pr_review)
+            echo REVIEW
+            # The revision's test gate can launch fix sessions.
+            if [ "${AGENT_REVISION_TEST_GATE:-true}" = true ] && [ -n "${AGENT_TEST_COMMAND:-}" ] \
+                && [[ ! "${AGENT_TEST_GATE_MAX_RETRIES:-2}" =~ ^0+$ ]]; then
+                echo TEST_FIX
+            fi ;;
         post_merge) [ "${AGENT_CLEANUP_ENABLED:-true}" != true ] || echo CLEANUP ;;
         *) echo 'Unknown dispatch event' >&2; return 1 ;;
     esac
@@ -254,10 +260,11 @@ agent_preflight_dispatch() {
     readonly AGENT_ENGINE_PROFILES
     local name
     for name in AGENT_CODEX_USE_NATIVE_POLICY AGENT_TIMEOUT AGENT_MAX_TURNS AGENT_MAX_TURNS_EXPLICIT AGENT_BUDGET_USD AGENT_EFFORT_LEVEL \
+        AGENT_CLAUDE_AUTH_REFRESH_RETRIES AGENT_CLAUDE_AUTH_REFRESH_DELAY_SECONDS \
         AGENT_MCP_CONFIG AGENT_STRICT_MCP AGENT_SESSION_PERSISTENCE AGENT_ADD_DIRS \
         AGENT_MEMORY_FILE AGENT_MEMORY_DIR AGENT_DISALLOWED_TOOLS AGENT_EXTRA_TOOLS \
         AGENT_ADVERSARIAL_PLAN_REVIEW AGENT_POST_IMPL_REVIEW AGENT_POST_IMPL_REVIEW_MAX_RETRIES \
-        AGENT_TEST_COMMAND AGENT_TEST_SETUP_COMMAND AGENT_TEST_GATE_MAX_RETRIES \
+        AGENT_TEST_COMMAND AGENT_TEST_SETUP_COMMAND AGENT_TEST_GATE_MAX_RETRIES AGENT_REVISION_TEST_GATE \
         AGENT_ALLOW_DIRECT_IMPLEMENT AGENT_CLEANUP_ENABLED; do
         readonly "$name"
     done

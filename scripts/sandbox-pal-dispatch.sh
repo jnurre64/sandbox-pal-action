@@ -422,9 +422,6 @@ handle_implement() {
         git -C "$WORKTREE_DIR" merge origin/main --no-edit 2>/dev/null || true
         run_worktree_setup
     else
-        if [ -d "$WORKTREE_DIR" ]; then
-            git -C "$REPO_DIR" worktree remove "$WORKTREE_DIR" --force 2>/dev/null || true
-        fi
         log "Creating worktree for branch $BRANCH_NAME"
         setup_worktree
     fi
@@ -692,18 +689,16 @@ handle_pr_review() {
     # Remove any existing worktree using this branch (e.g., leftover from implement phase)
     local existing_wt
     existing_wt=$(git -C "$REPO_DIR" worktree list --porcelain 2>/dev/null | grep -B2 "branch refs/heads/$branch" | grep "^worktree " | sed 's/^worktree //' || true)
+    git -C "$REPO_DIR" fetch origin "$branch" 2>/dev/null || true
     if [ -n "$existing_wt" ] && [ -d "$existing_wt" ]; then
-        log "Removing existing worktree for branch $branch at $existing_wt"
-        git -C "$REPO_DIR" worktree remove "$existing_wt" --force 2>/dev/null || true
+        log "Clearing existing worktree for branch $branch at $existing_wt"
+        retire_worktree "$existing_wt" || return 1
     fi
 
-    # Also remove our target path if it exists
-    if [ -d "$WORKTREE_DIR" ]; then
-        git -C "$REPO_DIR" worktree remove "$WORKTREE_DIR" --force 2>/dev/null || true
-    fi
+    # Also clear our target path if it exists
+    retire_worktree "$WORKTREE_DIR" || return 1
 
     git -C "$REPO_DIR" worktree prune 2>/dev/null || true
-    git -C "$REPO_DIR" fetch origin "$branch" 2>/dev/null || true
     git -C "$REPO_DIR" worktree add "$WORKTREE_DIR" -B "$branch" "origin/$branch"
     run_worktree_setup
 
@@ -756,7 +751,11 @@ handle_pr_review() {
     claude_output=$(parse_agent_output "$result")
     log "PR review output: ${claude_output:0:500}"
 
-    apply_rules_files
+    if ! apply_rules_files; then
+        NUMBER="$issue_num" gate_metadata_failure "The staged rules edits could not be committed"
+        cleanup_worktree
+        return
+    fi
 
     # Push if new commits
     local new_commits
@@ -766,6 +765,19 @@ handle_pr_review() {
         new_commits=$(git -C "$WORKTREE_DIR" rev-list --count "origin/${branch}..HEAD" 2>/dev/null || echo "0")
     fi
     log "Commit check: $new_commits new commit(s) on $branch"
+
+    # A revision gets the same pre-PR test gate as an implementation, with
+    # its bounded fix sessions, before its commits are pushed as "addressed"
+    # (AGENT_REVISION_TEST_GATE=false restores push-without-testing). The
+    # gate reports on the linked issue, where the agent labels live; on
+    # failure it has already pushed the branch, commented and set agent:failed.
+    if [ "$new_commits" -gt 0 ] && [ "${AGENT_REVISION_TEST_GATE:-true}" = true ] && [ -n "${AGENT_TEST_COMMAND:-}" ]; then
+        if ! NUMBER="$issue_num" run_test_gate "$pr_tools" "${issue_title:-$pr_title}"; then
+            cleanup_worktree
+            return
+        fi
+        new_commits=$(git -C "$WORKTREE_DIR" rev-list --count "${start_sha:-origin/${branch}}..HEAD" 2>/dev/null || echo "$new_commits")
+    fi
 
     if [ "$new_commits" -gt 0 ]; then
         git -C "$WORKTREE_DIR" push origin "$branch" 2>&1 | tee -a "$AGENT_LOG_DIR/sandbox-pal-dispatch.log" || true
@@ -783,7 +795,7 @@ You may need to provide more specific guidance or handle this manually." 2>/dev/
         log "No commits made for review feedback."
     fi
 
-    git -C "$REPO_DIR" worktree remove "$WORKTREE_DIR" --force 2>/dev/null || true
+    cleanup_worktree
 }
 
 # ═══════════════════════════════════════════════════════════════
@@ -889,7 +901,7 @@ handle_post_merge() {
     claude_output=$(parse_agent_output "$result")
     log "Cleanup output: ${claude_output:0:500}"
 
-    apply_rules_files
+    apply_rules_files || return 1
 
     # Follow-up issues from the session's structured output
     local json_block fu_count i=0
@@ -940,6 +952,16 @@ log_config_provenance
 # diagnose a dispatch that is currently holding it (#94).
 if [ "$EVENT_TYPE" = "status" ]; then
     handle_status
+    exit 0
+fi
+
+# An operator pause wins over labels, retries and standing instructions: the
+# dispatch does nothing, changes no label and posts no failure. It runs
+# before the lock so a paused install never reclaims or writes one.
+if [ "${AGENT_DISPATCH_PAUSED:-false}" != "false" ]; then
+    # shellcheck disable=SC2034  # read by emit_orchestrator_result
+    DISPATCH_OUTCOME="paused"
+    log "Dispatch refused — AGENT_DISPATCH_PAUSED is set. Unset it (or set it to false) to resume."
     exit 0
 fi
 

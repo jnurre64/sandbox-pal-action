@@ -68,7 +68,8 @@ apply_rules_files() {
         RULES_APPLIED="${applied[*]}"
         log "Applied rules update(s) from staging: ${RULES_APPLIED}"
     else
-        log "WARN: rules staging commit failed for: ${applied[*]}"
+        log "ERROR: rules staging commit failed for: ${applied[*]}"
+        return 1
     fi
     return 0
 }

@@ -99,3 +99,15 @@ _setup_rules_repo() {
     grep -q "stage_rules_files" "${SCRIPTS_DIR}/sandbox-pal-dispatch.sh"
     grep -q "apply_rules_files" "${SCRIPTS_DIR}/lib/common.sh"
 }
+
+@test "apply_rules_files: a rejected commit is a failure, not a warning" {
+    _source_rules_staging
+    _setup_rules_repo
+    stage_rules_files
+    echo "edited rule text" > "${WORKTREE_DIR}/.agent-data/rules/style.md"
+    printf '#!/bin/sh\nexit 1\n' > "$WORKTREE_DIR/.git/hooks/pre-commit"
+    chmod +x "$WORKTREE_DIR/.git/hooks/pre-commit"
+    run apply_rules_files
+    assert_failure
+    assert_output --partial "rules staging commit failed"
+}
