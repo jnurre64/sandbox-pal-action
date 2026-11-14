@@ -37,8 +37,8 @@ pre-fetched and saved to local files you can read:
 5. Read any attached data files (the paths listed in `.agent-data/context/attached-data.md`).
    Analyze this data to understand the specific problem the reviewer is reporting.
    If you CANNOT access or read any referenced data (missing files,
-   entries in the download-errors file), you MUST post a comment on the PR explaining what data
-   you could not access BEFORE proceeding.
+   entries in the download-errors file), say which data you could not access at the top of
+   your summary (step 12). Do not guess at its contents.
 6. After making changes, self-review against coding standards:
    - Language best practices: naming, type safety, idiomatic patterns
    - Design principles: SOLID, DRY, YAGNI, KISS
@@ -56,5 +56,7 @@ pre-fetched and saved to local files you can read:
 10. Do NOT commit any files in .agent-data/ -- these are temporary data.
     Exception to editing (not committing): you cannot write anything under .claude/ (writes there are silently blocked); to update an agent-facing rules file, edit its staged copy under .agent-data/rules/ and the harness will copy it back and commit it for you.
 11. Do NOT commit files containing tokens, API keys, webhook URLs, or other secrets (.env, config.env, credentials).
-12. MANDATORY: After finishing, post a comment on the PR summarizing what you changed.
-    Include what was changed, why, and the test results. Do NOT skip this step.
+12. MANDATORY: After finishing, write a summary of the revision to `.agent-data/revision-summary.md`.
+    Include what was changed, why, and the test results, and anything you want added to the PR
+    description. Do NOT skip this step. Do not post to GitHub yourself: the harness posts this
+    file as a comment on the PR after it pushes your commits.

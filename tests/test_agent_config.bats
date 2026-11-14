@@ -248,3 +248,12 @@ MOCK
     [ -n "$gate" ] && [ -n "$push" ] && [ "$gate" -lt "$push" ]
     grep -q 'AGENT_REVISION_TEST_GATE' <<< "$body"
 }
+
+@test "pr_review: the dispatcher posts the revision summary; the prompt no longer asks the phase to post (#154)" {
+    local body
+    body=$(sed -n '/^handle_pr_review()/,/^}/p' "${SCRIPTS_DIR}/sandbox-pal-dispatch.sh")
+    grep -q 'revision-summary.md' <<< "$body"
+    grep -q '## Revision summary' <<< "$body"
+    grep -q 'revision-summary.md' "${PROMPTS_DIR}/review.md"
+    ! grep -qi 'post a comment on the PR' "${PROMPTS_DIR}/review.md"
+}
