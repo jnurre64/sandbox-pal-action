@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-11-14
+
 ### Added
 - `AGENT_DISPATCH_PAUSED`: a pause switch. With any value other than `false`, every dispatch except `status` exits at once with outcome `paused`, before the lock is taken, a label is changed or a worker starts.
 - A mutex on the dispatch lock. Where `flock` is installed, the lock's check-and-write is serialized, so two dispatches fired at the same moment cannot both take it. Without `flock` the pid check alone applies, as before.
