@@ -734,6 +734,8 @@ handle_pr_review() {
     local pr_tools
     pr_tools=$(get_implementation_tools)
 
+    # A summary left by an earlier revision must not be posted as this one's.
+    rm -f "$WORKTREE_DIR/.agent-data/revision-summary.md"
     stage_rules_files
 
     local result
@@ -781,6 +783,18 @@ handle_pr_review() {
 
     if [ "$new_commits" -gt 0 ]; then
         git -C "$WORKTREE_DIR" push origin "$branch" 2>&1 | tee -a "$AGENT_LOG_DIR/sandbox-pal-dispatch.log" || true
+        # The phase cannot post (its GitHub access may be read-only): the
+        # dispatcher posts its summary, as it does for plans and PRs. Falls
+        # back to the phase's final output when it wrote no summary file.
+        local revision_summary=""
+        if [ -s "$WORKTREE_DIR/.agent-data/revision-summary.md" ]; then
+            revision_summary=$(redact_secrets < "$WORKTREE_DIR/.agent-data/revision-summary.md")
+        fi
+        gh pr comment "$pr_number" --repo "$REPO" \
+            --body "## Revision summary
+
+${revision_summary:-${claude_output:0:6000}}
+$(denials_report_section)" 2>/dev/null || log "WARN: could not post the revision summary on PR #${pr_number}"
         gh issue edit "$issue_num" --repo "$REPO" --remove-label "agent:revision" --add-label "agent:pr-open" 2>/dev/null || true
         notify "review_pushed" "$pr_title" "https://github.com/${REPO}/pull/${pr_number}" "Pushed $new_commits review fix commit(s)"
         log "Pushed $new_commits review fix commit(s)."

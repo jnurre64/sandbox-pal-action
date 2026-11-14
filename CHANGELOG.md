@@ -7,11 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-11-14
+
 ### Added
 - `AGENT_DISPATCH_PAUSED`: a pause switch. With any value other than `false`, every dispatch except `status` exits at once with outcome `paused`, before the lock is taken, a label is changed or a worker starts.
 - A mutex on the dispatch lock. Where `flock` is installed, the lock's check-and-write is serialized, so two dispatches fired at the same moment cannot both take it. Without `flock` the pid check alone applies, as before.
 - The Claude OAuth refresh-lock race is retried inside the same phase. When several CLI processes on one machine refresh the stored login at once, one can fail at startup before a session exists. That failure now has its own error kind (`auth_refresh_contention`) and is retried up to `AGENT_CLAUDE_AUTH_REFRESH_RETRIES` times (default `2`, maximum `2`) after `AGENT_CLAUDE_AUTH_REFRESH_DELAY_SECONDS` (default `60`). Real authentication failures are not retried.
 - `AGENT_WORKTREE_RECOVERED_DAYS` (default `30`): how long a worktree moved aside with unsaved work is kept. `0` keeps them for ever.
+
+### Fixed
+- A PR revision's summary is posted by the dispatcher (#154). The revision prompt told the phase to comment on the PR itself, which a phase with read-only GitHub access cannot do, so the PR got no summary. The phase now writes `.agent-data/revision-summary.md` and the dispatcher posts it after pushing; without the file it posts the phase's final output. Data the phase could not read is reported in the same summary.
 
 ### Changed
 - **A worktree with unsaved work is never force-removed.** Unsaved means changed or untracked files outside `.agent-data` (ignored files do not count), or commits that no remote branch contains: what an interrupted worker leaves behind. At the end of a dispatch such a worktree is left in place. When the next dispatch needs the path, the worktree is moved to `<worktree base>/.recovered/<name>-<time>` and its branch renamed to `recovered/<branch>-<time>`, and the dispatch starts clean. If the move fails the dispatch stops and removes nothing. A local branch with unpublished commits and no worktree is renamed the same way instead of being deleted. Clean, published worktrees are removed as before.
