@@ -226,6 +226,7 @@ _source_handlers() {
     setup_worktree() { mkdir -p "$WORKTREE_DIR/.agent-data"; }
     run_worktree_setup() { mkdir -p "$WORKTREE_DIR/.agent-data"; }
     cleanup_worktree() { echo cleaned >> "$TEST_TEMP_DIR/cleaned"; }
+    retire_worktree() { :; }
     extract_debug_data() { :; }
     extract_plan_branch() { :; }
     stage_rules_files() { :; }

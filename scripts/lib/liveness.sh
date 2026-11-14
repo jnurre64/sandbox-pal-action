@@ -18,13 +18,14 @@ DISPATCH_STARTED=""
 DISPATCH_PR_URL=""
 DISPATCH_LOCK_REFUSED=""
 DISPATCH_MUTEX_FD=""
+DISPATCH_LOCK_NUMBER=""
 
 _lock_path() {
-    echo "${AGENT_LOCK_DIR}/${REPO_NAME}-${NUMBER}.lock"
+    echo "${AGENT_LOCK_DIR}/${REPO_NAME}-${DISPATCH_LOCK_NUMBER:-$NUMBER}.lock"
 }
 
 _last_dispatch_path() {
-    echo "${AGENT_LOCK_DIR}/${REPO_NAME}-${NUMBER}-last-dispatch.json"
+    echo "${AGENT_LOCK_DIR}/${REPO_NAME}-${DISPATCH_LOCK_NUMBER:-$NUMBER}-last-dispatch.json"
 }
 
 _utc_now() {
@@ -74,6 +75,9 @@ acquire_dispatch_lock() {
         '{pid: ($pid | tonumber), host: $host, event: $event, issue: $issue,
           started: $started, phase: "starting", updated: $started}' > "$lock"
     DISPATCH_LOCK_HELD=1
+    # The lock keeps this number for the dispatch's lifetime, even while a
+    # gate temporarily reports under a linked issue's number.
+    DISPATCH_LOCK_NUMBER="$NUMBER"
     return 0
 }
 

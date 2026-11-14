@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- `AGENT_DISPATCH_PAUSED`: a pause switch. With any value other than `false`, every dispatch except `status` exits at once with outcome `paused`, before the lock is taken, a label is changed or a worker starts.
+- A mutex on the dispatch lock. Where `flock` is installed, the lock's check-and-write is serialized, so two dispatches fired at the same moment cannot both take it. Without `flock` the pid check alone applies, as before.
+- The Claude OAuth refresh-lock race is retried inside the same phase. When several CLI processes on one machine refresh the stored login at once, one can fail at startup before a session exists. That failure now has its own error kind (`auth_refresh_contention`) and is retried up to `AGENT_CLAUDE_AUTH_REFRESH_RETRIES` times (default `2`, maximum `2`) after `AGENT_CLAUDE_AUTH_REFRESH_DELAY_SECONDS` (default `60`). Real authentication failures are not retried.
+- `AGENT_WORKTREE_RECOVERED_DAYS` (default `30`): how long a worktree moved aside with unsaved work is kept. `0` keeps them for ever.
+
+### Changed
+- **A worktree with unsaved work is never force-removed.** Unsaved means changed or untracked files outside `.agent-data` (ignored files do not count), or commits that no remote branch contains: what an interrupted worker leaves behind. At the end of a dispatch such a worktree is left in place. When the next dispatch needs the path, the worktree is moved to `<worktree base>/.recovered/<name>-<time>` and its branch renamed to `recovered/<branch>-<time>`, and the dispatch starts clean. If the move fails the dispatch stops and removes nothing. A local branch with unpublished commits and no worktree is renamed the same way instead of being deleted. Clean, published worktrees are removed as before.
+- **A PR revision runs the pre-PR test gate before its commits are pushed**, with the same bounded fix sessions as an implementation. Until now revision commits were pushed untested. A gate failure pushes the branch, comments on the linked issue and sets `agent:failed`. `AGENT_REVISION_TEST_GATE="false"` restores the old behaviour. The gate only runs when `AGENT_TEST_COMMAND` is set.
+- **Failures that were warnings now stop the dispatch:**
+  - A failing `AGENT_TEST_SETUP_COMMAND` fails worktree setup, and fails the test gate without running the suite or a fix session. A phase no longer runs in a worktree whose setup failed. To keep the old tolerance, end the command with `|| true`.
+  - A review ledger commit that fails (for example a rejecting commit hook) stops the review loop: the branch is pushed, the issue gets a comment and `agent:failed`. No PR is created without its review record.
+  - A staged rules edit that cannot be committed stops the dispatch the same way.
+
 ## [1.3.1] - 2026-11-13
 
 ### Added

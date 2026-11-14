@@ -534,7 +534,10 @@ handle_post_implementation() {
         fi
         # Copy back and commit any staged rules edits (#92) before the
         # push, so they ride the PR like any other change.
-        apply_rules_files
+        if ! apply_rules_files; then
+            gate_metadata_failure "The staged rules edits could not be committed"
+            return 1
+        fi
 
         # Retry sessions, ledger commits and rules staging may have
         # added commits
