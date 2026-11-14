@@ -362,6 +362,8 @@ Four independent controls on how each phase invokes the CLI. **Every one is opti
 | `AGENT_SANDBOX_SRT` | *(empty — `srt` on `PATH`)* | path to the sandbox runtime |
 | `AGENT_SANDBOX_ALLOWED_DOMAINS` | *(empty)* | further hosts a sandboxed phase may reach, space- or comma-separated |
 | `AGENT_SANDBOX_DENY_READ` | *(empty)* | further paths hidden from a sandboxed phase |
+| `AGENT_SANDBOX_RUNNER_DIRS` | *(empty — every `~/actions-runner*`)* | self-hosted Actions runner directories whose `.credentials`, `.credentials_rsaparams` and `.env` are hidden from a sandboxed phase; space- or comma-separated, globs allowed |
+| `AGENT_PYTHON` | `python3` | the Python that validates worker results; it needs `scripts/requirements-worker.txt`. Name a virtual environment's `python` where the system one cannot have the packages (see [operations](operations.md#worker-validation-dependency)) |
 | `AGENT_SANDBOX_ALLOW_WRITE` | *(empty)* | further paths a sandboxed phase may write |
 | `AGENT_SANDBOX_SHORT_TOOLS` | `true` | under `strict`, replace a phase's `Bash(...)` prefix rules with one `Bash` rule; `false` keeps them as written |
 | `AGENT_SANDBOX_UNIX_SOCKETS` | `false` | `true` lets a sandboxed phase use Unix sockets (needed by Xvfb) |

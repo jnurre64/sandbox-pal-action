@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.4.1] - 2026-11-14
+
+### Added
+- `AGENT_PYTHON` (#159): the interpreter that validates worker results, default `python3`. An install can name a virtual environment's `python` where the system one cannot have `jsonschema` >= 4.18 (for example Ubuntu 24.04, where the packaged version is older and `pip install` is refused). `check-prereqs.sh` checks the configured interpreter, reports the version it found and prints the commands for both fixes; `update.sh` warns when the dependency is missing after an update. The failure message of a dispatch names the interpreter.
+- `AGENT_SANDBOX_RUNNER_DIRS` (#157): the self-hosted Actions runner directories whose registration credentials are hidden from a sandboxed phase. Empty means every `~/actions-runner*`.
+- The dispatch log's per-phase `Worker <PHASE>:` line ends with `sandbox=strict` or `sandbox=none` (#158), so a log read afterwards shows which phases ran sandboxed.
+
+### Changed
+- **The `strict` profile hides more by default (#157).** Added to the read-deny list: other agent CLIs' logins and secret managers' stores (`~/.codex`, `~/.gemini`, `~/.config/op`, `~/.password-store`, `~/.vault-token`, `~/.config/rclone`, `~/.cargo/credentials.toml`, `~/.cargo/credentials`, `~/.terraform.d/credentials.tfrc.json`); in each runner directory `.credentials`, `.credentials_rsaparams` and `.env`; and `.envrc` files in the worktree. A phase that read one of these until now is refused after the update. `docs/sandbox.md` now says what the list does not cover: `.env` files outside the worktree, secret files with other names, and the Claude login, which the phase's own CLI needs.
+
 ## [1.4.0] - 2026-11-14
 
 ### Added

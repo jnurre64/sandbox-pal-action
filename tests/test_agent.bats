@@ -322,6 +322,19 @@ _source_handlers() {
     [ ! -f "$TEST_TEMP_DIR/worker_calls" ]
 }
 
+@test "agent: AGENT_PYTHON's interpreter validates and normalizes the result (#159)" {
+    _source_agent
+    mkdir -p "$TEST_TEMP_DIR/venv/bin"
+    printf '#!/bin/bash\necho "$2" >> "%s/python-calls"\nexec python3 "$@"\n' "$TEST_TEMP_DIR" > "$TEST_TEMP_DIR/venv/bin/python"
+    chmod +x "$TEST_TEMP_DIR/venv/bin/python"
+    export AGENT_PYTHON="$TEST_TEMP_DIR/venv/bin/python"
+    run run_agent prompt Read '' '' TRIAGE
+    assert_success
+    echo "$output" | jq -e '.status == "success"'
+    grep -qx 'check-dependency' "$TEST_TEMP_DIR/python-calls"
+    grep -qx 'normalize' "$TEST_TEMP_DIR/python-calls"
+}
+
 @test "agent: installer inventory delivers both adapters and validator requirements" {
     source "${LIB_DIR}/install-assets.sh"
     local inventory

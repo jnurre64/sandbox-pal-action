@@ -4,14 +4,32 @@ This document covers day-to-day operations: monitoring, retrying failed issues, 
 
 ## Worker validation dependency
 
-The harness requires Python 3 and `jsonschema>=4.18,<5`. Install these on the
-runner before dispatching (use a virtual environment and put its `bin` directory
-on the runner's PATH):
+The harness requires Python 3 and `jsonschema>=4.18,<5` (it uses the
+`referencing` registry that arrived in 4.18). Without it every phase fails at
+preflight with a configuration error, so install it before the first dispatch:
 
 ```bash
 python3 -m pip install -r scripts/requirements-worker.txt
 bash scripts/check-prereqs.sh
 ```
+
+On distributions where the system Python refuses `pip install` (PEP 668) and
+the packaged `jsonschema` is older than 4.18 (Ubuntu 24.04 ships 4.10), use a
+virtual environment and tell the dispatcher which interpreter to use:
+
+```bash
+python3 -m venv ~/.local/share/sandbox-pal/venv
+~/.local/share/sandbox-pal/venv/bin/pip install -r scripts/requirements-worker.txt
+```
+
+```bash
+# config.defaults.env
+AGENT_PYTHON="${AGENT_PYTHON:-$HOME/.local/share/sandbox-pal/venv/bin/python}"
+```
+
+`AGENT_PYTHON` defaults to `python3` on the dispatcher's `PATH`.
+`check-prereqs.sh` checks the interpreter the install is configured with, and
+`update.sh` warns when the dependency is missing after an update.
 
 For a standalone installation, the requirements file is under
 `.sandbox-pal-dispatch/scripts/`. Setup and update deliver the validator and its

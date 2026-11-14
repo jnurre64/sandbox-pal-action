@@ -70,10 +70,20 @@ The dispatch log directory is write-denied even when it sits under the Claude di
 **Read** everything the user can read, except:
 
 - `~/.ssh`, `~/.gnupg`, `~/.aws`, `~/.azure`, `~/.kube`, `~/.docker`, `~/.netrc`, `~/.git-credentials`, `~/.npmrc`, `~/.pypirc`, `~/.config/gh`, `~/.config/gcloud`, `~/.config/git/credentials`;
-- `.env` files in the worktree;
+- other agent CLIs' logins and secret managers' stores: `~/.codex`, `~/.gemini`, `~/.config/op`, `~/.password-store`, `~/.vault-token`, `~/.config/rclone`, `~/.cargo/credentials.toml`, `~/.cargo/credentials`, `~/.terraform.d/credentials.tfrc.json`;
+- in each self-hosted Actions runner directory, `.credentials`, `.credentials_rsaparams` and `.env`. Runner directories are every `~/actions-runner*` unless `AGENT_SANDBOX_RUNNER_DIRS` names them (space- or comma-separated, globs allowed). The rest of a runner directory stays readable, because a phase may work under its `_work`;
+- `.env` and `.envrc` files in the worktree (see the limit below);
 - the install's `config.env`;
 - the phase token file;
 - the paths in `AGENT_SANDBOX_DENY_READ`. **Put any directory where you keep tokens here.**
+
+What the read list does **not** cover, so add it to `AGENT_SANDBOX_DENY_READ` where it applies:
+
+- **`.env` and `.envrc` files outside the worktree.** The two patterns are matched under the directory the phase starts in. A `.env` in another project under the home directory stays readable.
+- **Files with other names that hold secrets** (`secrets.env`, `*.pem`, a token directory of your own, another tool's state directory that holds a login). The list above is the well-known ones only. To find candidates on a host, look for what the runner user can read: `find ~ -maxdepth 3 \( -name '*.env' -o -name '.env*' -o -name '*credential*' -o -name '*token*' -o -name '*.pem' \) 2>/dev/null`.
+- **The Claude login itself** (`.credentials.json` in the Claude config directory). The phase's own CLI needs it, so it stays readable and writable. The network list is what keeps it from leaving the machine.
+
+After changing the list, check it against the real runtime: plant a file at a path you expect to be hidden and read it through `agent_sandbox_run`, as `tests/test_sandbox_canary.bats` does.
 
 **Reach** these hosts, and no others:
 

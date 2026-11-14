@@ -225,6 +225,11 @@ AGENT_SETTINGS_FILE="${AGENT_SETTINGS_FILE:-}"     # a repo's own base settings 
 # .agent-data/context/references/. 0 turns it off.
 AGENT_CONTEXT_REFS_MAX="${AGENT_CONTEXT_REFS_MAX:-10}"
 
+# The Python that validates worker results. It needs the packages in
+# scripts/requirements-worker.txt; name a virtual environment's python
+# where the system one cannot have them (#159).
+AGENT_PYTHON="${AGENT_PYTHON:-python3}"
+
 # ─── Sandbox profile (#137) ──────────────────────────────────────
 # none (default): phases run as before. strict: the whole Claude phase
 # runs under the sandbox runtime (srt). AGENT_SANDBOX_<PHASE> overrides
@@ -233,6 +238,7 @@ AGENT_SANDBOX="${AGENT_SANDBOX:-none}"
 AGENT_SANDBOX_SRT="${AGENT_SANDBOX_SRT:-}"                         # path to srt when it is not on PATH
 AGENT_SANDBOX_ALLOWED_DOMAINS="${AGENT_SANDBOX_ALLOWED_DOMAINS:-}" # further hosts, space- or comma-separated
 AGENT_SANDBOX_DENY_READ="${AGENT_SANDBOX_DENY_READ:-}"             # further paths hidden from the phase
+AGENT_SANDBOX_RUNNER_DIRS="${AGENT_SANDBOX_RUNNER_DIRS:-}"         # Actions runner directories; empty: ~/actions-runner*
 AGENT_SANDBOX_ALLOW_WRITE="${AGENT_SANDBOX_ALLOW_WRITE:-}"         # further writable paths
 AGENT_SANDBOX_SHORT_TOOLS="${AGENT_SANDBOX_SHORT_TOOLS:-true}"     # false keeps the Bash prefix rules as written (#143)
 AGENT_SANDBOX_UNIX_SOCKETS="${AGENT_SANDBOX_UNIX_SOCKETS:-false}"  # true lets the phase use Unix sockets (display tests)

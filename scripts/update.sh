@@ -506,5 +506,12 @@ if [ "$CONFIG_TOTAL" -gt 0 ]; then
     fi
 fi
 
+# The first dispatch would fail on this; say so now (#159).
+if ! "${AGENT_PYTHON:-python3}" "$INSTALL_DIR/scripts/lib/agent-result.py" check-dependency >/dev/null 2>&1; then
+    echo -e "${YELLOW}Warning:${NC} the worker validator's Python dependency is missing or too old."
+    echo "  Run: bash $INSTALL_DIR/scripts/check-prereqs.sh"
+    echo ""
+fi
+
 echo "Review and commit the updated .sandbox-pal-dispatch/ assets and any new .claude/skills/ and .agents/skills/ links."
 echo ""

@@ -5,7 +5,7 @@ agent_engine_enabled() {
 }
 
 engine_codex_preflight() {
-    python3 "${AGENT_LIB_DIR}/codex-worker.py" preflight
+    agent_python "${AGENT_LIB_DIR}/codex-worker.py" preflight
 }
 
 # Return a frozen native policy. Never silently translate Claude permissions.
@@ -102,5 +102,5 @@ Worker instruction updates: do not edit AGENTS.md or CLAUDE.md. Include proposed
     # Last step before launch: the phase gets no dispatcher credentials (#142).
     agent_scrub_phase_env || return 1
     agent_phase_token_export || return 1
-    printf '%s' "$request" | python3 "${AGENT_LIB_DIR}/codex-worker.py" run
+    printf '%s' "$request" | agent_python "${AGENT_LIB_DIR}/codex-worker.py" run
 )

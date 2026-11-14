@@ -15,6 +15,7 @@ Before you begin, make sure you have the following:
 | Claude Code CLI authenticated on the runner | Powers the `claude` CLI — see [authentication.md](authentication.md) |
 | GitHub CLI (`gh`) installed on the runner | Used for label management, issue/PR operations |
 | `git`, `jq`, and `curl` installed on the runner | Core dependencies of the dispatch scripts |
+| Python 3 with `jsonschema` 4.18 or newer on the runner | Validates each phase's result. Ubuntu 24.04's package is too old: see [operations.md](operations.md#worker-validation-dependency) |
 
 You should be comfortable creating GitHub accounts, generating personal access tokens, and editing shell configuration files.
 

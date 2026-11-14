@@ -99,3 +99,15 @@ load 'helpers/test_helper'
     assert_output --partial "sandbox runtime is installed but cannot start"
     assert_output --partial "RTM_NEWADDR"
 }
+
+@test "check-prereqs: a missing validator module names the interpreter and the virtual environment fix (#159)" {
+    mkdir -p "${TEST_TEMP_DIR}/bin"
+    printf '#!/bin/bash\n[ "$1" = "--version" ] && { echo "Python 3.12.0"; exit 0; }\nexit 1\n' > "${TEST_TEMP_DIR}/bin/fakepython"
+    chmod +x "${TEST_TEMP_DIR}/bin/fakepython"
+    run env AGENT_PYTHON="${TEST_TEMP_DIR}/bin/fakepython" bash "${SCRIPTS_DIR}/check-prereqs.sh"
+    assert_failure
+    assert_output --partial "jsonschema"
+    assert_output --partial "${TEST_TEMP_DIR}/bin/fakepython"
+    assert_output --partial "AGENT_PYTHON"
+    assert_output --partial "venv"
+}
