@@ -154,7 +154,7 @@ What it does not do. State these limits plainly when describing the setup to oth
 
 - **An allowed host is a way out.** A steered phase can send what it can read to any host on the allowlist, GitHub included, for example by pushing to a repository of the attacker's with a token the attacker supplied in the issue text. The allowlist narrows where data can go; it does not make a leak impossible. What limits the damage is how little a phase can read: no dispatcher token, hidden credential stores, and a phase token that is read-only.
 - **The model provider's login is readable.** The worker cannot run without it. A phase can read the Claude login and send it to an allowed host.
-- **Other files in the home directory are readable** unless you list them. The profile hides known credential stores, not everything. Put directories of tokens in `AGENT_SANDBOX_DENY_READ`.
+- **Other files in the home directory are readable** unless you list them. The profile hides known credential stores, not everything. Put directories of tokens in `AGENT_SANDBOX_DENY_READ`. `.env` and `.envrc` files are hidden only inside the worktree, and the Claude login stays readable because the phase's own CLI needs it: [the sandbox guide](sandbox.md) lists what is and is not covered.
 - **`AGENT_SANDBOX_UNIX_SOCKETS=true` removes the socket filter**, so any Unix socket the process can see is reachable (a Docker socket, an SSH agent). Use it only where a display server is needed.
 - **The runtime is a beta research preview** and is not a substitute for a VM or container when the code being run is hostile by assumption.
 - **Phases still run as the dispatcher's OS user.** A dedicated user for phases is a separate, stronger boundary and is not provided here.

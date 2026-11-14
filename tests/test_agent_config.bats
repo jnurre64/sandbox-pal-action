@@ -257,3 +257,36 @@ MOCK
     grep -q 'revision-summary.md' "${PROMPTS_DIR}/review.md"
     ! grep -qi 'post a comment on the PR' "${PROMPTS_DIR}/review.md"
 }
+
+@test "preflight: the Worker log line names each phase's sandbox profile (#158)" {
+    _source_config
+    log() { printf '%s\n' "$*" >> "$TEST_TEMP_DIR/log"; }
+    agent_sandbox_check() { return 0; }
+    agent_sandbox_smoke() { return 0; }
+    export AGENT_SANDBOX=none AGENT_SANDBOX_IMPLEMENT=strict
+    agent_preflight_dispatch implement
+    grep -E '^Worker IMPLEMENT: .* sandbox=strict( |$)' "$TEST_TEMP_DIR/log"
+    grep -E '^Worker ADVERSARIAL_PLAN: .* sandbox=none( |$)' "$TEST_TEMP_DIR/log"
+}
+
+@test "preflight: AGENT_PYTHON names the interpreter that validates results (#159)" {
+    _source_config
+    mkdir -p "$TEST_TEMP_DIR/venv/bin"
+    printf '#!/bin/bash\necho "$@" >> "%s/python-calls"\nexec python3 "$@"\n' "$TEST_TEMP_DIR" > "$TEST_TEMP_DIR/venv/bin/python"
+    chmod +x "$TEST_TEMP_DIR/venv/bin/python"
+    python3() { echo "bare python3 used" >&2; return 1; }
+    export AGENT_PYTHON="$TEST_TEMP_DIR/venv/bin/python"
+    run agent_preflight_dispatch new_issue
+    assert_success
+    grep -q 'check-dependency' "$TEST_TEMP_DIR/python-calls"
+}
+
+@test "preflight: a missing validator names the interpreter and both fixes (#159)" {
+    _source_config
+    export AGENT_PYTHON="$TEST_TEMP_DIR/no-such-python"
+    run agent_preflight_dispatch new_issue
+    assert_failure
+    assert_output --partial "Install worker dependencies"
+    assert_output --partial "$TEST_TEMP_DIR/no-such-python"
+    assert_output --partial "AGENT_PYTHON"
+}

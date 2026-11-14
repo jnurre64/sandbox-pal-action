@@ -94,15 +94,15 @@ run_agent() (
         agent_failure "$phase" configuration 'Unsupported worker engine' "$engine"
         return
     fi
-    if ! python3 "${AGENT_LIB_DIR}/agent-result.py" check-dependency >/dev/null 2>&1; then
-        agent_failure "$phase" configuration 'Install worker dependencies: python3 -m pip install -r scripts/requirements-worker.txt' "$engine"
+    if ! agent_python "${AGENT_LIB_DIR}/agent-result.py" check-dependency >/dev/null 2>&1; then
+        agent_failure "$phase" configuration "$(agent_python_hint)" "$engine"
         return
     fi
     if [ -n "$schema" ] && [ -z "${AGENT_PHASE_MAP:-}" ]; then
         if [[ "$schema" != /* ]] && [ -n "${CONFIG_DIR:-}" ]; then
             schema="${CONFIG_DIR}/${schema}"
         fi
-        if ! schema_json=$(python3 "${AGENT_LIB_DIR}/agent-result.py" check-schema "$schema" 2>/dev/null); then
+        if ! schema_json=$(agent_python "${AGENT_LIB_DIR}/agent-result.py" check-schema "$schema" 2>/dev/null); then
             agent_failure "$phase" configuration 'Configured schema is missing, invalid, or uses unsupported external references' "$engine"
             return
         fi
@@ -153,7 +153,7 @@ run_agent() (
         printf '%s\n' "$error" > "$stderr_log"
         # The normalizer scrubs decoded fields before schema validation and JSON
         # serialization, so escaped credentials cannot evade capture redaction.
-        if ! normalized=$(printf '%s' "$raw" | python3 "${AGENT_LIB_DIR}/agent-result.py" normalize "$phase" "$exit_code" "$schema_json" "$stderr_log" 2>/dev/null); then
+        if ! normalized=$(printf '%s' "$raw" | agent_python "${AGENT_LIB_DIR}/agent-result.py" normalize "$phase" "$exit_code" "$schema_json" "$stderr_log" 2>/dev/null); then
             agent_failure "$phase" transport 'Unable to normalize worker result'
             return
         fi

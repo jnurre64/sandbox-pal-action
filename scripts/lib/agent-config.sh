@@ -200,13 +200,25 @@ agent_resolve_config() {
         '. + {settings:$settings,policy:$policy,profile:$profile,selection_source:$selection_source}' <<< "$resolved"
 }
 
+# The interpreter that validates worker results (#159). It needs the
+# packages in scripts/requirements-worker.txt; AGENT_PYTHON points it at a
+# virtual environment where the system Python cannot have them.
+agent_python() {
+    "${AGENT_PYTHON:-python3}" "$@"
+}
+
+agent_python_hint() {
+    local python="${AGENT_PYTHON:-python3}"
+    printf 'Install worker dependencies for %s: %s -m pip install -r scripts/requirements-worker.txt, or set AGENT_PYTHON to the python of a virtual environment that has them (docs/operations.md)\n' "$python" "$python"
+}
+
 agent_check_schema() {
     local schema="$1"
     [ -n "$schema" ] || return 0
     if [[ "$schema" != /* ]] && [ -n "${CONFIG_DIR:-}" ]; then
         schema="${CONFIG_DIR}/${schema}"
     fi
-    python3 "${AGENT_LIB_DIR}/agent-result.py" check-schema "$schema" 2>/dev/null
+    agent_python "${AGENT_LIB_DIR}/agent-result.py" check-schema "$schema" 2>/dev/null
 }
 
 agent_preflight_dispatch() {
@@ -214,8 +226,8 @@ agent_preflight_dispatch() {
     agent_profiles_prepare || return 1
     phases=$(agent_reachable_phases "$1") || return 1
     [ -n "$phases" ] || return 0
-    if ! python3 "${AGENT_LIB_DIR}/agent-result.py" check-dependency >/dev/null 2>&1; then
-        echo 'Install worker dependencies: python3 -m pip install -r scripts/requirements-worker.txt' >&2
+    if ! agent_python "${AGENT_LIB_DIR}/agent-result.py" check-dependency >/dev/null 2>&1; then
+        agent_python_hint >&2
         return 1
     fi
     for phase in $phases; do
@@ -238,7 +250,7 @@ agent_preflight_dispatch() {
                     checked_claude=true
                 fi ;;
             codex)
-                if ! printf '%s' "$schema" | python3 "${AGENT_LIB_DIR}/codex-worker.py" check-phase-schema "$phase"; then
+                if ! printf '%s' "$schema" | agent_python "${AGENT_LIB_DIR}/codex-worker.py" check-phase-schema "$phase"; then
                     echo "${phase}: unsupported Codex phase schema" >&2; return 1
                 fi
                 if [ "$checked_codex" = false ]; then
@@ -295,6 +307,6 @@ agent_preflight_dispatch() {
                 + (if .settings.budget_usd == "" then "uncapped" else .settings.budget_usd end)
               else "elapsed time; Claude budget/turn/permission/tool/label-tool/MCP controls inactive; native integrations"
               end)
-            + " sources=" + (.settings.sources | tojson)' <<< "$map")"
+            + " sources=" + (.settings.sources | tojson)' <<< "$map") sandbox=$(agent_sandbox_profile "$phase" 2>/dev/null || echo invalid)"
     done
 }

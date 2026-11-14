@@ -26,6 +26,16 @@ _setup_canary() {
     export AGENT_SANDBOX_DENY_READ="${CANARY_ROOT}/secrets"
     unset AGENT_SANDBOX_ALLOWED_DOMAINS AGENT_SANDBOX_ALLOW_WRITE AGENT_SANDBOX_UNIX_SOCKETS GIT_CONFIG_COUNT
 
+    # A home directory of the test's own, for the default credential paths
+    # (#157). Only the configuration is generated against it.
+    mkdir -p "${CANARY_ROOT}/home/.codex" "${CANARY_ROOT}/home/actions-runner-canary/_work"
+    echo "planted-secret-value" > "${CANARY_ROOT}/home/.codex/auth.json"
+    echo "planted-secret-value" > "${CANARY_ROOT}/home/actions-runner-canary/.credentials"
+    echo "planted-secret-value" > "${CANARY_ROOT}/home/actions-runner-canary/.env"
+    echo "readable" > "${CANARY_ROOT}/home/actions-runner-canary/_work/file"
+    HOME="${CANARY_ROOT}/home" CLAUDE_CONFIG_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}" \
+        agent_sandbox_config > "${CANARY_ROOT}/sandbox-home.json"
+
     agent_sandbox_config > "${CANARY_ROOT}/sandbox.json"
     agent_sandbox_write_excludes "${CANARY_ROOT}/excludes"
     agent_sandbox_git_env "${CANARY_ROOT}/excludes"
@@ -102,4 +112,33 @@ _in_sandbox() {
     run _in_sandbox "echo >> '$settings'"
     assert_failure
     [ "$(sha256sum < "$settings")" = "$before" ]
+}
+
+_in_home_sandbox() {
+    agent_sandbox_run "${CANARY_ROOT}/sandbox-home.json" bash -c "$1"
+}
+
+@test "canary: another agent CLI's stored login cannot be read (#157)" {
+    _setup_canary
+    run _in_home_sandbox "cat '${CANARY_ROOT}/home/.codex/auth.json'"
+    assert_failure
+    refute_output --partial "planted-secret-value"
+}
+
+@test "canary: a runner's credentials and .env cannot be read, its work directory can (#157)" {
+    _setup_canary
+    run _in_home_sandbox "cat '${CANARY_ROOT}/home/actions-runner-canary/.credentials' '${CANARY_ROOT}/home/actions-runner-canary/.env'"
+    assert_failure
+    refute_output --partial "planted-secret-value"
+    run _in_home_sandbox "cat '${CANARY_ROOT}/home/actions-runner-canary/_work/file'"
+    assert_output "readable"
+}
+
+@test "canary: .env and .envrc in the worktree cannot be read (#157)" {
+    _setup_canary
+    mkdir -p "${WORKTREE_DIR}/sub"
+    echo "planted-secret-value" > "${WORKTREE_DIR}/.env"
+    echo "planted-secret-value" > "${WORKTREE_DIR}/sub/.envrc"
+    run _in_sandbox "cat .env sub/.envrc"
+    refute_output --partial "planted-secret-value"
 }

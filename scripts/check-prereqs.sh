@@ -8,7 +8,19 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m'
 
-REQUIRED_TOOLS=("gh" "claude" "git" "jq" "curl" "python3")
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# The interpreter the dispatcher will use: AGENT_PYTHON from the
+# environment or the install's config files, else python3.
+PYTHON_BIN=$(
+    for file in "${SCRIPT_DIR}/../config.defaults.env" "${SCRIPT_DIR}/../config.env"; do
+        # shellcheck source=/dev/null
+        [ ! -f "$file" ] || source "$file" >/dev/null 2>&1 || true
+    done
+    printf '%s\n' "${AGENT_PYTHON:-python3}"
+)
+
+REQUIRED_TOOLS=("gh" "claude" "git" "jq" "curl" "$PYTHON_BIN")
 MISSING=()
 WARNINGS=()
 
@@ -27,8 +39,17 @@ done
 
 echo ""
 
-if ! python3 "$(dirname "${BASH_SOURCE[0]}")/lib/agent-result.py" check-dependency >/dev/null 2>&1; then
-    echo "Missing worker validator: python3 -m pip install -r scripts/requirements-worker.txt"
+if command -v "$PYTHON_BIN" &> /dev/null \
+    && ! "$PYTHON_BIN" "${SCRIPT_DIR}/lib/agent-result.py" check-dependency >/dev/null 2>&1; then
+    found=$("$PYTHON_BIN" -c 'from importlib.metadata import version; print(version("jsonschema"))' 2>/dev/null || true)
+    echo -e "  ${RED}✗${NC} worker validator: ${PYTHON_BIN} needs jsonschema >= 4.18 (found: ${found:-none})"
+    echo "      Install it:   ${PYTHON_BIN} -m pip install -r ${SCRIPT_DIR}/requirements-worker.txt"
+    echo "      Where the system Python refuses that, or its package is older (for"
+    echo "      example Ubuntu 24.04), use a virtual environment and name its python:"
+    echo "        python3 -m venv ~/.local/share/sandbox-pal/venv"
+    echo "        ~/.local/share/sandbox-pal/venv/bin/pip install -r ${SCRIPT_DIR}/requirements-worker.txt"
+    echo "        AGENT_PYTHON=\"\$HOME/.local/share/sandbox-pal/venv/bin/python\"   # in config.defaults.env"
+    echo ""
     MISSING+=("jsonschema")
 fi
 
@@ -64,7 +85,6 @@ else
 fi
 
 # Check if config.env exists
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CONFIG_FILE="${SCRIPT_DIR}/../config.env"
 if [ -f "$CONFIG_FILE" ]; then
     echo -e "  ${GREEN}✓${NC} config.env found"

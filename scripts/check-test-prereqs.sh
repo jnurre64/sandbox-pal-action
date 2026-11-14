@@ -49,7 +49,7 @@ echo ""
 check_tool "jq"
 check_tool "shellcheck"
 check_tool "python3"
-if ! python3 "$(dirname "${BASH_SOURCE[0]}")/lib/agent-result.py" check-dependency >/dev/null 2>&1; then
+if ! "${AGENT_PYTHON:-python3}" "$(dirname "${BASH_SOURCE[0]}")/lib/agent-result.py" check-dependency >/dev/null 2>&1; then
     echo "  jsonschema worker validator not found or unsupported"
     MISSING+=("jsonschema")
 fi

@@ -30,7 +30,16 @@ AGENT_SANDBOX_DEFAULT_DOMAINS=(
 AGENT_SANDBOX_CREDENTIAL_PATHS=(
     .ssh .gnupg .aws .azure .kube .docker .netrc .git-credentials
     .npmrc .pypirc .config/gh .config/gcloud .config/git/credentials
+    # Other agent CLIs' stored logins, and secret managers' stores (#157).
+    .codex .gemini .config/op .password-store .vault-token .config/rclone
+    .cargo/credentials.toml .cargo/credentials
+    .terraform.d/credentials.tfrc.json
 )
+
+# In each self-hosted Actions runner directory: the runner's registration
+# credentials, and the .env its service reads (#157). The rest of the
+# directory stays readable, since a phase may work under its _work.
+AGENT_SANDBOX_RUNNER_FILES=(.credentials .credentials_rsaparams .env)
 
 # Under the Claude config directory a phase may write (sessions, memory,
 # a refreshed login), but not the files that decide what a later,
@@ -89,6 +98,23 @@ _sandbox_list() {
 }
 
 # Print the existing paths among the arguments, as a JSON array.
+# Runner directories: AGENT_SANDBOX_RUNNER_DIRS (space- or comma-separated,
+# globs allowed, a leading ~ expanded), or every ~/actions-runner*.
+_sandbox_runner_dirs() {
+    local dir list
+    if [ -z "${AGENT_SANDBOX_RUNNER_DIRS:-}" ]; then
+        for dir in "$HOME"/actions-runner*; do
+            printf '%s\n' "$dir"
+        done
+        return 0
+    fi
+    list=" ${AGENT_SANDBOX_RUNNER_DIRS//,/ }"
+    list="${list// \~\// ${HOME}/}"
+    for dir in $list; do
+        printf '%s\n' "$dir"
+    done
+}
+
 _sandbox_existing() {
     local path
     for path in "$@"; do
@@ -98,7 +124,7 @@ _sandbox_existing() {
 
 # Print the runtime configuration for a phase working in $WORKTREE_DIR.
 agent_sandbox_config() {
-    local worktree git_dir claude_dir path
+    local worktree git_dir claude_dir path dir
     worktree=$(cd "$WORKTREE_DIR" && pwd -P) || return 1
     git_dir=$(git -C "$worktree" rev-parse --path-format=absolute --git-common-dir 2>/dev/null) || git_dir=""
     [[ "$git_dir" = /* ]] && [ -d "$git_dir" ] || git_dir=""
@@ -108,6 +134,11 @@ agent_sandbox_config() {
     for path in "${AGENT_SANDBOX_CREDENTIAL_PATHS[@]}"; do
         deny_read+=("${HOME}/${path}")
     done
+    while IFS= read -r dir; do
+        for path in "${AGENT_SANDBOX_RUNNER_FILES[@]}"; do
+            deny_read+=("${dir%/}/${path}")
+        done
+    done < <(_sandbox_runner_dirs)
     # The install's own secrets, and the token a phase is handed as GH_TOKEN.
     [ -z "${SCRIPT_DIR:-}" ] || deny_read+=("${SCRIPT_DIR}/../config.env")
     [ -z "${AGENT_CONFIG:-}" ] || deny_read+=("$AGENT_CONFIG")
@@ -137,7 +168,7 @@ agent_sandbox_config() {
             network: ({allowedDomains: ($domains + $extra_domains | unique), deniedDomains: []}
                 + (if $unix_sockets then {allowAllUnixSockets: true} else {} end)),
             filesystem: {
-                denyRead: ($deny_read + $extra_deny_read + ["**/.env"] | unique),
+                denyRead: ($deny_read + $extra_deny_read + ["**/.env", "**/.envrc"] | unique),
                 allowWrite: ($allow_write + $extra_allow_write | unique),
                 denyWrite: ($deny_write | unique)
             }

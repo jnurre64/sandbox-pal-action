@@ -18,6 +18,7 @@ _setup() {
     unset AGENT_SANDBOX AGENT_SANDBOX_TRIAGE AGENT_SANDBOX_IMPLEMENT AGENT_SANDBOX_SRT CLAUDE_CONFIG_DIR
     unset AGENT_SANDBOX_ALLOWED_DOMAINS AGENT_SANDBOX_DENY_READ AGENT_SANDBOX_ALLOW_WRITE
     unset AGENT_SANDBOX_UNIX_SOCKETS AGENT_PHASE_GH_TOKEN_FILE AGENT_CONFIG GIT_CONFIG_COUNT
+    unset AGENT_SANDBOX_RUNNER_DIRS
     # HOME is the test's own; a runner's XDG or git settings must not point elsewhere.
     unset XDG_CONFIG_HOME GIT_CONFIG_GLOBAL
     export PATH="${TEST_TEMP_DIR}/bin:${PATH}"
@@ -136,6 +137,63 @@ _git_dir() {
     run agent_sandbox_config
     [ "$(jq --arg h "$HOME" '.filesystem.denyRead | (index($h + "/.ssh") != null) and (index($h + "/.config/gh") != null)' <<< "$output")" = "true" ]
     [ "$(jq --arg h "$HOME" '.filesystem.denyRead | index($h + "/.aws")' <<< "$output")" = "null" ]
+}
+
+@test "config: other agent CLIs' logins and secret managers' stores are hidden (#157)" {
+    _setup
+    mkdir -p "$HOME/.codex" "$HOME/.password-store" "$HOME/.cargo"
+    echo token > "$HOME/.vault-token"
+    echo '[registry]' > "$HOME/.cargo/credentials.toml"
+    run agent_sandbox_config
+    local path
+    for path in .codex .password-store .vault-token .cargo/credentials.toml; do
+        [ "$(jq --arg p "$HOME/$path" '.filesystem.denyRead | index($p) != null' <<< "$output")" = "true" ]
+    done
+    # Only the credentials file: the rest of ~/.cargo is a build cache.
+    [ "$(jq --arg p "$HOME/.cargo" '.filesystem.denyRead | index($p)' <<< "$output")" = "null" ]
+}
+
+@test "config: a self-hosted runner's registration credentials and .env are hidden (#157)" {
+    _setup
+    mkdir -p "$HOME/actions-runner-one/_work" "$HOME/actions-runner-two"
+    touch "$HOME/actions-runner-one/.credentials" "$HOME/actions-runner-one/.credentials_rsaparams" \
+        "$HOME/actions-runner-one/.env" "$HOME/actions-runner-two/.credentials"
+    run agent_sandbox_config
+    local path
+    for path in actions-runner-one/.credentials actions-runner-one/.credentials_rsaparams \
+        actions-runner-one/.env actions-runner-two/.credentials; do
+        [ "$(jq --arg p "$HOME/$path" '.filesystem.denyRead | index($p) != null' <<< "$output")" = "true" ]
+    done
+    # The runner's work directory stays readable: a phase may work under it.
+    [ "$(jq --arg p "$HOME/actions-runner-one" '.filesystem.denyRead | index($p)' <<< "$output")" = "null" ]
+    [ "$(jq '[.filesystem.denyRead[] | select(test("actions-runner-two/\\.env$"))] | length' <<< "$output")" = "0" ]
+}
+
+@test "config: AGENT_SANDBOX_RUNNER_DIRS names runner directories kept elsewhere (#157)" {
+    _setup
+    mkdir -p "${TEST_TEMP_DIR}/srv/runner-a" "${TEST_TEMP_DIR}/srv/runner-b" "$HOME/actions-runner-one"
+    touch "${TEST_TEMP_DIR}/srv/runner-a/.credentials" "${TEST_TEMP_DIR}/srv/runner-b/.env" "$HOME/actions-runner-one/.credentials"
+    export AGENT_SANDBOX_RUNNER_DIRS="${TEST_TEMP_DIR}/srv/runner-*"
+    run agent_sandbox_config
+    [ "$(jq --arg r "${TEST_TEMP_DIR}/srv" '.filesystem.denyRead | (index($r + "/runner-a/.credentials") != null) and (index($r + "/runner-b/.env") != null)' <<< "$output")" = "true" ]
+    export AGENT_SANDBOX_RUNNER_DIRS="~/actions-runner-one,${TEST_TEMP_DIR}/srv/runner-a"
+    run agent_sandbox_config
+    [ "$(jq --arg h "$HOME" --arg r "${TEST_TEMP_DIR}/srv" '.filesystem.denyRead | (index($h + "/actions-runner-one/.credentials") != null) and (index($r + "/runner-a/.credentials") != null)' <<< "$output")" = "true" ]
+}
+
+@test "config: AGENT_SANDBOX_RUNNER_DIRS replaces the default location (#157)" {
+    _setup
+    mkdir -p "${TEST_TEMP_DIR}/srv/runner-a" "$HOME/actions-runner-one"
+    touch "${TEST_TEMP_DIR}/srv/runner-a/.credentials" "$HOME/actions-runner-one/.credentials"
+    export AGENT_SANDBOX_RUNNER_DIRS="${TEST_TEMP_DIR}/srv/runner-a"
+    run agent_sandbox_config
+    [ "$(jq --arg p "$HOME/actions-runner-one/.credentials" '.filesystem.denyRead | index($p)' <<< "$output")" = "null" ]
+}
+
+@test "config: .envrc files are hidden like .env files (#157)" {
+    _setup
+    run agent_sandbox_config
+    [ "$(jq '.filesystem.denyRead | (index("**/.env") != null) and (index("**/.envrc") != null)' <<< "$output")" = "true" ]
 }
 
 @test "config: .env files and the install's config.env are hidden" {
