@@ -1073,3 +1073,74 @@ _setup_post_impl() {
     assert_output --partial "Post-implementation review: Unresolved"
     refute_output --partial "Post-implementation review: Approved"
 }
+
+# gh mock that reports an existing open PR for the head branch
+_mock_gh_existing_pr() {
+    mkdir -p "${TEST_TEMP_DIR}/bin"
+    cat > "${TEST_TEMP_DIR}/bin/gh" <<MOCK
+#!/bin/bash
+echo "\$@" >> "${TEST_TEMP_DIR}/mock_calls_gh"
+if [ "\$1 \$2" = "pr list" ]; then echo "https://github.com/test-org/test-repo/pull/7"; fi
+if [ "\$1 \$2" = "pr create" ]; then echo "a pull request for branch already exists" >&2; exit 1; fi
+exit 0
+MOCK
+    chmod +x "${TEST_TEMP_DIR}/bin/gh"
+    export PATH="${TEST_TEMP_DIR}/bin:${PATH}"
+}
+
+@test "REGRESSION v1.4.1: an open PR for the branch is updated, not a failure (#134)" {
+    _setup_post_impl
+    _mock_gh_existing_pr
+    run_post_impl_review_loop() { return 0; }
+    run handle_post_implementation "" "Test issue" "second round of work"
+    assert_success
+    run cat "${TEST_TEMP_DIR}/mock_calls_gh"
+    assert_output --partial "pr comment https://github.com/test-org/test-repo/pull/7"
+    assert_output --partial "second round of work"
+    assert_output --partial "add-label agent:pr-open"
+    refute_output --partial "add-label agent:failed"
+    refute_output --partial "pr create"
+}
+
+@test "REGRESSION v1.4.1: an inconclusive review still opens the PR, marked review-unresolved (#87)" {
+    _setup_post_impl
+    run_post_impl_review_loop() { return 3; }
+    run handle_post_implementation "" "Test issue" "did the thing"
+    assert_success
+    run cat "${TEST_TEMP_DIR}/mock_calls_gh"
+    assert_output --partial "Post-implementation review: Inconclusive"
+    assert_output --partial "agent:review-unresolved"
+    refute_output --partial "add-label agent:failed"
+}
+
+@test "REGRESSION v1.4.1: an inconclusive review does not publish interrupted work (#87)" {
+    _setup_post_impl
+    IMPLEMENT_WORKER_SUCCEEDED=false
+    run_post_impl_review_loop() { return 3; }
+    run handle_post_implementation "" "Test issue" "did the thing"
+    assert_failure
+    run cat "${TEST_TEMP_DIR}/mock_calls_gh"
+    refute_output --partial "pr create"
+    assert_output --partial "add-label agent:failed"
+    assert_output --partial "agent/issue-99"
+}
+
+@test "REGRESSION v1.4.1: a stop report is posted and the gates are skipped (#162)" {
+    _setup_post_impl
+    export AGENT_TEST_COMMAND="touch ${TEST_TEMP_DIR}/gate_ran; false"
+    mkdir -p "${WORKTREE_DIR}/.agent-data"
+    echo "Stopped: the scripted-solve bound broke on suite X (+40%)." > "${WORKTREE_DIR}/.agent-data/stop-report.md"
+    run handle_post_implementation "" "Test issue" "short tail"
+    assert_failure
+    [ ! -f "${TEST_TEMP_DIR}/gate_ran" ]
+    run cat "${TEST_TEMP_DIR}/mock_calls_gh"
+    assert_output --partial "the scripted-solve bound broke on suite X"
+    assert_output --partial "add-label agent:needs-info"
+    refute_output --partial "add-label agent:failed"
+    refute_output --partial "pr create"
+}
+
+@test "REGRESSION v1.4.1: a stale stop report does not survive into the next dispatch (#162)" {
+    grep -q 'stop-report.md' "${LIB_DIR}/worktree.sh"
+    grep -q 'stop-report.md' "${PROMPTS_DIR}/implement.md"
+}

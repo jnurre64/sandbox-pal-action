@@ -78,5 +78,6 @@ Do NOT commit files containing tokens, API keys, webhook URLs, or other secrets 
 - Never modify .github/workflows/ files.
 - Never modify CI/CD configuration or security-sensitive files.
 - If the task is too large for a single PR, describe what you would split it into and stop.
+- If you must stop before the work is finished (the plan says to stop and report on some condition, or you need a decision you cannot make), commit what is worth keeping, then write your full report to .agent-data/stop-report.md: what you did, what you found, the evidence, and the decision you need. The automation posts that file on the issue as written and skips the tests and the review. Do not write this file when the work is finished.
 
 After finishing, output a brief summary of what you did as plain text (not JSON).

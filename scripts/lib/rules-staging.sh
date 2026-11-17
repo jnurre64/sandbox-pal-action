@@ -63,6 +63,14 @@ apply_rules_files() {
     done
     [ "${#applied[@]}" -eq 0 ] && return 0
     local paths=("${applied[@]/#/${RULES_SOURCE_DIR}/}")
+    # A copy-back can leave a file exactly as HEAD has it (the working
+    # copy had drifted, or a merge already committed the same text). There
+    # is then nothing to commit, which is not a failure (#161).
+    if git -C "$WORKTREE_DIR" add -- "${paths[@]}" 2>/dev/null \
+        && git -C "$WORKTREE_DIR" diff --cached --quiet HEAD -- "${paths[@]}" 2>/dev/null; then
+        log "rules: staged copies already match HEAD; nothing to commit (${applied[*]})"
+        return 0
+    fi
     if git -C "$WORKTREE_DIR" add -- "${paths[@]}" 2>/dev/null \
         && git -C "$WORKTREE_DIR" commit -m "chore(agent): apply staged rules updates — ${applied[*]}" -- "${paths[@]}" 2>/dev/null; then
         RULES_APPLIED="${applied[*]}"

@@ -13,6 +13,7 @@ _source_review_gates() {
     done
     source "${LIB_DIR}/common.sh"
     source "${LIB_DIR}/liveness.sh"
+    source "${LIB_DIR}/rules-staging.sh"
     source "${LIB_DIR}/review-gates.sh"
 }
 
@@ -260,7 +261,24 @@ _source_review_gates() {
     [ "$(printf '%s' "$POST_IMPL_REVIEW_JSON" | jq -r '.findings[1].description')" = "legacy concern two" ]
 }
 
-@test "Gate B review: unparseable output sets agent:failed and returns 1" {
+@test "REGRESSION v1.4.1: Gate B review retries an unparseable response once (#87)" {
+    export AGENT_POST_IMPL_REVIEW="true"
+    export WORKTREE_DIR="$TEST_TEMP_DIR"
+    create_mock "gh" ""
+    _source_review_gates
+    _ledger_init
+    echo 0 > "${TEST_TEMP_DIR}/review_calls"
+    engine_claude() {
+        local n; n=$(cat "${TEST_TEMP_DIR}/review_calls"); echo $((n + 1)) > "${TEST_TEMP_DIR}/review_calls"
+        if [ "$n" -eq 0 ]; then echo '{"result":"I could not decide"}'
+        else echo '{"result":"{\"action\": \"approved\", \"findings\": []}"}'; fi
+    }
+    run_post_impl_review
+    [ "$(cat "${TEST_TEMP_DIR}/review_calls")" -eq 2 ]
+    [ "$(echo "$POST_IMPL_REVIEW_JSON" | jq -r .action)" = "approved" ]
+}
+
+@test "REGRESSION v1.4.1: Gate B review unparseable twice returns 3 and does not fail the issue (#87)" {
     export AGENT_POST_IMPL_REVIEW="true"
     export WORKTREE_DIR="$TEST_TEMP_DIR"
     create_mock "gh" ""
@@ -268,7 +286,8 @@ _source_review_gates() {
     _ledger_init
     engine_claude() { echo '{"result":"I could not decide"}'; }
     run run_post_impl_review
-    assert_failure
+    [ "$status" -eq 3 ]
+    [[ "$(get_mock_calls "gh")" != *"agent:failed"* ]]
 }
 
 # ═══════════════════════════════════════════════════════════════
@@ -371,12 +390,12 @@ _setup_loop_worktree() {
     [ "$status" -eq 2 ]
 }
 
-@test "review loop: parse failure returns 1" {
+@test "review loop: parse failure returns 3 (inconclusive)" {
     _setup_loop_worktree
     create_mock "gh" ""
     engine_claude() { echo '{"result":"garbage"}'; }
     run run_post_impl_review_loop "Read,Edit"
-    [ "$status" -eq 1 ]
+    [ "$status" -eq 3 ]
 }
 
 @test "review loop: ledger is committed on the branch" {
@@ -820,17 +839,41 @@ _setup_test_gate() {
     [ "$setup_line" -lt "$test_line" ]
 }
 
-@test "REGRESSION issue-73: Gate B parse failure preserves the branch and names it" {
+@test "REGRESSION issue-73: Gate B parse failure preserves the branch" {
     _setup_test_gate
     export AGENT_POST_IMPL_REVIEW="true"
     _ledger_init
     engine_claude() { echo '{"result":"not valid json at all"}'; }
     run run_post_impl_review
-    assert_failure
+    [ "$status" -eq 3 ]
     [ -f "${TEST_TEMP_DIR}/preserve_calls" ]
+}
+
+@test "REGRESSION v1.4.1: test-gate failure comment carries the worker's report (#162)" {
+    _setup_test_gate
+    export AGENT_TEST_GATE_MAX_RETRIES="0"
+    export AGENT_TEST_COMMAND="false"
+    run run_test_gate "Read,Edit" "Test issue" "STOPPED: heavy suite regressed by 40%"
+    assert_failure
     local calls
     calls=$(get_mock_calls "gh")
-    [[ "$calls" == *"agent/issue-99"* ]]
+    [[ "$calls" == *"Test Failure (Pre-PR Gate)"* ]]
+    [[ "$calls" == *"STOPPED: heavy suite regressed by 40%"* ]]
+}
+
+@test "REGRESSION v1.4.1: review loop applies staged rules edits before the review reads the diff (#133)" {
+    _setup_loop_worktree
+    mkdir -p "${WORKTREE_DIR}/.claude/rules" "${WORKTREE_DIR}/.agent-data/rules"
+    echo "old rule" > "${WORKTREE_DIR}/.claude/rules/style.md"
+    git -C "$WORKTREE_DIR" add -A && git -C "$WORKTREE_DIR" commit -qm base
+    echo "new rule" > "${WORKTREE_DIR}/.agent-data/rules/style.md"
+    engine_claude() {
+        git -C "$WORKTREE_DIR" show HEAD:.claude/rules/style.md > "${TEST_TEMP_DIR}/seen_by_review"
+        echo '{"result":"{\"action\": \"approved\", \"verified_fixed\": [], \"reopened\": [], \"findings\": []}"}'
+    }
+    run run_post_impl_review_loop "Read,Edit"
+    assert_success
+    grep -q "new rule" "${TEST_TEMP_DIR}/seen_by_review"
 }
 
 @test "REGRESSION issue-73: retry-session test failure preserves the branch" {

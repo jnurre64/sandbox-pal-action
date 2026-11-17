@@ -509,6 +509,31 @@ handle_post_implementation() {
         commit_count=$(git -C "$WORKTREE_DIR" rev-list --count "origin/main..HEAD" 2>/dev/null || echo "0")
     fi
 
+    # A worker that stops on purpose (the plan told it to, or it needs a
+    # decision) says so in .agent-data/stop-report.md. The report goes to
+    # the issue as written; the test gate and its fix sessions are skipped,
+    # because the branch is incomplete by intent and a red suite would
+    # only bury the report (#162).
+    local stop_report_file="${WORKTREE_DIR}/.agent-data/stop-report.md"
+    if [ -s "$stop_report_file" ]; then
+        log "Implementation stopped with a report; skipping the gates."
+        local stop_branch_note="No commits were made."
+        if [ "$commit_count" -gt 0 ]; then
+            preserve_branch || true
+            stop_branch_note="${commit_count} commit(s) so far are pushed to the \`${BRANCH_NAME}\` branch; the next implementation run resumes from them."
+        fi
+        gh issue comment "$NUMBER" --repo "$REPO" \
+            --body "## Implementation stopped: a decision is needed
+
+The implementation session stopped before finishing and left this report. ${stop_branch_note} The tests and the review were not run.
+
+$(redact_secrets < "$stop_report_file" | cut -c1-60000)
+$(denials_report_section)" 2>/dev/null || true
+        set_label "agent:needs-info"
+        notify "agent_failed" "$issue_title" "https://github.com/${REPO}/issues/${NUMBER}" "Implementation stopped and needs a decision"
+        return 1
+    fi
+
     if [ "$commit_count" -gt 0 ]; then
         # Preserve finished work on the remote BEFORE any gate can fail.
         # A gate failure used to strand unpushed commits in a worktree
@@ -520,7 +545,7 @@ handle_post_implementation() {
         impl_tools=$(get_implementation_tools)
 
         # ── Pre-PR test gate (bounded fix sessions) ───────────────
-        if ! run_test_gate "$impl_tools" "$issue_title"; then
+        if ! run_test_gate "$impl_tools" "$issue_title" "$claude_output"; then
             return 1
         fi
 
@@ -530,6 +555,13 @@ handle_post_implementation() {
         run_post_impl_review_loop "$impl_tools" || review_rc=$?
         if [ "$review_rc" -eq 1 ]; then
             log "Post-implementation review loop halted PR creation."
+            return 1
+        fi
+        # No verdict from the review (rc 3). A finished implementation is
+        # published for a human to review; interrupted work is not, since
+        # it may only recover through an independent review (#87).
+        if [ "$review_rc" -eq 3 ] && [ "${IMPLEMENT_WORKER_SUCCEEDED:-true}" != "true" ]; then
+            review_unparsed_failure
             return 1
         fi
         # Copy back and commit any staged rules edits (#92) before the
@@ -573,6 +605,14 @@ $(_ledger_outstanding_summary)
 "
             fi
         fi
+        if [ "$review_rc" -eq 3 ]; then
+            unresolved_header="## ⚠ Review Inconclusive
+
+The post-implementation review gave no parseable verdict in two attempts, so this PR has not been independently reviewed. Review it by hand before merging.
+
+---
+"
+        fi
 
         local pr_body test_status="Not configured" review_status="Disabled"
         if [ -n "${AGENT_TEST_COMMAND:-}" ]; then
@@ -582,6 +622,8 @@ $(_ledger_outstanding_summary)
             review_status="Approved"
             if [ "$review_rc" -eq 2 ]; then
                 review_status="Unresolved — retry limit reached; human arbitration required"
+            elif [ "$review_rc" -eq 3 ]; then
+                review_status="Inconclusive — the review output could not be parsed; human review required"
             fi
         fi
         pr_body="${unresolved_header}## Automated PR for #${NUMBER}
@@ -609,23 +651,40 @@ Please review carefully. The agent will address review feedback automatically.
 
 Closes #${NUMBER}"
 
-        # Create PR
-        local pr_url
-        pr_url=$(gh pr create --repo "$REPO" \
-            --head "$BRANCH_NAME" \
-            --title "Agent: ${issue_title}" \
-            --body "$pr_body" 2>/dev/null || echo "FAILED")
+        # Create the PR, or reuse the one already open for this branch: a
+        # re-planned issue keeps its branch and its PR, and `gh pr create`
+        # refuses a second PR for the same head (#134). The report for this
+        # run goes on the open PR as a comment; its description is left
+        # alone (bodies are never rewritten, see tests/test_hygiene.bats).
+        local pr_url existing_pr
+        existing_pr=$(gh pr list --repo "$REPO" --head "$BRANCH_NAME" --state open \
+            --json url --jq '.[0].url // empty' 2>/dev/null || echo "")
+        if [[ "$existing_pr" == https://*/pull/* ]]; then
+            log "PR already open for ${BRANCH_NAME}: ${existing_pr} — posting this run's report as a comment"
+            gh pr comment "$existing_pr" --repo "$REPO" --body "$pr_body" 2>/dev/null \
+                || log "WARN: could not post this run's report on ${existing_pr}"
+            pr_url="$existing_pr"
+        else
+            pr_url=$(gh pr create --repo "$REPO" \
+                --head "$BRANCH_NAME" \
+                --title "Agent: ${issue_title}" \
+                --body "$pr_body" 2>/dev/null || echo "FAILED")
+        fi
 
         if [ "$pr_url" != "FAILED" ]; then
             # shellcheck disable=SC2034  # read by liveness.sh result/record
             DISPATCH_PR_URL="$pr_url"
-            log "PR created: $pr_url"
-            notify "pr_created" "$issue_title" "$pr_url" "PR created with $commit_count commit(s)"
+            log "PR ready: $pr_url"
+            notify "pr_created" "$issue_title" "$pr_url" "PR ready with $commit_count commit(s)"
             set_label "agent:pr-open"
-            if [ "$review_rc" -eq 2 ]; then
+            if [ "$review_rc" -eq 2 ] || [ "$review_rc" -eq 3 ]; then
                 gh issue edit "$NUMBER" --repo "$REPO" --add-label "agent:review-unresolved" 2>/dev/null || true
                 gh pr edit "$pr_url" --repo "$REPO" --add-label "agent:review-unresolved" 2>/dev/null || true
-                notify "review_unresolved" "$issue_title" "$pr_url" "Review loop hit its cap — blocking findings need human arbitration"
+                if [ "$review_rc" -eq 2 ]; then
+                    notify "review_unresolved" "$issue_title" "$pr_url" "Review loop hit its cap — blocking findings need human arbitration"
+                else
+                    notify "review_unresolved" "$issue_title" "$pr_url" "The review gave no parseable verdict — the PR needs a human review"
+                fi
             fi
         else
             log "Failed to create PR."

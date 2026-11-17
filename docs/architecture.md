@@ -90,7 +90,7 @@ All agent labels:
 | `agent:plan-approved` | Human approved the plan (triggers implementation) |
 | `agent:in-progress` | Agent is implementing code |
 | `agent:pr-open` | PR created, awaiting review |
-| `agent:review-unresolved` | Annotation label (applied alongside `agent:pr-open`): the review loop hit its retry cap with findings still outstanding |
+| `agent:review-unresolved` | Annotation label (applied alongside `agent:pr-open`): the review loop hit its retry cap with findings still outstanding, or the review gave no parseable verdict |
 | `agent:done` | Terminal: the agent's PR merged; linked issue closed and cleaned |
 | `agent:revision` | Agent is addressing review feedback |
 | `agent:implement` | Human trigger: skip triage, validate and implement a pre-written plan |
@@ -162,6 +162,8 @@ Triggered by the `agent:plan-approved` label. The agent:
 3. The dispatch script checks for new commits, optionally runs a pre-PR test gate, pushes the branch, and creates a PR with `Closes #N` linking
 4. Sets `agent:pr-open`
 
+Two cases leave this path. If the branch already has an open PR (an issue that was re-planned on its branch), no second PR is created: the report for the run is posted on the open PR as a comment and the issue still moves to `agent:pr-open`. If the implementation session stops on purpose and writes `.agent-data/stop-report.md` (the plan told it to stop on some condition, or it needs a decision), the dispatcher posts that report on the issue as written, pushes any commits, skips the test gate and the review, and sets `agent:needs-info`.
+
 This two-phase design ensures a human reviews the plan before any code is written. For urgent issues, the human can approve the plan immediately after it is posted.
 
 #### Interactive Plan Branch Marker
@@ -177,6 +179,10 @@ Before a PR is created, `handle_post_implementation()` runs a capped, ledger-dri
 3. If no blocking findings remain open, the loop exits clean and the PR opens as `agent:pr-open`.
 4. Otherwise, if the retry count is under the cap (`AGENT_POST_IMPL_REVIEW_MAX_RETRIES`, default 3), a fix session addresses the open findings, dispositions them in the ledger, and the loop re-reviews.
 5. If the cap is reached with findings still open, the loop stops and the PR opens anyway -- labeled `agent:review-unresolved` **in addition to** `agent:pr-open` -- with the outstanding findings summarized at the top of the PR body.
+
+Staged rules edits (`.agent-data/rules/`) are copied back and committed before every review pass, so the review sees them in the diff.
+
+A review pass whose output cannot be parsed is run once more. If the second attempt gives no verdict either, the review is inconclusive: the PR opens with a "Review Inconclusive" notice at the top, labeled `agent:review-unresolved`, for a human to review. The exception is an implementation session that itself ended in a failure (a turn cap or timeout): that work is not published without a review, and the issue goes to `agent:failed` with the commits kept on the branch.
 
 `AGENT_POST_IMPL_REVIEW_MAX_RETRIES=0` means a single review pass with no fix loop: any open finding immediately produces an `agent:review-unresolved` PR. This replaces the earlier single-retry Gate B design.
 
