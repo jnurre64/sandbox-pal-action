@@ -874,6 +874,10 @@ handle_post_merge() {
 
     if [ "${AGENT_CLEANUP_ENABLED}" != "true" ]; then
         log "Post-merge doc cleanup: disabled (AGENT_CLEANUP_ENABLED=${AGENT_CLEANUP_ENABLED})"
+        # The work is merged: its stored ledger has no reader left.
+        for done_issue in $linked_issues; do
+            rm -f "$(ledger_path "$done_issue")"
+        done
         return 0
     fi
 
@@ -911,7 +915,14 @@ handle_post_merge() {
     export AGENT_MERGED_BRANCH="$branch"
     export AGENT_ISSUE_NUMBER="${first_issue:-}"
     export AGENT_REVIEW_LEDGER=""
-    if [ -f "${WORKTREE_DIR}/.agent-data/review-ledger.json" ]; then
+    # The ledger is kept on the dispatcher's machine (#82). A merge from a
+    # branch of an older version may still have put one on the default
+    # branch; a cleanup on another machine has only the PR body's summary.
+    local ledger_file=""
+    [ -n "$first_issue" ] && ledger_file=$(ledger_path "$first_issue")
+    if [ -n "$ledger_file" ] && [ -f "$ledger_file" ]; then
+        AGENT_REVIEW_LEDGER=$(cat "$ledger_file")
+    elif [ -f "${WORKTREE_DIR}/.agent-data/review-ledger.json" ]; then
         AGENT_REVIEW_LEDGER=$(cat "${WORKTREE_DIR}/.agent-data/review-ledger.json")
     fi
 
@@ -963,6 +974,11 @@ handle_post_merge() {
                 --body "Tracking-doc updates from the automated post-merge cleanup of PR #${pr_number}." 2>/dev/null || true
         fi
     fi
+
+    # Follow-ups are filed: the stored ledger has done its job.
+    for done_issue in $linked_issues; do
+        rm -f "$(ledger_path "$done_issue")"
+    done
 
     notify "cleanup_done" "$pr_title" "https://github.com/${REPO}/pull/${pr_number}" \
         "Post-merge cleanup complete (${commit_count} doc commit(s), ${fu_count} follow-up issue(s))"

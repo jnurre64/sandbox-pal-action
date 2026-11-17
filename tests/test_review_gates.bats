@@ -343,7 +343,7 @@ _setup_loop_worktree() {
     }
     run run_post_impl_review_loop "Read,Edit"
     assert_success
-    run jq -r '.findings[0].status' "${WORKTREE_DIR}/.agent-data/review-ledger.json"
+    run jq -r '.findings[0].status' "$(ledger_path)"
     assert_output "rejected"
 }
 
@@ -398,18 +398,18 @@ _setup_loop_worktree() {
     [ "$status" -eq 3 ]
 }
 
-@test "review loop: ledger is committed on the branch" {
+@test "REGRESSION v1.4.1: the review loop keeps the ledger out of git and out of the worktree (#82)" {
     _setup_loop_worktree
-    engine_claude() { echo '{"result":"{\"action\": \"approved\", \"verified_fixed\": [], \"reopened\": [], \"findings\": []}"}'; }
+    (cd "$WORKTREE_DIR" && echo x > f.txt && git add f.txt && git commit -qm "impl")
+    local before
+    before=$(git -C "$WORKTREE_DIR" rev-parse HEAD)
+    engine_claude() { echo '{"result":"{\"action\": \"approved\", \"verified_fixed\": [], \"reopened\": [], \"findings\": [{\"severity\":\"non-blocking\",\"description\":\"nit\"}]}"}'; }
     run_post_impl_review_loop "Read,Edit"
-    run git -C "$WORKTREE_DIR" log --format='%s' -1
-    assert_output --partial "review ledger"
-}
-
-@test "defaults: AGENT_POST_IMPL_REVIEW_MAX_RETRIES defaults to 3" {
-    unset AGENT_POST_IMPL_REVIEW_MAX_RETRIES
-    source "${LIB_DIR}/defaults.sh"
-    assert_equal "$AGENT_POST_IMPL_REVIEW_MAX_RETRIES" "3"
+    [ "$(git -C "$WORKTREE_DIR" rev-parse HEAD)" = "$before" ]
+    [ ! -e "${WORKTREE_DIR}/.agent-data/review-ledger.json" ]
+    [ -z "$(git -C "$WORKTREE_DIR" status --porcelain)" ]
+    [[ "$LEDGER_FILE" == "${AGENT_LOG_DIR}/ledgers/test-org__test-repo/issue-99.json" ]]
+    [ "$(jq -r '.findings | length' "$LEDGER_FILE")" = "1" ]
 }
 
 # ═══════════════════════════════════════════════════════════════
@@ -579,7 +579,8 @@ _setup_ledger() {
 
 @test "ledger: init creates empty ledger file" {
     _setup_ledger
-    [ -f "${TEST_TEMP_DIR}/.agent-data/review-ledger.json" ]
+    [ -f "$LEDGER_FILE" ]
+    [ ! -e "${TEST_TEMP_DIR}/.agent-data/review-ledger.json" ]
     run jq -r '.cycles' "$LEDGER_FILE"
     assert_output "0"
 }
@@ -667,19 +668,22 @@ _setup_ledger() {
     refute_output --partial "nit"
 }
 
-@test "ledger: commit adds only the ledger file to git" {
+@test "REGRESSION v1.4.1: a ledger committed by an older version is imported and dropped from the branch (#82)" {
     export WORKTREE_DIR="${TEST_TEMP_DIR}/wt"
-    mkdir -p "$WORKTREE_DIR"
+    export NUMBER="7"
+    mkdir -p "$WORKTREE_DIR/.agent-data"
     git -C "$WORKTREE_DIR" init -q
     git -C "$WORKTREE_DIR" config user.email "t@t" && git -C "$WORKTREE_DIR" config user.name "t"
+    echo '{"issue":7,"cycles":2,"findings":[]}' > "$WORKTREE_DIR/.agent-data/review-ledger.json"
+    git -C "$WORKTREE_DIR" add -f .agent-data/review-ledger.json && git -C "$WORKTREE_DIR" commit -qm "old ledger"
     _source_review_gates
     _ledger_init
-    echo "unrelated" > "${WORKTREE_DIR}/other.txt"
-    _ledger_commit "review pass 1"
+    [ "$(jq -r '.cycles' "$LEDGER_FILE")" = "2" ]
+    [ ! -e "$WORKTREE_DIR/.agent-data/review-ledger.json" ]
+    run git -C "$WORKTREE_DIR" ls-files .agent-data
+    assert_output ""
     run git -C "$WORKTREE_DIR" log --format='%s' -1
-    assert_output --partial "review pass 1"
-    run git -C "$WORKTREE_DIR" status --porcelain
-    assert_output --partial "other.txt"
+    assert_output --partial "drop the review ledger"
 }
 
 # ═══════════════════════════════════════════════════════════════
@@ -898,23 +902,6 @@ _setup_test_gate() {
     [ ! -f "${TEST_TEMP_DIR}/suite_ran" ]
     [ ! -f "${TEST_TEMP_DIR}/claude_calls" ]
     grep -q 'agent:failed' "${TEST_TEMP_DIR}/mock_calls_gh"
-}
-
-@test "ledger: a rejected ledger commit is a failure, and nothing to commit is not" {
-    _setup_test_gate
-    _ledger_init
-    _ledger_commit "first"
-    # Unchanged since the last commit: success, no new commit
-    local before
-    before=$(git -C "$WORKTREE_DIR" rev-parse HEAD)
-    _ledger_commit "again"
-    [ "$(git -C "$WORKTREE_DIR" rev-parse HEAD)" = "$before" ]
-    # A commit hook that rejects everything
-    printf '#!/bin/sh\nexit 1\n' > "$WORKTREE_DIR/.git/hooks/pre-commit"
-    chmod +x "$WORKTREE_DIR/.git/hooks/pre-commit"
-    _ledger_merge_review '{"findings":[{"severity":"blocking","description":"x","location":"a:1"}]}'
-    run _ledger_commit "rejected"
-    assert_failure
 }
 
 @test "ledger: gate_metadata_failure pushes the branch, tells the issue and sets agent:failed" {

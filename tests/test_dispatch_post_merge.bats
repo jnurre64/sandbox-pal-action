@@ -207,3 +207,17 @@ _mock_gh_followups() {
     grep -q 'open-issues.md' "${LIB_DIR}/phase-context.sh"
     grep -q 'file_follow_up_issues' "${SCRIPTS_DIR}/sandbox-pal-dispatch.sh"
 }
+
+@test "REGRESSION v1.4.1: post-merge reads the ledger from the dispatcher's store and removes it when done (#82)" {
+    export AGENT_CLEANUP_ENABLED="false"
+    _source_dispatch_functions
+    local f
+    f=$(ledger_path 41)
+    mkdir -p "$(dirname "$f")"
+    echo '{"issue":41,"cycles":1,"findings":[]}' > "$f"
+    gh() { if [ "$1" = "pr" ]; then echo "$PR_JSON_MERGED"; fi; return 0; }
+    run handle_post_merge
+    assert_success
+    [ ! -e "$f" ]
+    grep -q 'ledger_path "\$first_issue"' "${SCRIPTS_DIR}/sandbox-pal-dispatch.sh"
+}

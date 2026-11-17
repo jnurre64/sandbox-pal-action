@@ -571,7 +571,7 @@ $(denials_report_section)" 2>/dev/null || true
             return 1
         fi
 
-        # Retry sessions, ledger commits and rules staging may have
+        # Retry sessions and rules staging may have
         # added commits
         if [ -n "$start_sha" ]; then
             commit_count=$(git -C "$WORKTREE_DIR" rev-list --count "${start_sha}..HEAD" 2>/dev/null || echo "0")
@@ -586,9 +586,11 @@ $(denials_report_section)" 2>/dev/null || true
 
         # Ledger summary for the PR body
         local ledger_summary="" unresolved_header=""
-        if [ -f "${WORKTREE_DIR}/.agent-data/review-ledger.json" ]; then
-            # shellcheck disable=SC2034  # read by review-gates.sh's _ledger_pr_summary/_ledger_outstanding_summary
-            LEDGER_FILE="${WORKTREE_DIR}/.agent-data/review-ledger.json"
+        # The ledger of this run's review loop. With the review off, a file
+        # left by an earlier dispatch of the issue says nothing about this PR.
+        # shellcheck disable=SC2034  # read by review-gates.sh's _ledger_pr_summary/_ledger_outstanding_summary
+        LEDGER_FILE=$(ledger_path)
+        if [ "${AGENT_POST_IMPL_REVIEW:-false}" = true ] && [ -f "$LEDGER_FILE" ]; then
             ledger_summary="
 ### Adversarial Review Ledger
 

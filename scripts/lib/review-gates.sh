@@ -53,20 +53,54 @@ _extract_review_json() {
 
 # ─── Review ledger ──────────────────────────────────────────────
 # A structured findings file that rides the work branch across review
-# cycles. Path: ${WORKTREE_DIR}/.agent-data/review-ledger.json
+# cycles. Path: ledger_path (the dispatcher's store, never the worktree)
 # Schema: {"issue": N, "cycles": N, "findings": [{"id","severity","description","status","justification"}]}
 #   severity: "blocking" | "non-blocking"
 #   status:   "open" | "fixed" | "rejected"
 LEDGER_FILE=""
 
+# Where an issue's ledger lives: on the dispatcher's machine, outside the
+# repository. It used to be force-committed to the work branch, which put
+# two bookkeeping commits in every PR, overrode the consumer's .gitignore
+# and conflicted between open branches (#82).
+#   $1 = issue number (default: the dispatch's NUMBER)
+# shellcheck disable=SC2120  # the argument is optional
+ledger_path() {
+    echo "${AGENT_LEDGER_DIR:-${AGENT_LOG_DIR}/ledgers}/${REPO//\//__}/issue-${1:-$NUMBER}.json"
+}
+
+# A branch started under an older version carries a committed ledger. Take
+# it over when it belongs to this issue and nothing newer is stored, then
+# remove it from the branch so it does not reach the default branch.
+_ledger_import_legacy() {
+    local legacy_rel=".agent-data/review-ledger.json"
+    local legacy="${WORKTREE_DIR}/${legacy_rel}"
+    [ -f "$legacy" ] || return 0
+    if [ ! -f "$LEDGER_FILE" ] && jq -e --arg n "${NUMBER:-}" \
+        '.findings != null and .issue != null and (.issue | tostring) == $n' "$legacy" >/dev/null 2>&1; then
+        cp "$legacy" "$LEDGER_FILE"
+        log "Review ledger taken over from the branch (${legacy_rel})"
+    fi
+    if git -C "$WORKTREE_DIR" ls-files --error-unmatch -- "$legacy_rel" >/dev/null 2>&1; then
+        if ! { git -C "$WORKTREE_DIR" rm -q -f -- "$legacy_rel" 2>/dev/null \
+            && git -C "$WORKTREE_DIR" commit -q -m "chore(agent): drop the review ledger from the branch" -- "$legacy_rel" 2>/dev/null; }; then
+            log "WARN: could not remove the committed review ledger from the branch"
+        fi
+    else
+        rm -f "$legacy"
+    fi
+    return 0
+}
+
 _ledger_init() {
-    LEDGER_FILE="${WORKTREE_DIR}/.agent-data/review-ledger.json"
+    # shellcheck disable=SC2119
+    LEDGER_FILE=$(ledger_path)
     mkdir -p "$(dirname "$LEDGER_FILE")"
+    _ledger_import_legacy
     local current_issue="${NUMBER:-}"
     if [ -f "$LEDGER_FILE" ] && jq -e '.findings' "$LEDGER_FILE" >/dev/null 2>&1; then
-        # The ledger rides the work branch, so a branch cut after a merge
-        # inherits the previous PR's ledger. One stamped with another issue,
-        # or with no stamp at all, is a stale leftover — not history.
+        # A ledger stamped with another issue, or with no stamp at all, is
+        # a stale leftover — not history.
         if jq -e --arg n "$current_issue" \
             '.issue != null and (.issue | tostring) == $n' "$LEDGER_FILE" >/dev/null 2>&1; then
             return 0
@@ -139,21 +173,7 @@ _ledger_outstanding_summary() {
             | "- **\(.id)**: \(.description)"] | join("\n")' "$LEDGER_FILE"
 }
 
-# Commit ONLY the ledger file (it may sit under a gitignored .agent-data/).
-# Best-effort by design (a ledger commit failure must never abort the
-# review loop) — but a silent `|| true` made every failure invisible.
-_ledger_commit() {
-    local msg="$1"
-    # Nothing to record is not a failure.
-    if git -C "$WORKTREE_DIR" ls-files --error-unmatch "$LEDGER_FILE" >/dev/null 2>&1 &&
-        git -C "$WORKTREE_DIR" diff --quiet HEAD -- "$LEDGER_FILE" 2>/dev/null; then
-        return 0
-    fi
-    git -C "$WORKTREE_DIR" add -f "$LEDGER_FILE" 2>/dev/null &&
-        git -C "$WORKTREE_DIR" commit -m "chore(agent): review ledger — ${msg}" -- "$LEDGER_FILE" 2>/dev/null
-}
-
-# A review ledger or rules commit that fails (a rejecting commit hook, a full
+# A rules commit that fails (a rejecting commit hook, a full
 # disk) must not let a PR go out without its review record. Stop the dispatch
 # visibly: the branch is pushed, the issue is told, the label says failed.
 gate_metadata_failure() {
@@ -696,10 +716,6 @@ run_post_impl_review_loop() {
             return "$review_pass_rc"
         fi
         _ledger_merge_review "$POST_IMPL_REVIEW_JSON"
-        if ! _ledger_commit "review pass $((retries + 1))"; then
-            gate_metadata_failure "The review ledger could not be committed"
-            return 1
-        fi
 
         local open
         open=$(_ledger_blocking_open_count)
@@ -719,9 +735,5 @@ run_post_impl_review_loop() {
             return 1
         fi
         _ledger_apply_dispositions "$RETRY_DISPOSITIONS_JSON"
-        if ! _ledger_commit "retry ${retries} dispositions"; then
-            gate_metadata_failure "The review ledger could not be committed"
-            return 1
-        fi
     done
 }

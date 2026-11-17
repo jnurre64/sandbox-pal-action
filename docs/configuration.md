@@ -590,6 +590,16 @@ AGENT_POST_IMPL_REVIEW_MAX_RETRIES=0   # single pass only, escalate any finding 
 
 When an agent-authored PR merges, an optional cleanup phase runs: tracking-doc updates and follow-up issues (sourced from the review ledger's structured output) are committed, and the merged branch is deleted.
 
+### AGENT_LEDGER_DIR
+
+Where the review ledgers are kept on the dispatcher's machine: one JSON file per repository and issue, written by the review loop, read by the post-merge cleanup and removed once the PR is merged and cleaned up.
+
+| Key | Default | Type |
+|-----|---------|------|
+| `AGENT_LEDGER_DIR` | `$AGENT_LOG_DIR/ledgers` | directory path |
+
+The ledger is not in the repository. If the post-merge cleanup runs on a different machine than the implementation did, it does not find the file and works from the ledger summary in the PR description. Point `AGENT_LEDGER_DIR` at a directory all runners share to avoid that.
+
 ### AGENT_CLEANUP_ENABLED
 
 Enables the post-merge cleanup phase. When disabled, the doc-cleanup session is skipped for merged agent PRs.

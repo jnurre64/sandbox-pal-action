@@ -186,6 +186,8 @@ AGENT_LOG_DIR="${AGENT_LOG_DIR:-$HOME/.claude/agent-logs}"
 
 # Dispatch locks and last-dispatch outcome records (liveness, #94)
 AGENT_LOCK_DIR="${AGENT_LOCK_DIR:-$AGENT_LOG_DIR/locks}"
+# Review ledgers, one file per repository and issue (#82).
+AGENT_LEDGER_DIR="${AGENT_LEDGER_DIR:-$AGENT_LOG_DIR/ledgers}"
 
 # ─── Structured output schemas (#96) ─────────────────────────────
 # JSON Schema per machine-consumed phase, passed as --json-schema so

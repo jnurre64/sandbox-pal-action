@@ -16,8 +16,8 @@ Read these files with the Read tool. A file that does not exist means there is n
 ### Step 1: Read project conventions
 Read CLAUDE.md. Identify whether this project keeps tracking documents (task lists such as `claude-work/Next_Tasks.md`, constants references, changelogs). If CLAUDE.md names none, skip Step 3.
 
-### Step 2: Remove the review ledger from main
-If `.agent-data/review-ledger.json` exists in the working tree:
+### Step 2: Remove a leftover review ledger from main
+The ledger is no longer committed, but a branch from an older version of the pipeline may have brought one in. If `.agent-data/review-ledger.json` exists in the working tree:
 - Run: git rm .agent-data/review-ledger.json
 - Run: git commit -m "chore(agent): drop merged review ledger"
 
