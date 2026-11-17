@@ -9,6 +9,7 @@ Read these files with the Read tool. A file that does not exist means there is n
 - Read `.agent-data/context/merged-branch.txt` -- the branch that was merged (already deleted)
 - Read `.agent-data/context/issue-number.txt` -- the linked issue number (may be empty)
 - Read `.agent-data/context/review-ledger.json` -- the review findings ledger JSON (may be empty)
+- Read `.agent-data/context/open-issues.md` -- the repository's open issues, for Step 4
 
 ## Instructions
 
@@ -26,19 +27,25 @@ For each tracking document CLAUDE.md names:
 - Do NOT add entries for work that is not tracked there.
 Commit each file change with a one-line `docs:` message. If nothing needs updating, make no commit.
 
-### Step 4: Identify follow-up issues
-From the ledger, findings with status "rejected" or severity "non-blocking" MAY deserve a tracking issue. File one ONLY when the finding describes a concrete defect or improvement a future session could act on (not style nits, not vague suggestions). Deduplicate: skip anything that matches an existing open issue title you can see in the PR body or ledger.
+### Step 4: Account for every unresolved ledger finding
+Go through the ledger. Every finding whose status is not "fixed" (that is "open" or "rejected") gets exactly one of two outcomes:
+- **File it** (`follow_up_issues`): when it describes a concrete defect or improvement a future session could act on.
+- **Decline it** (`not_filed`, with the finding id and a one-line reason): style nits, vague suggestions, findings about the review tooling itself, and anything already tracked.
+
+Before filing, read `.agent-data/context/open-issues.md` (the open issues, one `#number title` per line). If an open issue already covers the finding, even in other words, decline it with the reason `already tracked in #N`. The automation also skips a follow-up whose title equals an open issue's title.
+
+Do not leave a finding out of both lists: the automation counts them and reports any that are missing on the merged PR.
 
 ### Step 5: Final output
 Output ONLY this JSON object (no markdown, no fences):
 
-{"action": "done", "summary": "one-paragraph summary of what was cleaned up", "follow_up_issues": [{"title": "concise issue title", "body": "issue body with context, file references, and why it was deferred"}]}
+{"action": "done", "summary": "one-paragraph summary of what was cleaned up", "follow_up_issues": [{"title": "concise issue title", "body": "issue body with context, file references, and why it was deferred"}], "not_filed": [{"finding": "F2", "reason": "style nit"}]}
 
-Use an empty array when there is nothing worth filing.
+Use empty arrays when there is nothing to file or decline.
 
 ## Rules
 - Documentation and tracking changes only. Never modify code, tests, or CI config.
 - Never read-modify-write an issue or PR body as tracking state — the corruption is cumulative (encoding round-trips, lost concurrent edits) and easy to miss. Append a comment, or track in a repo file, instead.
 - You cannot write anything under .claude/ (writes there are silently blocked). To update an agent-facing rules file, edit its staged copy under .agent-data/rules/ instead — the harness copies changed staged files back to .claude/rules/ and commits them for you.
 - Never push; the dispatch script handles pushing.
-- Prefer zero follow-up issues over noisy ones.
+- Prefer declining a finding with a reason over filing a noisy issue.

@@ -167,6 +167,93 @@ ${what}. The pipeline stopped instead of publishing without it. Commits made so 
     set_label "agent:failed"
 }
 
+# ─── Follow-up issues from the post-merge cleanup ────────────────
+# File the cleanup session's follow-up issues and say on the merged PR
+# what happened to every ledger finding.
+#   $1 = the session's JSON: {"follow_up_issues":[{"title","body"}],
+#        "not_filed":[{"finding","reason"}]}
+#   $2 = the merged PR's number
+# Reads AGENT_REVIEW_LEDGER (the ledger JSON, may be empty). Sets
+# FOLLOWUP_FILED_COUNT. A follow-up whose title equals an open issue's
+# title, or an earlier one in the same batch, is not filed (#80). The
+# comment makes a dropped finding visible: it counts the findings the
+# ledger left unresolved against what was filed, already tracked or
+# declined with a reason (#85).
+FOLLOWUP_FILED_COUNT=0
+file_follow_up_issues() {
+    local json_block="$1" pr_number="$2"
+    FOLLOWUP_FILED_COUNT=0
+    # shellcheck disable=SC2016  # a jq definition, not shell
+    local norm='def norm: ascii_downcase | gsub("\\s+"; " ") | sub("^ "; "") | sub(" $"; "");'
+
+    local open_issues fu_count i=0
+    open_issues=$(gh issue list --repo "$REPO" --state open --limit 500 --json number,title 2>/dev/null || echo "[]")
+    printf '%s' "$open_issues" | jq -e 'type == "array"' >/dev/null 2>&1 || open_issues="[]"
+    fu_count=$(printf '%s' "$json_block" | jq -r '(.follow_up_issues // []) | length' 2>/dev/null || echo 0)
+    [[ "$fu_count" =~ ^[0-9]+$ ]] || fu_count=0
+
+    local filed_lines="" tracked_lines="" seen_titles="[]" tracked_count=0
+    local -a label_args=()
+    [ -n "${AGENT_FOLLOWUP_LABELS:-}" ] && label_args=(--label "$AGENT_FOLLOWUP_LABELS")
+    while [ "$i" -lt "$fu_count" ]; do
+        local fu_title fu_body existing fu_url
+        fu_title=$(printf '%s' "$json_block" | jq -r ".follow_up_issues[$i].title")
+        fu_body=$(printf '%s' "$json_block" | jq -r ".follow_up_issues[$i].body")
+        i=$((i + 1))
+        # shellcheck disable=SC2016  # $open, $seen and $t are jq variables
+        existing=$(jq -rn --argjson open "$open_issues" --argjson seen "$seen_titles" --arg t "$fu_title" "$norm"'
+            ($t | norm) as $n
+            | ([$open[] | select((.title | norm) == $n) | "#\(.number)"] | first)
+              // (if ($seen | index($n)) != null then "an earlier follow-up in this run" else empty end)' 2>/dev/null || true)
+        if [ -n "$existing" ]; then
+            log "Follow-up not filed, already tracked (${existing}): $fu_title"
+            tracked_lines+="- Already tracked: ${existing} — ${fu_title}"$'\n'
+            tracked_count=$((tracked_count + 1))
+            continue
+        fi
+        # shellcheck disable=SC2016
+        seen_titles=$(jq -cn --argjson seen "$seen_titles" --arg t "$fu_title" "$norm"'$seen + [$t | norm]')
+        if fu_url=$(gh issue create --repo "$REPO" --title "$fu_title" "${label_args[@]}" --body "${fu_body}
+
+---
+_Filed automatically by the post-merge cleanup of PR #${pr_number}._" 2>/dev/null); then
+            FOLLOWUP_FILED_COUNT=$((FOLLOWUP_FILED_COUNT + 1))
+            filed_lines+="- Filed: ${fu_url##*$'\n'} — ${fu_title}"$'\n'
+        else
+            log "WARN: follow-up issue creation failed: $fu_title"
+            filed_lines+="- **Could not be filed** (the create call failed): ${fu_title}"$'\n'
+        fi
+    done
+
+    # What the ledger left unresolved: every finding that was not fixed.
+    local unresolved=0 declined_lines="" declined_count=0
+    if [ -n "${AGENT_REVIEW_LEDGER:-}" ]; then
+        unresolved=$(printf '%s' "$AGENT_REVIEW_LEDGER" | jq -r '[(.findings // [])[] | select(.status != "fixed")] | length' 2>/dev/null || echo 0)
+        [[ "$unresolved" =~ ^[0-9]+$ ]] || unresolved=0
+    fi
+    declined_lines=$(printf '%s' "$json_block" | jq -r '(.not_filed // [])[] | "- Not filed: \(.finding // "?"): \(.reason // "no reason given")"' 2>/dev/null || true)
+    declined_count=$(printf '%s' "$json_block" | jq -r '(.not_filed // []) | length' 2>/dev/null || echo 0)
+    [[ "$declined_count" =~ ^[0-9]+$ ]] || declined_count=0
+
+    log "Follow-ups: ${unresolved} unresolved ledger finding(s); ${FOLLOWUP_FILED_COUNT} filed, ${tracked_count} already tracked, ${declined_count} declined"
+    if [ "$unresolved" -eq 0 ] && [ "$fu_count" -eq 0 ]; then
+        return 0
+    fi
+    local missing=$((unresolved - fu_count - declined_count)) missing_note=""
+    if [ "$missing" -gt 0 ]; then
+        log "WARN: ${missing} ledger finding(s) not accounted for by the cleanup session"
+        missing_note="
+**${missing} finding(s) are not accounted for above.** Compare this list with the review ledger in this PR's description and file what is missing by hand."
+    fi
+    gh pr comment "$pr_number" --repo "$REPO" --body "## Post-merge cleanup: review follow-ups
+
+The review ledger left ${unresolved} finding(s) that were not fixed in this PR.
+
+${filed_lines}${tracked_lines}${declined_lines}
+${missing_note}" 2>/dev/null || log "WARN: could not post the follow-up summary on PR #${pr_number}"
+    return 0
+}
+
 # ─── Gate A: Adversarial Plan Review ────────────────────────────
 # Runs a fresh Claude session to check the plan against the issue.
 # Returns 0 to proceed, 1 to halt implementation.

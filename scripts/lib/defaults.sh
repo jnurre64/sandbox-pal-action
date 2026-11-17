@@ -104,6 +104,8 @@ AGENT_PROMPT_TEST_FIX="${AGENT_PROMPT_TEST_FIX:-}"
 # Runs a short headless session after an agent PR merges: tracking-doc
 # updates, follow-up issues from the review ledger, branch deletion.
 AGENT_CLEANUP_ENABLED="${AGENT_CLEANUP_ENABLED:-true}"
+# Labels (comma-separated) put on the follow-up issues the cleanup files.
+AGENT_FOLLOWUP_LABELS="${AGENT_FOLLOWUP_LABELS:-}"
 AGENT_PROMPT_CLEANUP="${AGENT_PROMPT_CLEANUP:-}"
 AGENT_ALLOWED_TOOLS_CLEANUP="${AGENT_ALLOWED_TOOLS_CLEANUP:-Read,Edit,Write,Grep,Glob,Bash(git add:*),Bash(git commit:*),Bash(git rm:*),Bash(git status),Bash(git diff:*),Bash(git log:*),Bash(ls:*),Bash(cat:*),Bash(grep:*),Bash(find:*)}"
 

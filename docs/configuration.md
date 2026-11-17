@@ -602,6 +602,22 @@ Enables the post-merge cleanup phase. When disabled, the doc-cleanup session is 
 AGENT_CLEANUP_ENABLED="false"   # disable post-merge cleanup
 ```
 
+The cleanup session does not run for the cleanup's own `chore/agent-cleanup-pr-*` PRs, or for a merged PR with no linked issue.
+
+### AGENT_FOLLOWUP_LABELS
+
+Labels put on the follow-up issues the cleanup files, comma-separated. Empty by default, so follow-ups are filed unlabeled. The labels must exist in the repository.
+
+| Key | Default | Type |
+|-----|---------|------|
+| `AGENT_FOLLOWUP_LABELS` | (empty) | comma-separated label names |
+
+```bash
+AGENT_FOLLOWUP_LABELS="follow-up"
+```
+
+Before filing, the dispatcher skips a follow-up whose title equals the title of an open issue (ignoring case and spacing). After filing, it comments on the merged PR: how many findings the ledger left unfixed, which were filed, which were already tracked, which the session declined and why, and how many are not accounted for.
+
 This flag gates only the doc-cleanup Claude session. The `agent:done` label
 transition on linked issues runs for every merged agent PR regardless of
 this setting — label bookkeeping is not cleanup.
@@ -842,6 +858,7 @@ Before every phase the dispatch script writes what the phase needs to know into 
 | `test-output.txt` | The last 100 lines of a failing test gate (test-fix phase) |
 | `test-exit-code.txt` | That run's exit code |
 | `merged-branch.txt` | The merged branch (cleanup phase) |
+| `open-issues.md` | The repository's open issues, one `#number title` per line (cleanup phase) |
 
 ### Test Command
 
