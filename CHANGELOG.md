@@ -9,7 +9,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 - A stop report for the implementation phase (#162). A session that stops on purpose, because the plan says to stop and report or because it needs a decision, writes `.agent-data/stop-report.md`. The dispatcher posts the file on the issue as written, pushes any commits, skips the test gate and the review, and sets `agent:needs-info`. Until now the test gate ran on the unfinished branch and only its failure was posted. The default implement prompt describes the file; a custom implement prompt needs the same instruction to use it.
-
 - `AGENT_FOLLOWUP_LABELS` (#80): labels for the follow-up issues the post-merge cleanup files. Empty by default.
 - The post-merge cleanup reports on the merged PR what happened to every review finding that was not fixed (#85): filed, already tracked, declined with a reason, or not accounted for. The cleanup schema has a new optional `not_filed` list, and the session can read the open issues in `.agent-data/context/open-issues.md`. A custom cleanup prompt keeps working without either.
 
