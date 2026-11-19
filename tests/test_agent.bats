@@ -126,11 +126,12 @@ _source_agent() {
     _source_agent
     export WORKER_TEST_SECRET='hunter2hunter2'
     FIXTURE=$(jq -cn --arg s "$WORKER_TEST_SECRET" '{is_error:true,subtype:"error_during_execution",terminal_reason:"api_error",api_error_status:529,result:("overloaded, then " + $s)}')
-    run run_agent prompt
-    echo "$output" | jq -e '.status == "failed" and .error.kind == "unknown"'
+    # A 529 is the "overloaded" kind since #83; no retry here, the detail is the subject.
+    AGENT_API_ERROR_RETRIES=0 run run_agent prompt
+    echo "$output" | jq -e '.status == "failed" and .error.kind == "overloaded"'
     echo "$output" | jq -e '.error.detail | test("subtype=error_during_execution") and test("terminal_reason=api_error") and test("api_error_status=529") and test("overloaded") and (test("hunter2") | not)'
     run parse_agent_output "$output"
-    assert_output --partial 'Agent phase failed: API error or worker failure'
+    assert_output --partial 'Agent phase failed: API error: the provider is overloaded or unavailable'
     assert_output --partial 'terminal_reason=api_error'
     refute_output --partial 'hunter2'
     # Long error text is cut, not dropped, and never runs away in a comment.
@@ -403,4 +404,61 @@ _source_refresh_agent() {
         [ "$(wc -l < "${TEST_TEMP_DIR}/worker_calls")" -eq 1 ]
     done
     [ ! -f "${TEST_TEMP_DIR}/waits" ]
+}
+
+# ─── Transient provider errors: retried inside the same phase (#83) ─────────
+OVERLOADED='{"is_error":true,"subtype":"success","api_error_status":529,"result":"API Error: 529 Overloaded. This is a server-side issue, usually temporary — try again in a moment."}'
+
+_source_overloaded_agent() {
+    _source_agent
+    agent_transient_wait() { printf '%s\n' "$1" >> "${TEST_TEMP_DIR}/waits"; }
+    # Fail overloaded FAIL_TIMES times, then succeed.
+    engine_claude() {
+        local calls
+        printf 'called\n' >> "${TEST_TEMP_DIR}/worker_calls"
+        calls=$(wc -l < "${TEST_TEMP_DIR}/worker_calls")
+        [ -z "${TOUCH_WORKTREE:-}" ] || echo work > "${WORKTREE_DIR}/work.txt"
+        if [ "$calls" -le "${FAIL_TIMES:-1}" ]; then printf '%s' "$OVERLOADED"; else printf '%s' '{"subtype":"success","result":"done"}'; fi
+    }
+}
+
+@test "REGRESSION v1.4.1: a 529 or 5xx from the provider has its own error kind (#83)" {
+    _source_agent
+    local fixture
+    for fixture in "$OVERLOADED" \
+        '{"is_error":true,"subtype":"success","result":"API Error: 500 Internal server error"}' \
+        '{"is_error":true,"subtype":"success","api_error_status":503,"result":"upstream unavailable"}'; do
+        FIXTURE="$fixture" AGENT_API_ERROR_RETRIES=0 run run_agent prompt
+        echo "$output" | jq -e '.status == "failed" and .error.kind == "overloaded"'
+    done
+    # Not everything with a number in it is a server error
+    FIXTURE='{"is_error":true,"subtype":"success","result":"the diff is 500 lines and I gave up"}' AGENT_API_ERROR_RETRIES=0 run run_agent prompt
+    echo "$output" | jq -e '.error.kind != "overloaded"'
+    FIXTURE='{"is_error":true,"subtype":"success","api_error_status":429,"result":"rate limit"}' run run_agent prompt
+    echo "$output" | jq -e '.error.kind == "rate_limit"'
+}
+
+@test "REGRESSION v1.4.1: an overloaded provider is retried in the same phase and then succeeds (#83)" {
+    _source_overloaded_agent
+    FAIL_TIMES=1 run run_agent prompt
+    echo "${lines[${#lines[@]}-1]}" | jq -e '.status == "success"'
+    [ "$(wc -l < "${TEST_TEMP_DIR}/worker_calls")" -eq 2 ]
+    [ "$(cat "${TEST_TEMP_DIR}/waits")" = "60" ]
+}
+
+@test "transient retry: bounded, then the phase fails with the overloaded kind" {
+    _source_overloaded_agent
+    FAIL_TIMES=9 run run_agent prompt
+    echo "${lines[${#lines[@]}-1]}" | jq -e '.status == "failed" and .error.kind == "overloaded"'
+    [ "$(wc -l < "${TEST_TEMP_DIR}/worker_calls")" -eq 3 ]
+    run classify_agent_result "${lines[${#lines[@]}-1]}"
+    assert_output fail_fast
+}
+
+@test "transient retry: a phase that already changed the worktree is not started over" {
+    _source_overloaded_agent
+    git -C "$WORKTREE_DIR" init -q
+    TOUCH_WORKTREE=1 FAIL_TIMES=1 run run_agent prompt
+    echo "${lines[${#lines[@]}-1]}" | jq -e '.status == "failed" and .error.kind == "overloaded"'
+    [ "$(wc -l < "${TEST_TEMP_DIR}/worker_calls")" -eq 1 ]
 }

@@ -106,6 +106,12 @@ def normalize(raw, phase, code, schema_text, stderr=""):
         # session/weekly/per-model limits) resets on its own and is named before billing so it
         # is never reported as an exhausted quota; a 429 is named before "quota" because the
         # CLI's own rate-limit wording can carry that substring.
+        api_status = str(data.get("api_error_status", ""))
+        server_error = (
+            (api_status.isdigit() and 500 <= int(api_status) <= 599)
+            or re.search(r"api error:? 5\d\d\b", detail) is not None
+            or "overloaded" in detail
+        )
         refresh_lock_signature = (
             str(data.get("terminal_reason", "")).lower() == "api_error"
             and "failed to refresh oauth token" in detail
@@ -122,6 +128,11 @@ def normalize(raw, phase, code, schema_text, stderr=""):
         elif subtype in ("error_max_turns", "error_max_turns_reached", "error_max_budget_usd"):
             # The subtype is authoritative for a cap the harness itself set, whatever the text says.
             kind, message = "limit", "Worker turn or budget limit reached"
+        elif server_error:
+            # A 529 or 5xx is the provider's trouble and usually passes in
+            # moments. It gets its own kind so run_agent can launch the phase
+            # again, and so it is not read as a failure of the work (#83).
+            kind, message = "overloaded", "API error: the provider is overloaded or unavailable (temporary; dispatch again)"
         elif any(word in detail for word in USAGE_LIMIT_WORDS):
             kind, message = "usage_limit", "API error: usage limit reached (the window resets on its own; re-dispatch after it does)"
         elif "429" in detail or "rate limit" in detail:
