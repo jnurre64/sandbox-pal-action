@@ -135,6 +135,7 @@ gh api repos/OWNER/REPO/dispatches \
 
 Notes:
 
+- `agent-implement` reads the plan from the last issue comment that contains the marker `<!-- agent-plan -->`. The triage phase adds it to the plans it posts. A plan written by an orchestrator or by hand needs the marker on its first line, or the implementation stops with `agent:failed` and says so on the issue.
 - Do **not** also apply the trigger label when firing `repository_dispatch`. The dispatch script manages state labels itself; a bot-applied trigger label only produces a skipped run and the breadcrumb comment.
 - The Discord bot is one caller of this entry point, not its owner -- anything holding the bot PAT can use it.
 - Direct implement (`agent:implement`) and post-merge cleanup have no dispatch event types today; those flows are label/PR-event only. The reusable workflows accept `issue_number`/`pr_number` input overrides if a consuming repo wants to wire up additional event types (see [configuration.md](configuration.md)).

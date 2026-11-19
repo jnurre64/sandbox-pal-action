@@ -1,4 +1,5 @@
 name: "Agent Dispatch (programmatic)"
+run-name: "${{ github.event.action }} #${{ github.event.client_payload.issue_number }}"
 
 on:
   repository_dispatch:

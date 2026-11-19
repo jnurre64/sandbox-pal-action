@@ -90,8 +90,9 @@ PR_JSON_MERGED='{"title":"t","body":"b","headRefName":"agent/issue-41","mergedAt
     run handle_post_merge
     assert_success
     run cat "${TEST_TEMP_DIR}/gh_calls"
-    # check_circuit_breaker calls `gh api ...` — must not have run on the disabled path
-    refute_output --partial "api "
+    # check_circuit_breaker reads the issue's recent comments — it must not
+    # have run on the disabled path (set_label's label read-back is fine)
+    refute_output --partial "comments?since="
 }
 
 @test "post_merge: branch-name fallback still marks the issue when closingIssuesReferences is empty" {

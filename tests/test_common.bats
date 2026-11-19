@@ -1144,3 +1144,110 @@ MOCK
     grep -q 'stop-report.md' "${LIB_DIR}/worktree.sh"
     grep -q 'stop-report.md' "${PROMPTS_DIR}/implement.md"
 }
+
+# ═══════════════════════════════════════════════════════════════
+# Backlog batch 3: labels, breaker, failed runs, missing plan
+# ═══════════════════════════════════════════════════════════════
+
+# gh double: label reads return what LABELS_FILE holds; an add only
+# "takes" from the second attempt when ADD_TAKES_ON=2.
+_mock_gh_labels() {
+    echo '[{"name":"bug"}]' > "${TEST_TEMP_DIR}/labels.json"
+    echo 0 > "${TEST_TEMP_DIR}/adds"
+    gh() {
+        echo "$@" >> "${TEST_TEMP_DIR}/gh_calls"
+        if [ "$1" = "api" ]; then jq -c '[.[].name]' "${TEST_TEMP_DIR}/labels.json"; return 0; fi
+        if [[ "$*" == *"--add-label"* ]]; then
+            local n; n=$(($(cat "${TEST_TEMP_DIR}/adds") + 1)); echo "$n" > "${TEST_TEMP_DIR}/adds"
+            if [ "$n" -ge "${ADD_TAKES_ON:-1}" ]; then
+                echo '[{"name":"bug"},{"name":"agent:pr-open"}]' > "${TEST_TEMP_DIR}/labels.json"
+            fi
+        fi
+        return 0
+    }
+}
+
+@test "REGRESSION v1.4.1: set_label adds the label again when it did not take (#88)" {
+    _source_common
+    _mock_gh_labels
+    ADD_TAKES_ON=2
+    run set_label "agent:pr-open"
+    assert_success
+    [ "$(cat "${TEST_TEMP_DIR}/adds")" -eq 2 ]
+    assert_output --partial "did not take"
+    refute_output --partial "ERROR"
+}
+
+@test "REGRESSION v1.4.1: set_label says so loudly when the issue ends up without its label (#88)" {
+    _source_common
+    _mock_gh_labels
+    ADD_TAKES_ON=99
+    run set_label "agent:pr-open"
+    assert_success
+    assert_output --partial "ERROR: issue #99 has no agent:pr-open label"
+}
+
+@test "set_label: one add when the label is on the issue afterwards" {
+    _source_common
+    _mock_gh_labels
+    run set_label "agent:pr-open"
+    assert_success
+    [ "$(cat "${TEST_TEMP_DIR}/adds")" -eq 1 ]
+    refute_output --partial "did not take"
+}
+
+@test "REGRESSION v1.4.1: the circuit breaker halts as a controlled failure, not an infrastructure error (#115)" {
+    create_mock "gh" "9"
+    _source_common
+    run check_circuit_breaker
+    assert_success
+    assert_output --partial "CIRCUIT BREAKER"
+    [[ "$(get_mock_calls gh)" == *"add-label agent:failed"* ]]
+}
+
+@test "REGRESSION v1.4.1: an explicitly requested dispatch gets twice the comment budget (#115)" {
+    create_mock "gh" "9"
+    _source_common
+    GITHUB_EVENT_NAME=repository_dispatch run check_circuit_breaker
+    assert_success
+    refute_output --partial "CIRCUIT BREAKER"
+    AGENT_EXECUTION_MODE=orchestrator run check_circuit_breaker
+    refute_output --partial "CIRCUIT BREAKER"
+    create_mock "gh" "16"
+    GITHUB_EVENT_NAME=repository_dispatch run check_circuit_breaker
+    assert_output --partial "CIRCUIT BREAKER"
+}
+
+_run_exit_trap() {
+    # $1 = outcome label, remaining args = env assignments
+    local outcome="$1"; shift
+    run env "$@" bash -c '
+        log() { :; }; gh() { echo "gh $*"; }
+        source <(sed -n "/^_on_unexpected_error()/,/^}/p; /^_on_dispatch_exit()/,/^}/p" "$0")
+        EVENT_TYPE=implement NUMBER=99 REPO=o/r DISPATCH_OUTCOME="$1"
+        trap _on_dispatch_exit EXIT
+        exit 0' "${SCRIPTS_DIR}/sandbox-pal-dispatch.sh" "$outcome"
+}
+
+@test "REGRESSION v1.4.1: a dispatch that ends in agent:failed fails its Actions run (#86)" {
+    _run_exit_trap "agent:failed" AGENT_EXECUTION_MODE=actions
+    [ "$status" -eq 1 ]
+    refute_output --partial "Agent Infrastructure Error"
+}
+
+@test "failed-run exit: other outcomes, orchestrator mode and the opt-out keep exit 0" {
+    _run_exit_trap "agent:pr-open" AGENT_EXECUTION_MODE=actions
+    [ "$status" -eq 0 ]
+    _run_exit_trap "agent:failed" AGENT_EXECUTION_MODE=orchestrator
+    [ "$status" -eq 0 ]
+    _run_exit_trap "agent:failed" AGENT_EXECUTION_MODE=actions AGENT_FAIL_RUN_ON_FAILED=false
+    [ "$status" -eq 0 ]
+}
+
+@test "REGRESSION v1.4.1: the missing-plan comment gives advice the bot account can follow (#86)" {
+    run grep -A6 "Could not find plan comment on issue" "${SCRIPTS_DIR}/sandbox-pal-dispatch.sh"
+    assert_output --partial "agent-implement"
+    refute_output --partial "Please re-run the plan phase by labeling"
+    run sed -n '/^### Programmatic Triggering/,/^### /p' "${SCRIPTS_DIR}/../docs/architecture.md"
+    assert_output --partial "<!-- agent-plan -->"
+}

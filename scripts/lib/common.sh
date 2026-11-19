@@ -88,7 +88,22 @@ set_label() {
     # shellcheck disable=SC2034  # read by liveness.sh's write_last_dispatch
     DISPATCH_OUTCOME="$1"
     remove_all_agent_labels
-    gh issue edit "$NUMBER" --repo "$REPO" --add-label "$1" 2>/dev/null || true
+    # Remove-then-add is not atomic: an add that is lost leaves the issue
+    # with no agent label, invisible to anything that polls the state
+    # machine (#88). Read the labels back and add once more if needed. When
+    # the labels cannot be read, nothing more is known and nothing is done.
+    local attempt current
+    for attempt in 1 2; do
+        gh issue edit "$NUMBER" --repo "$REPO" --add-label "$1" 2>/dev/null || true
+        current=$(gh api "repos/${REPO}/issues/${NUMBER}/labels" --jq '[.[].name]' 2>/dev/null) || return 0
+        printf '%s' "$current" | jq -e 'type == "array"' >/dev/null 2>&1 || return 0
+        if printf '%s' "$current" | jq -e --arg l "$1" 'index($l) != null' >/dev/null 2>&1; then
+            return 0
+        fi
+        log "WARN: label $1 did not take on #${NUMBER} (attempt ${attempt} of 2)"
+    done
+    log "ERROR: issue #${NUMBER} has no $1 label after two attempts; set it by hand"
+    return 0
 }
 
 # Terminal transition (#74): replace all agent:* state labels on the given
@@ -113,19 +128,35 @@ mark_issue_done() {
 }
 
 # ─── Circuit breaker ────────────────────────────────────────────
+# Halts a dispatch when the bot has commented too often on the issue in
+# the last hour: the sign of events triggering each other in a loop.
+#
+# A dispatch that someone asked for by name (repository_dispatch,
+# workflow_dispatch, orchestrator mode) cannot trigger itself, and a
+# clarification exchange driven that way is many comments by design, so
+# it gets twice the budget (#115). The halt is a controlled failure:
+# agent:failed and one comment, with no "infrastructure error" on top.
 check_circuit_breaker() {
     local one_hour_ago
     one_hour_ago=$(date -u -d '1 hour ago' '+%Y-%m-%dT%H:%M:%SZ')
     local recent_bot_comments
     recent_bot_comments=$(gh api "/repos/${REPO}/issues/${NUMBER}/comments?since=${one_hour_ago}" \
         --jq "[.[] | select(.user.login == \"${AGENT_BOT_USER}\")] | length" 2>/dev/null || echo "0")
+    [[ "$recent_bot_comments" =~ ^[0-9]+$ ]] || recent_bot_comments=0
 
-    if [ "$recent_bot_comments" -ge "$AGENT_CIRCUIT_BREAKER_LIMIT" ]; then
-        log "CIRCUIT BREAKER: ${recent_bot_comments} bot comments in the last hour. Halting."
+    local limit="$AGENT_CIRCUIT_BREAKER_LIMIT"
+    if [ "${AGENT_EXECUTION_MODE:-actions}" = "orchestrator" ] \
+        || [ "${GITHUB_EVENT_NAME:-}" = "repository_dispatch" ] \
+        || [ "${GITHUB_EVENT_NAME:-}" = "workflow_dispatch" ]; then
+        limit=$((limit * 2))
+    fi
+
+    if [ "$recent_bot_comments" -ge "$limit" ]; then
+        log "CIRCUIT BREAKER: ${recent_bot_comments} bot comments in the last hour (limit ${limit}). Halting."
         set_label "agent:failed"
         gh issue comment "$NUMBER" --repo "$REPO" \
-            --body "Agent halted: too many comments in the last hour. This may indicate a loop. Please investigate and re-label with \`agent\` to retry." 2>/dev/null || true
-        exit 1
+            --body "Agent halted: ${recent_bot_comments} comments from the bot account on this issue in the last hour (limit ${limit}). This may indicate a loop. If the exchange was intended, wait for the hour to pass or raise \`AGENT_CIRCUIT_BREAKER_LIMIT\`, then dispatch again." 2>/dev/null || true
+        exit 0
     fi
 }
 

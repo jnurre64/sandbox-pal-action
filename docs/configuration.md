@@ -295,7 +295,9 @@ AGENT_TIMEOUT=3600   # 1 hour
 
 ### AGENT_CIRCUIT_BREAKER_LIMIT
 
-Maximum number of bot comments allowed per hour on a single issue. If the limit is exceeded, the agent halts with `agent:failed` and posts a warning. This prevents infinite loops.
+Maximum number of bot comments allowed per hour on a single issue. If the limit is reached, the dispatch halts with `agent:failed` and one comment. This stops events that trigger each other in a loop.
+
+A dispatch that was asked for by name gets twice this limit: `repository_dispatch`, `workflow_dispatch` and orchestrator mode. Such a dispatch cannot trigger itself, and a clarification exchange driven by an orchestrator posting as the bot account is many comments by design.
 
 | Key | Default | Type |
 |-----|---------|------|
@@ -404,6 +406,14 @@ How the dispatch script is being invoked. `actions` (the default) is the GitHub 
 | Key | Default | Type |
 |-----|---------|------|
 | `AGENT_EXECUTION_MODE` | `actions` | `actions` \| `orchestrator` |
+
+### AGENT_FAIL_RUN_ON_FAILED
+
+In `actions` mode, a dispatch that ends with the issue in `agent:failed` exits with code 1, so the workflow run is red and `gh run list` shows the failure. No "Agent Infrastructure Error" comment is added: the failure was already reported on the issue. Set `false` to keep exit code 0 for these controlled failures, as it was before this setting existed. Orchestrator mode always exits 0 and reports the outcome in its result line.
+
+| Key | Default | Type |
+|-----|---------|------|
+| `AGENT_FAIL_RUN_ON_FAILED` | `true` | boolean string (`true` or `false`) |
 
 ### AGENT_LOCK_DIR
 
