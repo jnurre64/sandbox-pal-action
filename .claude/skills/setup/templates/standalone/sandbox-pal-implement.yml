@@ -1,4 +1,5 @@
 name: "Claude Agent: Implement"
+run-name: "${{ github.event.label.name }} on #${{ github.event.issue.number }} by ${{ github.actor }}"
 
 on:
   issues:
@@ -42,14 +43,28 @@ jobs:
     if: >-
       github.event.label.name == 'agent:plan-approved' &&
       github.actor == '{{BOT_USER}}'
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, agent]
+    # A courtesy comment must never turn the run red.
+    continue-on-error: true
     permissions:
       issues: write
     steps:
       - name: Explain the skipped label trigger
+        shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          NOTICE: 'The `agent:plan-approved` label was applied by the bot account (`{{BOT_USER}}`), so the label-triggered agent workflow was intentionally skipped (anti-self-trigger guard). Automation running as the bot should trigger via `repository_dispatch` (event type `agent-implement`) instead — see https://github.com/jnurre64/sandbox-pal-action/blob/main/docs/architecture.md#programmatic-triggering-repository_dispatch'
         run: |
-          gh issue comment "${{ github.event.issue.number }}" \
-            --repo "${{ github.repository }}" \
-            --body 'The `agent:plan-approved` label was applied by the bot account (`{{BOT_USER}}`), so the label-triggered agent workflow was intentionally skipped (anti-self-trigger guard). Automation running as the bot should trigger via `repository_dispatch` (event type `agent-implement`) instead — see https://github.com/jnurre64/sandbox-pal-action/blob/main/docs/architecture.md#programmatic-triggering-repository_dispatch'
+          # curl, not gh: a self-hosted runner may not have gh on its PATH.
+          api="${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/issues/${ISSUE_NUMBER}/comments"
+          marker='<!-- sandbox-pal:actor-filter-notice -->'
+          auth=(-H "Authorization: Bearer ${GH_TOKEN}" -H "Accept: application/vnd.github+json")
+          # Once per issue: an orchestrator edits labels on every gate.
+          existing=$(curl -fsS "${auth[@]}" "${api}?per_page=100" || true)
+          if grep -qF "$marker" <<< "$existing"; then
+            echo "Notice already posted on this issue; not repeating it."
+            exit 0
+          fi
+          jq -n --arg body "${marker}"$'\n'"${NOTICE}" '{body: $body}' \
+            | curl -fsS -X POST "${auth[@]}" "$api" -d @- > /dev/null

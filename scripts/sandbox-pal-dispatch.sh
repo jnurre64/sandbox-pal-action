@@ -26,6 +26,9 @@ _on_unexpected_error() {
     local line=${1:-unknown}
     # EXIT trap fires on success too — only act on errors
     [ "$exit_code" -eq 0 ] && return 0
+    # A controlled failure that is turning the run red has already told
+    # the issue what happened.
+    [ -n "${DISPATCH_FAILED_RUN_EXIT:-}" ] && return 0
     # status is a read-only diagnostic: it must never mutate the issue,
     # even when it dies in a half-configured environment (#95)
     [ "$EVENT_TYPE" = "status" ] && return 0
@@ -88,6 +91,16 @@ _on_dispatch_exit() {
     # of stdout is the dispatch result JSON (#95).
     if command -v emit_orchestrator_result &>/dev/null; then
         emit_orchestrator_result "$exit_code" 2>/dev/null || true
+    fi
+    # A dispatch that ended in agent:failed did not do its job, even when
+    # every step of the script ran: fail the Actions run, so `gh run list`
+    # and the run's status say so (#86). Orchestrator mode reports the
+    # outcome in its result line and keeps exit 0.
+    if [ "$exit_code" -eq 0 ] && [ "${DISPATCH_OUTCOME:-}" = "agent:failed" ] \
+        && [ "${AGENT_EXECUTION_MODE:-actions}" = "actions" ] \
+        && [ "${AGENT_FAIL_RUN_ON_FAILED:-true}" = "true" ]; then
+        DISPATCH_FAILED_RUN_EXIT=1
+        exit 1
     fi
 }
 trap '_on_dispatch_exit' EXIT
@@ -399,7 +412,10 @@ handle_implement() {
             log "Could not find plan comment on issue. Marking as failed."
             set_label "agent:failed"
             gh issue comment "$NUMBER" --repo "$REPO" \
-                --body "Agent could not find the approved plan comment. Expected a comment with \`<!-- agent-plan -->\` marker. Please re-run the plan phase by labeling with \`agent\`." 2>/dev/null || true
+                --body "Agent could not find the approved plan. The implementation reads the plan from the last issue comment that contains the marker \`<!-- agent-plan -->\`, and no comment has it.
+
+- **A plan written by hand or by an orchestrator:** put \`<!-- agent-plan -->\` on the first line of the plan comment, set \`agent:plan-approved\` and dispatch the implementation again (\`repository_dispatch\` with event type \`agent-implement\`, or re-apply the label from a human account).
+- **No plan yet:** run the plan phase first (the \`agent\` label from a human account, or event type \`agent-triage\`)." 2>/dev/null || true
             return
         fi
     fi

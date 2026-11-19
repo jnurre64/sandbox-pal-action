@@ -261,3 +261,6 @@ AGENT_PHASE_KEEP_ENV="${AGENT_PHASE_KEEP_ENV:-}"     # variables to leave in pla
 # orchestrator: invoked by an interactive Claude Code session; logs go
 #               to stderr and the final stdout line is the result JSON
 AGENT_EXECUTION_MODE="${AGENT_EXECUTION_MODE:-actions}"
+# In actions mode a dispatch that ends in agent:failed exits 1, so the
+# workflow run is red. "false" keeps exit 0 for controlled failures.
+AGENT_FAIL_RUN_ON_FAILED="${AGENT_FAIL_RUN_ON_FAILED:-true}"
