@@ -53,20 +53,54 @@ _extract_review_json() {
 
 # ─── Review ledger ──────────────────────────────────────────────
 # A structured findings file that rides the work branch across review
-# cycles. Path: ${WORKTREE_DIR}/.agent-data/review-ledger.json
+# cycles. Path: ledger_path (the dispatcher's store, never the worktree)
 # Schema: {"issue": N, "cycles": N, "findings": [{"id","severity","description","status","justification"}]}
 #   severity: "blocking" | "non-blocking"
 #   status:   "open" | "fixed" | "rejected"
 LEDGER_FILE=""
 
+# Where an issue's ledger lives: on the dispatcher's machine, outside the
+# repository. It used to be force-committed to the work branch, which put
+# two bookkeeping commits in every PR, overrode the consumer's .gitignore
+# and conflicted between open branches (#82).
+#   $1 = issue number (default: the dispatch's NUMBER)
+# shellcheck disable=SC2120  # the argument is optional
+ledger_path() {
+    echo "${AGENT_LEDGER_DIR:-${AGENT_LOG_DIR}/ledgers}/${REPO//\//__}/issue-${1:-$NUMBER}.json"
+}
+
+# A branch started under an older version carries a committed ledger. Take
+# it over when it belongs to this issue and nothing newer is stored, then
+# remove it from the branch so it does not reach the default branch.
+_ledger_import_legacy() {
+    local legacy_rel=".agent-data/review-ledger.json"
+    local legacy="${WORKTREE_DIR}/${legacy_rel}"
+    [ -f "$legacy" ] || return 0
+    if [ ! -f "$LEDGER_FILE" ] && jq -e --arg n "${NUMBER:-}" \
+        '.findings != null and .issue != null and (.issue | tostring) == $n' "$legacy" >/dev/null 2>&1; then
+        cp "$legacy" "$LEDGER_FILE"
+        log "Review ledger taken over from the branch (${legacy_rel})"
+    fi
+    if git -C "$WORKTREE_DIR" ls-files --error-unmatch -- "$legacy_rel" >/dev/null 2>&1; then
+        if ! { git -C "$WORKTREE_DIR" rm -q -f -- "$legacy_rel" 2>/dev/null \
+            && git -C "$WORKTREE_DIR" commit -q -m "chore(agent): drop the review ledger from the branch" -- "$legacy_rel" 2>/dev/null; }; then
+            log "WARN: could not remove the committed review ledger from the branch"
+        fi
+    else
+        rm -f "$legacy"
+    fi
+    return 0
+}
+
 _ledger_init() {
-    LEDGER_FILE="${WORKTREE_DIR}/.agent-data/review-ledger.json"
+    # shellcheck disable=SC2119
+    LEDGER_FILE=$(ledger_path)
     mkdir -p "$(dirname "$LEDGER_FILE")"
+    _ledger_import_legacy
     local current_issue="${NUMBER:-}"
     if [ -f "$LEDGER_FILE" ] && jq -e '.findings' "$LEDGER_FILE" >/dev/null 2>&1; then
-        # The ledger rides the work branch, so a branch cut after a merge
-        # inherits the previous PR's ledger. One stamped with another issue,
-        # or with no stamp at all, is a stale leftover — not history.
+        # A ledger stamped with another issue, or with no stamp at all, is
+        # a stale leftover — not history.
         if jq -e --arg n "$current_issue" \
             '.issue != null and (.issue | tostring) == $n' "$LEDGER_FILE" >/dev/null 2>&1; then
             return 0
@@ -139,21 +173,7 @@ _ledger_outstanding_summary() {
             | "- **\(.id)**: \(.description)"] | join("\n")' "$LEDGER_FILE"
 }
 
-# Commit ONLY the ledger file (it may sit under a gitignored .agent-data/).
-# Best-effort by design (a ledger commit failure must never abort the
-# review loop) — but a silent `|| true` made every failure invisible.
-_ledger_commit() {
-    local msg="$1"
-    # Nothing to record is not a failure.
-    if git -C "$WORKTREE_DIR" ls-files --error-unmatch "$LEDGER_FILE" >/dev/null 2>&1 &&
-        git -C "$WORKTREE_DIR" diff --quiet HEAD -- "$LEDGER_FILE" 2>/dev/null; then
-        return 0
-    fi
-    git -C "$WORKTREE_DIR" add -f "$LEDGER_FILE" 2>/dev/null &&
-        git -C "$WORKTREE_DIR" commit -m "chore(agent): review ledger — ${msg}" -- "$LEDGER_FILE" 2>/dev/null
-}
-
-# A review ledger or rules commit that fails (a rejecting commit hook, a full
+# A rules commit that fails (a rejecting commit hook, a full
 # disk) must not let a PR go out without its review record. Stop the dispatch
 # visibly: the branch is pushed, the issue is told, the label says failed.
 gate_metadata_failure() {
@@ -165,6 +185,93 @@ gate_metadata_failure() {
 
 ${what}. The pipeline stopped instead of publishing without it. Commits made so far are pushed to \`${BRANCH_NAME}\`. Check the repository's commit hooks and the machine's disk, then re-dispatch." 2>/dev/null || true
     set_label "agent:failed"
+}
+
+# ─── Follow-up issues from the post-merge cleanup ────────────────
+# File the cleanup session's follow-up issues and say on the merged PR
+# what happened to every ledger finding.
+#   $1 = the session's JSON: {"follow_up_issues":[{"title","body"}],
+#        "not_filed":[{"finding","reason"}]}
+#   $2 = the merged PR's number
+# Reads AGENT_REVIEW_LEDGER (the ledger JSON, may be empty). Sets
+# FOLLOWUP_FILED_COUNT. A follow-up whose title equals an open issue's
+# title, or an earlier one in the same batch, is not filed (#80). The
+# comment makes a dropped finding visible: it counts the findings the
+# ledger left unresolved against what was filed, already tracked or
+# declined with a reason (#85).
+FOLLOWUP_FILED_COUNT=0
+file_follow_up_issues() {
+    local json_block="$1" pr_number="$2"
+    FOLLOWUP_FILED_COUNT=0
+    # shellcheck disable=SC2016  # a jq definition, not shell
+    local norm='def norm: ascii_downcase | gsub("\\s+"; " ") | sub("^ "; "") | sub(" $"; "");'
+
+    local open_issues fu_count i=0
+    open_issues=$(gh issue list --repo "$REPO" --state open --limit 500 --json number,title 2>/dev/null || echo "[]")
+    printf '%s' "$open_issues" | jq -e 'type == "array"' >/dev/null 2>&1 || open_issues="[]"
+    fu_count=$(printf '%s' "$json_block" | jq -r '(.follow_up_issues // []) | length' 2>/dev/null || echo 0)
+    [[ "$fu_count" =~ ^[0-9]+$ ]] || fu_count=0
+
+    local filed_lines="" tracked_lines="" seen_titles="[]" tracked_count=0
+    local -a label_args=()
+    [ -n "${AGENT_FOLLOWUP_LABELS:-}" ] && label_args=(--label "$AGENT_FOLLOWUP_LABELS")
+    while [ "$i" -lt "$fu_count" ]; do
+        local fu_title fu_body existing fu_url
+        fu_title=$(printf '%s' "$json_block" | jq -r ".follow_up_issues[$i].title")
+        fu_body=$(printf '%s' "$json_block" | jq -r ".follow_up_issues[$i].body")
+        i=$((i + 1))
+        # shellcheck disable=SC2016  # $open, $seen and $t are jq variables
+        existing=$(jq -rn --argjson open "$open_issues" --argjson seen "$seen_titles" --arg t "$fu_title" "$norm"'
+            ($t | norm) as $n
+            | ([$open[] | select((.title | norm) == $n) | "#\(.number)"] | first)
+              // (if ($seen | index($n)) != null then "an earlier follow-up in this run" else empty end)' 2>/dev/null || true)
+        if [ -n "$existing" ]; then
+            log "Follow-up not filed, already tracked (${existing}): $fu_title"
+            tracked_lines+="- Already tracked: ${existing} — ${fu_title}"$'\n'
+            tracked_count=$((tracked_count + 1))
+            continue
+        fi
+        # shellcheck disable=SC2016
+        seen_titles=$(jq -cn --argjson seen "$seen_titles" --arg t "$fu_title" "$norm"'$seen + [$t | norm]')
+        if fu_url=$(gh issue create --repo "$REPO" --title "$fu_title" "${label_args[@]}" --body "${fu_body}
+
+---
+_Filed automatically by the post-merge cleanup of PR #${pr_number}._" 2>/dev/null); then
+            FOLLOWUP_FILED_COUNT=$((FOLLOWUP_FILED_COUNT + 1))
+            filed_lines+="- Filed: ${fu_url##*$'\n'} — ${fu_title}"$'\n'
+        else
+            log "WARN: follow-up issue creation failed: $fu_title"
+            filed_lines+="- **Could not be filed** (the create call failed): ${fu_title}"$'\n'
+        fi
+    done
+
+    # What the ledger left unresolved: every finding that was not fixed.
+    local unresolved=0 declined_lines="" declined_count=0
+    if [ -n "${AGENT_REVIEW_LEDGER:-}" ]; then
+        unresolved=$(printf '%s' "$AGENT_REVIEW_LEDGER" | jq -r '[(.findings // [])[] | select(.status != "fixed")] | length' 2>/dev/null || echo 0)
+        [[ "$unresolved" =~ ^[0-9]+$ ]] || unresolved=0
+    fi
+    declined_lines=$(printf '%s' "$json_block" | jq -r '(.not_filed // [])[] | "- Not filed: \(.finding // "?"): \(.reason // "no reason given")"' 2>/dev/null || true)
+    declined_count=$(printf '%s' "$json_block" | jq -r '(.not_filed // []) | length' 2>/dev/null || echo 0)
+    [[ "$declined_count" =~ ^[0-9]+$ ]] || declined_count=0
+
+    log "Follow-ups: ${unresolved} unresolved ledger finding(s); ${FOLLOWUP_FILED_COUNT} filed, ${tracked_count} already tracked, ${declined_count} declined"
+    if [ "$unresolved" -eq 0 ] && [ "$fu_count" -eq 0 ]; then
+        return 0
+    fi
+    local missing=$((unresolved - fu_count - declined_count)) missing_note=""
+    if [ "$missing" -gt 0 ]; then
+        log "WARN: ${missing} ledger finding(s) not accounted for by the cleanup session"
+        missing_note="
+**${missing} finding(s) are not accounted for above.** Compare this list with the review ledger in this PR's description and file what is missing by hand."
+    fi
+    gh pr comment "$pr_number" --repo "$REPO" --body "## Post-merge cleanup: review follow-ups
+
+The review ledger left ${unresolved} finding(s) that were not fixed in this PR.
+
+${filed_lines}${tracked_lines}${declined_lines}
+${missing_note}" 2>/dev/null || log "WARN: could not post the follow-up summary on PR #${pr_number}"
+    return 0
 }
 
 # ─── Gate A: Adversarial Plan Review ────────────────────────────
@@ -609,10 +716,6 @@ run_post_impl_review_loop() {
             return "$review_pass_rc"
         fi
         _ledger_merge_review "$POST_IMPL_REVIEW_JSON"
-        if ! _ledger_commit "review pass $((retries + 1))"; then
-            gate_metadata_failure "The review ledger could not be committed"
-            return 1
-        fi
 
         local open
         open=$(_ledger_blocking_open_count)
@@ -632,9 +735,5 @@ run_post_impl_review_loop() {
             return 1
         fi
         _ledger_apply_dispositions "$RETRY_DISPOSITIONS_JSON"
-        if ! _ledger_commit "retry ${retries} dispositions"; then
-            gate_metadata_failure "The review ledger could not be committed"
-            return 1
-        fi
     done
 }

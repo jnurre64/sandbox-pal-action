@@ -175,7 +175,7 @@ The standard (autonomous) flow reuses the plan-phase worktree for implementation
 Before a PR is created, `handle_post_implementation()` runs a capped, ledger-driven review loop instead of a single adversarial pass:
 
 1. A fresh review session checks the diff against the issue/plan and reports findings.
-2. Findings are merged into a ledger at `.agent-data/review-ledger.json` (committed to the work branch after every pass, so the history survives across retries). The ledger is stamped with the issue number it belongs to: because it rides the branch, a branch cut after a merge inherits the previous PR's ledger, so on init a ledger stamped with a different issue — or not stamped at all — is discarded as a stale leftover, not merged as history (#89).
+2. Findings are merged into a ledger kept on the dispatcher's machine, one file per repository and issue under `AGENT_LEDGER_DIR` (default `$AGENT_LOG_DIR/ledgers`), so the history survives across retries of the same issue. The ledger is not committed: nothing about it appears in the PR's commits, and the PR description carries its summary. It is stamped with its issue number, and on init a ledger stamped with a different issue, or not stamped at all, is discarded as a stale leftover (#89). A branch started under an older version may still carry a committed `.agent-data/review-ledger.json`: the loop takes it over and removes it from the branch.
 3. If no blocking findings remain open, the loop exits clean and the PR opens as `agent:pr-open`.
 4. Otherwise, if the retry count is under the cap (`AGENT_POST_IMPL_REVIEW_MAX_RETRIES`, default 3), a fix session addresses the open findings, dispositions them in the ledger, and the loop re-reviews.
 5. If the cap is reached with findings still open, the loop stops and the PR opens anyway -- labeled `agent:review-unresolved` **in addition to** `agent:pr-open` -- with the outstanding findings summarized at the top of the PR body.
@@ -289,7 +289,7 @@ pull_request.closed
   --> fresh worktree off latest main (chore/agent-cleanup-pr-<N> branch)
   --> run claude -p with cleanup prompt (read-write tools),
       given PR title/body, merged branch name, first linked issue, and the
-      review ledger from the merged branch
+      review ledger from the dispatcher's store (removed afterwards)
   --> file follow-up issues from the session's structured output
   --> if doc commits were made: push directly to main,
       falling back to a chore PR if the direct push is rejected

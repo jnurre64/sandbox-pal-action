@@ -590,6 +590,16 @@ AGENT_POST_IMPL_REVIEW_MAX_RETRIES=0   # single pass only, escalate any finding 
 
 When an agent-authored PR merges, an optional cleanup phase runs: tracking-doc updates and follow-up issues (sourced from the review ledger's structured output) are committed, and the merged branch is deleted.
 
+### AGENT_LEDGER_DIR
+
+Where the review ledgers are kept on the dispatcher's machine: one JSON file per repository and issue, written by the review loop, read by the post-merge cleanup and removed once the PR is merged and cleaned up.
+
+| Key | Default | Type |
+|-----|---------|------|
+| `AGENT_LEDGER_DIR` | `$AGENT_LOG_DIR/ledgers` | directory path |
+
+The ledger is not in the repository. If the post-merge cleanup runs on a different machine than the implementation did, it does not find the file and works from the ledger summary in the PR description. Point `AGENT_LEDGER_DIR` at a directory all runners share to avoid that.
+
 ### AGENT_CLEANUP_ENABLED
 
 Enables the post-merge cleanup phase. When disabled, the doc-cleanup session is skipped for merged agent PRs.
@@ -601,6 +611,22 @@ Enables the post-merge cleanup phase. When disabled, the doc-cleanup session is 
 ```bash
 AGENT_CLEANUP_ENABLED="false"   # disable post-merge cleanup
 ```
+
+The cleanup session does not run for the cleanup's own `chore/agent-cleanup-pr-*` PRs, or for a merged PR with no linked issue.
+
+### AGENT_FOLLOWUP_LABELS
+
+Labels put on the follow-up issues the cleanup files, comma-separated. Empty by default, so follow-ups are filed unlabeled. The labels must exist in the repository.
+
+| Key | Default | Type |
+|-----|---------|------|
+| `AGENT_FOLLOWUP_LABELS` | (empty) | comma-separated label names |
+
+```bash
+AGENT_FOLLOWUP_LABELS="follow-up"
+```
+
+Before filing, the dispatcher skips a follow-up whose title equals the title of an open issue (ignoring case and spacing). After filing, it comments on the merged PR: how many findings the ledger left unfixed, which were filed, which were already tracked, which the session declined and why, and how many are not accounted for.
 
 This flag gates only the doc-cleanup Claude session. The `agent:done` label
 transition on linked issues runs for every merged agent PR regardless of
@@ -842,6 +868,7 @@ Before every phase the dispatch script writes what the phase needs to know into 
 | `test-output.txt` | The last 100 lines of a failing test gate (test-fix phase) |
 | `test-exit-code.txt` | That run's exit code |
 | `merged-branch.txt` | The merged branch (cleanup phase) |
+| `open-issues.md` | The repository's open issues, one `#number title` per line (cleanup phase) |
 
 ### Test Command
 

@@ -845,6 +845,13 @@ handle_post_merge() {
     branch=$(echo "$pr_json" | jq -r '.headRefName')
     pr_title=$(echo "$pr_json" | jq -r '.title')
 
+    # The cleanup's own chore PR is not agent work: cleaning up after it
+    # opens another chore PR, and so on with every merge (#113).
+    if [[ "$branch" == chore/agent-cleanup-pr-* ]]; then
+        log "PR #${pr_number} is a post-merge cleanup PR (${branch}). Skipping cleanup."
+        return 0
+    fi
+
     # Linked issues: all closingIssuesReferences, else branch-name conventions
     local linked_issues
     linked_issues=$(echo "$pr_json" | jq -r '.closingIssuesReferences[]?.number' 2>/dev/null || true)
@@ -867,6 +874,18 @@ handle_post_merge() {
 
     if [ "${AGENT_CLEANUP_ENABLED}" != "true" ]; then
         log "Post-merge doc cleanup: disabled (AGENT_CLEANUP_ENABLED=${AGENT_CLEANUP_ENABLED})"
+        # The work is merged: its stored ledger has no reader left.
+        for done_issue in $linked_issues; do
+            rm -f "$(ledger_path "$done_issue")"
+        done
+        return 0
+    fi
+
+    # A merged PR that belongs to no issue has no plan, no ledger and no
+    # tracking entry to update; a session on it only re-derives follow-ups
+    # from whatever ledger is lying on main (#113).
+    if [ -z "$linked_issues" ]; then
+        log "Post-merge doc cleanup: PR #${pr_number} has no linked issue. Skipping."
         return 0
     fi
 
@@ -896,9 +915,22 @@ handle_post_merge() {
     export AGENT_MERGED_BRANCH="$branch"
     export AGENT_ISSUE_NUMBER="${first_issue:-}"
     export AGENT_REVIEW_LEDGER=""
-    if [ -f "${WORKTREE_DIR}/.agent-data/review-ledger.json" ]; then
+    # The ledger is kept on the dispatcher's machine (#82). A merge from a
+    # branch of an older version may still have put one on the default
+    # branch; a cleanup on another machine has only the PR body's summary.
+    local ledger_file=""
+    [ -n "$first_issue" ] && ledger_file=$(ledger_path "$first_issue")
+    if [ -n "$ledger_file" ] && [ -f "$ledger_file" ]; then
+        AGENT_REVIEW_LEDGER=$(cat "$ledger_file")
+    elif [ -f "${WORKTREE_DIR}/.agent-data/review-ledger.json" ]; then
         AGENT_REVIEW_LEDGER=$(cat "${WORKTREE_DIR}/.agent-data/review-ledger.json")
     fi
+
+    # Open issue titles, so the session can see what is already tracked
+    # (an orchestrator may have filed the same finding under other words).
+    export AGENT_OPEN_ISSUES
+    AGENT_OPEN_ISSUES=$(gh issue list --repo "$REPO" --state open --limit 200 --json number,title \
+        --jq '.[] | "#\(.number) \(.title)"' 2>/dev/null || echo "")
 
     local prompt
     prompt=$(load_prompt "cleanup" "$AGENT_PROMPT_CLEANUP")
@@ -922,25 +954,13 @@ handle_post_merge() {
 
     apply_rules_files || return 1
 
-    # Follow-up issues from the session's structured output
-    local json_block fu_count i=0
+    # Follow-up issues from the session's structured output: deduplicated
+    # against open issues and accounted for on the merged PR (#80, #85).
+    local json_block fu_count
     json_block=$(get_structured_output "$result")
     [ -z "$json_block" ] && json_block=$(_extract_review_json "$claude_output")
-    set +e
-    fu_count=$(printf '%s' "$json_block" | jq -r '(.follow_up_issues // []) | length' 2>/dev/null)
-    set -e
-    [ -z "$fu_count" ] && fu_count=0
-    while [ "$i" -lt "$fu_count" ]; do
-        local fu_title fu_body
-        fu_title=$(printf '%s' "$json_block" | jq -r ".follow_up_issues[$i].title")
-        fu_body=$(printf '%s' "$json_block" | jq -r ".follow_up_issues[$i].body")
-        gh issue create --repo "$REPO" --title "$fu_title" --body "${fu_body}
-
----
-_Filed automatically by the post-merge cleanup of PR #${pr_number}._" 2>/dev/null \
-            || log "WARN: follow-up issue creation failed: $fu_title"
-        i=$((i + 1))
-    done
+    file_follow_up_issues "$json_block" "$pr_number"
+    fu_count="$FOLLOWUP_FILED_COUNT"
 
     # Push doc commits directly to main; fall back to a chore PR on failure
     local commit_count
@@ -954,6 +974,11 @@ _Filed automatically by the post-merge cleanup of PR #${pr_number}._" 2>/dev/nul
                 --body "Tracking-doc updates from the automated post-merge cleanup of PR #${pr_number}." 2>/dev/null || true
         fi
     fi
+
+    # Follow-ups are filed: the stored ledger has done its job.
+    for done_issue in $linked_issues; do
+        rm -f "$(ledger_path "$done_issue")"
+    done
 
     notify "cleanup_done" "$pr_title" "https://github.com/${REPO}/pull/${pr_number}" \
         "Post-merge cleanup complete (${commit_count} doc commit(s), ${fu_count} follow-up issue(s))"

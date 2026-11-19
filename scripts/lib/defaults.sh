@@ -104,6 +104,8 @@ AGENT_PROMPT_TEST_FIX="${AGENT_PROMPT_TEST_FIX:-}"
 # Runs a short headless session after an agent PR merges: tracking-doc
 # updates, follow-up issues from the review ledger, branch deletion.
 AGENT_CLEANUP_ENABLED="${AGENT_CLEANUP_ENABLED:-true}"
+# Labels (comma-separated) put on the follow-up issues the cleanup files.
+AGENT_FOLLOWUP_LABELS="${AGENT_FOLLOWUP_LABELS:-}"
 AGENT_PROMPT_CLEANUP="${AGENT_PROMPT_CLEANUP:-}"
 AGENT_ALLOWED_TOOLS_CLEANUP="${AGENT_ALLOWED_TOOLS_CLEANUP:-Read,Edit,Write,Grep,Glob,Bash(git add:*),Bash(git commit:*),Bash(git rm:*),Bash(git status),Bash(git diff:*),Bash(git log:*),Bash(ls:*),Bash(cat:*),Bash(grep:*),Bash(find:*)}"
 
@@ -184,6 +186,8 @@ AGENT_LOG_DIR="${AGENT_LOG_DIR:-$HOME/.claude/agent-logs}"
 
 # Dispatch locks and last-dispatch outcome records (liveness, #94)
 AGENT_LOCK_DIR="${AGENT_LOCK_DIR:-$AGENT_LOG_DIR/locks}"
+# Review ledgers, one file per repository and issue (#82).
+AGENT_LEDGER_DIR="${AGENT_LEDGER_DIR:-$AGENT_LOG_DIR/ledgers}"
 
 # ─── Structured output schemas (#96) ─────────────────────────────
 # JSON Schema per machine-consumed phase, passed as --json-schema so

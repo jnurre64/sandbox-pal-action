@@ -34,6 +34,7 @@ AGENT_CONTEXT_FILES=(
     "AGENT_TEST_COMMAND test-command.txt"
     "AGENT_TEST_SETUP_COMMAND test-setup-command.txt"
     "AGENT_MERGED_BRANCH merged-branch.txt"
+    "AGENT_OPEN_ISSUES open-issues.md"
 )
 
 # Index of the files extract_debug_data downloaded.
