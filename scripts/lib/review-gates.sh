@@ -276,6 +276,19 @@ Please respond to these questions. Implementation will resume after clarificatio
 run_test_gate() {
     local impl_tools="$1"
     local issue_title="$2"
+    # Optional: the report of the worker whose commits are being tested.
+    # It is added to the failure comment, so what the worker said about
+    # an incomplete branch is not lost behind the test output (#162).
+    local worker_report="${3:-}"
+    local worker_report_section=""
+    if [ -n "$worker_report" ]; then
+        worker_report_section="
+<details><summary>Worker report</summary>
+
+${worker_report:0:20000}
+</details>
+"
+    fi
 
     if [ -z "$AGENT_TEST_COMMAND" ]; then
         return 0
@@ -359,7 +372,7 @@ Tests failed after implementation (${stop_reason}). Setting \`agent:failed\`.
 
 **Your work is safe:** the implementation commits are pushed to the \`${BRANCH_NAME}\` branch. Re-applying \`agent:plan-approved\` resumes from that branch instead of starting over.
 $(denials_report_section)
-
+${worker_report_section}
 <details><summary>Test output (last 100 lines)</summary>
 
 \`\`\`
@@ -374,7 +387,8 @@ $(echo "$test_output" | tail -100)
 # ─── Gate B: Post-Implementation Review (one pass) ──────────────
 # Runs a fresh Claude session reviewing the diff against issue/plan/ledger.
 # Sets POST_IMPL_REVIEW_JSON (action=approved|concerns) and returns 0 on
-# any parseable output; returns 1 only on parse failure (labels + comments).
+# any parseable output. Returns 1 on a worker failure (labels + comments)
+# and 3 when two attempts gave no parseable verdict (no label, no comment).
 POST_IMPL_REVIEW_JSON=""
 
 run_post_impl_review() {
@@ -391,69 +405,79 @@ run_post_impl_review() {
     local prompt
     prompt=$(load_prompt "post-impl-review" "${AGENT_PROMPT_POST_IMPL_REVIEW}")
 
-    local result
-    set_heartbeat "post-impl-review"
-    result=$(run_agent "$prompt" "$AGENT_ALLOWED_TOOLS_TRIAGE" "" "$AGENT_JSON_SCHEMA_POST_IMPL_REVIEW" "POST_IMPL_REVIEW")
-    log_permission_denials "$result" "post-impl-review"
+    # A malformed verdict is the kind of failure a second attempt fixes,
+    # so the review is asked once more before it counts as inconclusive (#87).
+    local attempt result claude_output json_block action
+    for attempt in 1 2; do
+        set_heartbeat "post-impl-review"
+        result=$(run_agent "$prompt" "$AGENT_ALLOWED_TOOLS_TRIAGE" "" "$AGENT_JSON_SCHEMA_POST_IMPL_REVIEW" "POST_IMPL_REVIEW")
+        log_permission_denials "$result" "post-impl-review"
 
-    local claude_output
-    claude_output=$(parse_agent_output "$result")
-    log "Post-impl review result: ${claude_output:0:500}"
+        claude_output=$(parse_agent_output "$result")
+        log "Post-impl review result: ${claude_output:0:500}"
 
-    if ! agent_succeeded "$result"; then
-        log "Post-implementation review: worker failure"
-        preserve_branch || true
-        set_label "agent:failed"
-        gh issue comment "$NUMBER" --repo "$REPO" \
-            --body "Agent post-implementation review failed (${claude_output}). Re-dispatch after resolving the reported failure. The implementation commits are pushed to the \`${BRANCH_NAME}\` branch." 2>/dev/null || true
-        return 1
-    fi
-
-    local json_block action
-    json_block=$(get_structured_output "$result")
-    [ -z "$json_block" ] && json_block=$(_extract_review_json "$claude_output")
-    set +e
-    action=$(printf '%s' "$json_block" | jq -r '.action // empty' 2>/dev/null || echo "")
-    set -e
-
-    case "$action" in
-        approved|concerns)
-            # Legacy compatibility: a pre-ledger custom
-            # AGENT_PROMPT_POST_IMPL_REVIEW override may still emit the
-            # old {"action":"concerns","concerns":["..."]} schema instead
-            # of the ledger-era .findings array. _ledger_merge_review only
-            # reads .findings, so without this translation a legacy
-            # "concerns" response would merge as zero findings and the
-            # loop would declare the review clean. Map each legacy concern
-            # string to a blocking finding when .findings is absent/empty.
-            json_block=$(printf '%s' "$json_block" | jq -c '
-                if .action == "concerns"
-                   and ((.findings // []) | length) == 0
-                   and ((.concerns // []) | length) > 0
-                then .findings = [(.concerns // [])[] | {severity: "blocking", description: .}]
-                else . end
-            ' 2>/dev/null)
-            POST_IMPL_REVIEW_JSON=$(printf '%s' "$json_block" | jq -c '.' 2>/dev/null)
-            log "Post-implementation review: $action"
-            return 0
-            ;;
-        *)
-            # A missing structured_output with a schema configured is a
-            # schema/prompt mismatch, not an agent failure — operators
-            # respond to those differently (#96).
-            local parse_note=""
-            if [ -n "${AGENT_JSON_SCHEMA_POST_IMPL_REVIEW:-}" ]; then
-                parse_note=" A structured-output schema was configured but the envelope carried no validated object — likely a schema/prompt mismatch (check AGENT_JSON_SCHEMA_POST_IMPL_REVIEW against the review prompt's output contract), not an implementation failure."
-            fi
-            log "Post-implementation review: could not parse response${parse_note}"
-            log "Raw output: $claude_output"
+        if ! agent_succeeded "$result"; then
+            log "Post-implementation review: worker failure"
             preserve_branch || true
             set_label "agent:failed"
             gh issue comment "$NUMBER" --repo "$REPO" \
-                --body "Agent post-implementation review could not parse its output.${parse_note} The implementation commits are pushed to the \`${BRANCH_NAME}\` branch — check it and create a PR manually if the implementation looks correct." 2>/dev/null || true
+                --body "Agent post-implementation review failed (${claude_output}). Re-dispatch after resolving the reported failure. The implementation commits are pushed to the \`${BRANCH_NAME}\` branch." 2>/dev/null || true
             return 1
-            ;;
-    esac
+        fi
+
+        json_block=$(get_structured_output "$result")
+        [ -z "$json_block" ] && json_block=$(_extract_review_json "$claude_output")
+        set +e
+        action=$(printf '%s' "$json_block" | jq -r '.action // empty' 2>/dev/null || echo "")
+        set -e
+
+        case "$action" in
+            approved|concerns)
+                # Legacy compatibility: a pre-ledger custom
+                # AGENT_PROMPT_POST_IMPL_REVIEW override may still emit the
+                # old {"action":"concerns","concerns":["..."]} schema instead
+                # of the ledger-era .findings array. _ledger_merge_review only
+                # reads .findings, so without this translation a legacy
+                # "concerns" response would merge as zero findings and the
+                # loop would declare the review clean. Map each legacy concern
+                # string to a blocking finding when .findings is absent/empty.
+                json_block=$(printf '%s' "$json_block" | jq -c '
+                    if .action == "concerns"
+                       and ((.findings // []) | length) == 0
+                       and ((.concerns // []) | length) > 0
+                    then .findings = [(.concerns // [])[] | {severity: "blocking", description: .}]
+                    else . end
+                ' 2>/dev/null)
+                POST_IMPL_REVIEW_JSON=$(printf '%s' "$json_block" | jq -c '.' 2>/dev/null)
+                log "Post-implementation review: $action"
+                return 0
+                ;;
+        esac
+        log "Post-implementation review: could not parse response (attempt ${attempt} of 2)"
+        log "Raw output: $claude_output"
+    done
+
+    # Still no verdict. The implementation is not at fault, so nothing is
+    # labelled here: the caller opens the PR for a human to review, or
+    # fails the issue when the work may not be published unreviewed (#87).
+    preserve_branch || true
+    return 3
+}
+
+# Fail the issue for a review that gave no parseable verdict. Used when
+# the work may not be published without an independent review.
+review_unparsed_failure() {
+    # A missing structured_output with a schema configured is a
+    # schema/prompt mismatch, not an agent failure — operators respond
+    # to those differently (#96).
+    local parse_note=""
+    if [ -n "${AGENT_JSON_SCHEMA_POST_IMPL_REVIEW:-}" ]; then
+        parse_note=" A structured-output schema was configured but the envelope carried no validated object — likely a schema/prompt mismatch (check AGENT_JSON_SCHEMA_POST_IMPL_REVIEW against the review prompt's output contract), not an implementation failure."
+    fi
+    log "Post-implementation review: no parseable verdict after two attempts${parse_note}"
+    set_label "agent:failed"
+    gh issue comment "$NUMBER" --repo "$REPO" \
+        --body "Agent post-implementation review could not parse its output.${parse_note} The implementation commits are pushed to the \`${BRANCH_NAME}\` branch. Re-dispatching resumes from that branch; it does not start over." 2>/dev/null || true
 }
 
 # ─── Gate B retry session (one fix pass) ────────────────────────
@@ -545,7 +569,10 @@ $(echo "$test_output" | tail -100)
 # review → (fix → review)* until no open blocking findings, capped at
 # AGENT_POST_IMPL_REVIEW_MAX_RETRIES fix sessions.
 # Returns: 0 = clean, 1 = hard failure (already labeled/commented),
-#          2 = cap reached with blocking findings still open.
+#          2 = cap reached with blocking findings still open,
+#          3 = a review pass gave no parseable verdict (not labeled or
+#              commented: the caller decides what an inconclusive review
+#              means for the work).
 run_post_impl_review_loop() {
     local impl_tools="$1"
 
@@ -568,9 +595,18 @@ run_post_impl_review_loop() {
     _ledger_init
     local retries=0
     while true; do
-        set_heartbeat "review-pass-$((retries + 1))"
-        if ! run_post_impl_review; then
+        # The phases edit rules files as staged copies (#92). Apply them
+        # before every review pass, or the reviewer sees an empty
+        # .claude/ diff and reports the rules update as missing (#133).
+        if ! apply_rules_files; then
+            gate_metadata_failure "The staged rules edits could not be committed"
             return 1
+        fi
+        set_heartbeat "review-pass-$((retries + 1))"
+        local review_pass_rc=0
+        run_post_impl_review || review_pass_rc=$?
+        if [ "$review_pass_rc" -ne 0 ]; then
+            return "$review_pass_rc"
         fi
         _ledger_merge_review "$POST_IMPL_REVIEW_JSON"
         if ! _ledger_commit "review pass $((retries + 1))"; then

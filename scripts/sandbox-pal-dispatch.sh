@@ -473,10 +473,15 @@ handle_implement() {
     # A phase cannot write .claude/** (built-in path guard) — stage the
     # rules files somewhere it can (#92).
     stage_rules_files
+    rm -f "$WORKTREE_DIR/.agent-data/stop-report.md"
 
     local result
     set_heartbeat "implement"
     result=$(run_agent "$prompt" "$impl_tools" "" "" "IMPLEMENT")
+    # Read by handle_post_implementation: interrupted work is not
+    # published on an inconclusive review (#87).
+    # shellcheck disable=SC2034
+    if agent_succeeded "$result"; then IMPLEMENT_WORKER_SUCCEEDED=true; else IMPLEMENT_WORKER_SUCCEEDED=false; fi
     log_permission_denials "$result" "implement"
 
     log "Raw claude output length: ${#result}"

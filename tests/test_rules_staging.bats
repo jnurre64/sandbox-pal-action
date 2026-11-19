@@ -111,3 +111,21 @@ _setup_rules_repo() {
     assert_failure
     assert_output --partial "rules staging commit failed"
 }
+
+@test "REGRESSION v1.4.1: a copy-back that leaves the file equal to HEAD is not a failure (#161)" {
+    _source_rules_staging
+    _setup_rules_repo
+    stage_rules_files
+    # The working copy drifted from HEAD (e.g. a merge left it modified);
+    # the staged copy still holds the committed text.
+    echo "drifted text" > "${WORKTREE_DIR}/.claude/rules/style.md"
+    local before
+    before=$(git -C "$WORKTREE_DIR" rev-parse HEAD)
+
+    run apply_rules_files
+
+    assert_success
+    refute_output --partial "rules staging commit failed"
+    [ "$(git -C "$WORKTREE_DIR" rev-parse HEAD)" = "$before" ]
+    grep -q "original rule text" "${WORKTREE_DIR}/.claude/rules/style.md"
+}

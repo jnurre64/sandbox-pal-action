@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- A stop report for the implementation phase (#162). A session that stops on purpose, because the plan says to stop and report or because it needs a decision, writes `.agent-data/stop-report.md`. The dispatcher posts the file on the issue as written, pushes any commits, skips the test gate and the review, and sets `agent:needs-info`. Until now the test gate ran on the unfinished branch and only its failure was posted. The default implement prompt describes the file; a custom implement prompt needs the same instruction to use it.
+
+### Changed
+- **A post-implementation review that gives no parseable verdict no longer fails a finished implementation (#87).** The review is run once more. If it is still unparseable, the PR opens with a "Review Inconclusive" notice, labeled `agent:review-unresolved`, where the issue used to get `agent:failed` and no PR. Work from an implementation session that itself failed (turn cap, timeout) is still not published without a review: that case stays `agent:failed`, with the commits on the branch.
+- The pre-PR test gate's failure comment includes the implementation session's report in a collapsed block (#162).
+
+### Fixed
+- Staged rules edits are applied before every post-implementation review pass (#133). The review ran before the copy-back, saw an empty `.claude/` diff and reported the rules update as a missing, blocking change; the fix session then tried to edit `.claude/` and was denied.
+- A rules copy-back that leaves the file identical to `HEAD` no longer fails the dispatch (#161). There is nothing to commit in that case, and v1.4.0 treated the empty commit as a failed one.
+- An implementation on a branch that already has an open PR no longer ends in `agent:failed` (#134). The dispatcher looks for an open PR on the branch first, posts the run's report on it as a comment and sets `agent:pr-open`. The existing PR description is not rewritten.
+
 ## [1.4.1] - 2026-11-14
 
 ### Added
