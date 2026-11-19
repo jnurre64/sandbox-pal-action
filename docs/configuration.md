@@ -307,6 +307,24 @@ A dispatch that was asked for by name gets twice this limit: `repository_dispatc
 AGENT_CIRCUIT_BREAKER_LIMIT=8
 ```
 
+### AGENT_API_ERROR_RETRIES
+
+How often a Claude phase is launched again when the provider answers with a 529 or another 5xx ("overloaded"). The wait before the first retry is `AGENT_API_ERROR_DELAY_SECONDS`; each later wait is one delay longer (60 s, then 120 s by default). A phase is only retried while it has left the worktree as it found it: once it has committed or changed a file, the failure is reported and the work stays on the branch. When the retries run out, the phase fails with the error kind `overloaded` and the issue comment says the failure was temporary.
+
+| Key | Default | Type |
+|-----|---------|------|
+| `AGENT_API_ERROR_RETRIES` | `2` | integer, `0` to `5` (`0` turns the retry off) |
+| `AGENT_API_ERROR_DELAY_SECONDS` | `60` | positive integer |
+
+### AGENT_GH_RETRIES
+
+How often one of the dispatcher's own `gh` calls is tried again when it could not connect to GitHub (TLS handshake timeout, DNS or connection failure). The wait is `AGENT_GH_RETRY_DELAY_SECONDS` times the attempt number. Only failures raised before a request reached GitHub are retried, so a comment or an issue is never created twice; an error answer from the API is returned at once.
+
+| Key | Default | Type |
+|-----|---------|------|
+| `AGENT_GH_RETRIES` | `2` | integer (`0` turns the retry off) |
+| `AGENT_GH_RETRY_DELAY_SECONDS` | `10` | positive integer |
+
 ### AGENT_CLAUDE_AUTH_REFRESH_RETRIES
 
 When several Claude CLI processes on one machine refresh the stored login at the same moment, one of them can fail at startup with "Failed to refresh OAuth token" before any session begins. The dispatcher recognises that exact failure and launches the same phase again after a wait. Revoked credentials, usage limits and every other error are not retried.

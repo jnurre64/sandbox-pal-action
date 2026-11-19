@@ -26,6 +26,13 @@ AGENT_CIRCUIT_BREAKER_LIMIT="${AGENT_CIRCUIT_BREAKER_LIMIT:-8}"
 # 0 to 2 retries; the delay is in seconds.
 AGENT_CLAUDE_AUTH_REFRESH_RETRIES="${AGENT_CLAUDE_AUTH_REFRESH_RETRIES:-2}"
 AGENT_CLAUDE_AUTH_REFRESH_DELAY_SECONDS="${AGENT_CLAUDE_AUTH_REFRESH_DELAY_SECONDS:-60}"
+# Retries of a Claude phase when the provider is overloaded (529, 5xx),
+# and the wait before the first one; later waits are multiples of it.
+AGENT_API_ERROR_RETRIES="${AGENT_API_ERROR_RETRIES:-2}"
+AGENT_API_ERROR_DELAY_SECONDS="${AGENT_API_ERROR_DELAY_SECONDS:-60}"
+# Retries of a gh call that could not connect to GitHub.
+AGENT_GH_RETRIES="${AGENT_GH_RETRIES:-2}"
+AGENT_GH_RETRY_DELAY_SECONDS="${AGENT_GH_RETRY_DELAY_SECONDS:-10}"
 
 # Run the pre-PR test gate on a PR revision's commits before they are pushed.
 AGENT_REVISION_TEST_GATE="${AGENT_REVISION_TEST_GATE:-true}"

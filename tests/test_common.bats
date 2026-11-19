@@ -1251,3 +1251,52 @@ _run_exit_trap() {
     run sed -n '/^### Programmatic Triggering/,/^### /p' "${SCRIPTS_DIR}/../docs/architecture.md"
     assert_output --partial "<!-- agent-plan -->"
 }
+
+# ─── gh: connection failures are retried (#83) ──────────────────
+
+# A gh that fails GH_FAILS times with $GH_ERROR on stderr, then prints "ok"
+_mock_gh_flaky() {
+    mkdir -p "${TEST_TEMP_DIR}/bin"
+    cat > "${TEST_TEMP_DIR}/bin/gh" <<MOCK
+#!/bin/bash
+echo "\$@" >> "${TEST_TEMP_DIR}/mock_calls_gh"
+n=\$(wc -l < "${TEST_TEMP_DIR}/mock_calls_gh")
+if [ "\$n" -le "\${GH_FAILS:-1}" ]; then echo "\${GH_ERROR}" >&2; exit 1; fi
+echo ok
+MOCK
+    chmod +x "${TEST_TEMP_DIR}/bin/gh"
+    export PATH="${TEST_TEMP_DIR}/bin:${PATH}"
+}
+
+@test "REGRESSION v1.4.1: a gh call that could not connect is tried again (#83)" {
+    _mock_gh_flaky
+    _source_common
+    gh_retry_wait() { :; }
+    export GH_FAILS=1 GH_ERROR='Post "https://api.github.com/graphql": net/http: TLS handshake timeout'
+    run gh issue view 99
+    assert_success
+    assert_line "ok"
+    assert_output --partial "gh could not connect"
+    [ "$(wc -l < "${TEST_TEMP_DIR}/mock_calls_gh")" -eq 2 ]
+}
+
+@test "gh retry: an error from the API itself is not retried, and its message is kept" {
+    _mock_gh_flaky
+    _source_common
+    gh_retry_wait() { :; }
+    export GH_FAILS=1 GH_ERROR='HTTP 422: Validation Failed'
+    run gh issue create --title x
+    assert_failure
+    assert_output --partial "HTTP 422"
+    [ "$(wc -l < "${TEST_TEMP_DIR}/mock_calls_gh")" -eq 1 ]
+}
+
+@test "gh retry: gives up after AGENT_GH_RETRIES attempts" {
+    _mock_gh_flaky
+    _source_common
+    gh_retry_wait() { :; }
+    export GH_FAILS=9 GH_ERROR='dial tcp: lookup api.github.com: no such host'
+    run gh issue view 99
+    assert_failure
+    [ "$(wc -l < "${TEST_TEMP_DIR}/mock_calls_gh")" -eq 3 ]
+}

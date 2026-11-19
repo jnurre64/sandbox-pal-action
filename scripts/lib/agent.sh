@@ -145,6 +145,22 @@ run_agent() (
         agent_failure "$phase" configuration 'AGENT_CLAUDE_AUTH_REFRESH_DELAY_SECONDS must be a positive integer'
         return
     fi
+    # A provider that is overloaded (529, 5xx) is tried again after a wait,
+    # but only while the phase has left the worktree as it found it: a
+    # phase that already committed or edited is not started over (#83).
+    local transient_attempt=0
+    local transient_retries="${AGENT_API_ERROR_RETRIES:-2}"
+    local transient_delay="${AGENT_API_ERROR_DELAY_SECONDS:-60}"
+    if [[ ! "$transient_retries" =~ ^[0-5]$ ]]; then
+        agent_failure "$phase" configuration 'AGENT_API_ERROR_RETRIES must be an integer from 0 through 5'
+        return
+    fi
+    if [[ ! "$transient_delay" =~ ^[0-9]+$ ]] || [[ "$transient_delay" =~ ^0+$ ]]; then
+        agent_failure "$phase" configuration 'AGENT_API_ERROR_DELAY_SECONDS must be a positive integer'
+        return
+    fi
+    local worktree_before
+    worktree_before=$(agent_worktree_fingerprint)
     while :; do
         : > "$stderr_log"
         raw='' exit_code=0
@@ -167,10 +183,31 @@ run_agent() (
             agent_claude_auth_refresh_wait "$refresh_delay"
             continue
         fi
+        if jq -e '.error.kind == "overloaded"' <<< "$normalized" >/dev/null 2>&1 \
+                && [ "$transient_attempt" -lt "$transient_retries" ] \
+                && [ "$(agent_worktree_fingerprint)" = "$worktree_before" ]; then
+            transient_attempt=$((transient_attempt + 1))
+            printf 'Provider overloaded or unavailable; retrying the %s phase (%d/%d) after %ss.\n' \
+                "$phase" "$transient_attempt" "$transient_retries" "$((transient_delay * transient_attempt))" >&2
+            agent_transient_wait "$((transient_delay * transient_attempt))"
+            continue
+        fi
         printf '%s\n' "$normalized"
         return
     done
 )
+
+# A function so tests can replace the wait.
+agent_transient_wait() {
+    sleep "$1"
+}
+
+# What a phase could have changed in the worktree: the commit it is on and
+# every changed or untracked file. Empty outside a git worktree.
+agent_worktree_fingerprint() {
+    git -C "${WORKTREE_DIR:-.}" rev-parse HEAD 2>/dev/null || true
+    git -C "${WORKTREE_DIR:-.}" status --porcelain 2>/dev/null || true
+}
 
 # A function so tests can replace the wait.
 agent_claude_auth_refresh_wait() {

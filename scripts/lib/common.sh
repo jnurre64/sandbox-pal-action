@@ -76,6 +76,37 @@ ALL_AGENT_LABELS=(
     agent:done
 )
 
+# ─── gh: retry when the connection could not be made ────────────
+# One TLS handshake timeout used to end a dispatch as an infrastructure
+# error (#83). Every gh call of the dispatcher goes through this wrapper,
+# which tries again only on errors raised before a request reached
+# GitHub (handshake, DNS, connect), so a write is never sent twice. An
+# answer from the API, whatever its status, is returned as it is.
+gh() {
+    local max="${AGENT_GH_RETRIES:-2}" attempt=0 rc err_file
+    [[ "$max" =~ ^[0-9]+$ ]] || max=2
+    err_file=$(mktemp 2>/dev/null) || { command gh "$@"; return; }
+    while :; do
+        rc=0
+        command gh "$@" 2>"$err_file" || rc=$?
+        if [ "$rc" -eq 0 ] || [ "$attempt" -ge "$max" ] \
+            || ! grep -qiE 'TLS handshake timeout|dial tcp|no such host|connection refused|network is unreachable|temporary failure in name resolution' "$err_file"; then
+            cat "$err_file" >&2
+            rm -f "$err_file"
+            return "$rc"
+        fi
+        attempt=$((attempt + 1))
+        printf 'gh could not connect (%s); attempt %d of %d follows.\n' \
+            "$(sed -n 1p "$err_file" | cut -c1-200)" "$((attempt + 1))" "$((max + 1))" >&2
+        gh_retry_wait "$((attempt * ${AGENT_GH_RETRY_DELAY_SECONDS:-10}))"
+    done
+}
+
+# A function so tests can replace the wait.
+gh_retry_wait() {
+    sleep "$1"
+}
+
 remove_all_agent_labels() {
     for label in "${ALL_AGENT_LABELS[@]}"; do
         gh issue edit "$NUMBER" --repo "$REPO" --remove-label "$label" 2>/dev/null || true
