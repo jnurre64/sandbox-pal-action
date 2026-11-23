@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-11-23
+
 ### Added
 - A stop report for the implementation phase (#162). A session that stops on purpose, because the plan says to stop and report or because it needs a decision, writes `.agent-data/stop-report.md`. The dispatcher posts the file on the issue as written, pushes any commits, skips the test gate and the review, and sets `agent:needs-info`. Until now the test gate ran on the unfinished branch and only its failure was posted. The default implement prompt describes the file; a custom implement prompt needs the same instruction to use it.
 - A Claude phase is launched again when the provider is overloaded (#83). A 529 or other 5xx now has its own error kind, `overloaded`, and the phase is retried up to `AGENT_API_ERROR_RETRIES` times (default `2`) after `AGENT_API_ERROR_DELAY_SECONDS` (default `60`, then twice that). A phase that has already committed or changed a file is not started over. A 529 used to send the issue straight to `agent:failed`. When the retries run out the issue still goes to `agent:failed`, and the comment names the failure as temporary.
